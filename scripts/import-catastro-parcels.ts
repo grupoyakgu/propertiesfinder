@@ -138,12 +138,38 @@ function entryTitle(entry: any): string {
   return textOf(entry?.title) ?? "";
 }
 
-/** Finds a feed entry whose title contains `matchName` and returns its link href. */
+/** Strips a leading "<code>-" prefix, e.g. "41091-SEVILLA" -> "SEVILLA". */
+function stripCodePrefix(title: string): string {
+  return title.replace(/^\s*\d+\s*-\s*/, "").trim();
+}
+
+/**
+ * Finds the feed entry that best matches `matchName`. Prefers an exact match
+ * (ignoring a leading "<code>-" prefix and case) over a substring match, so
+ * "Sevilla" matches "41091-SEVILLA" rather than "41105-EL CUERVO DE SEVILLA".
+ * Falls back to substring match (shortest title wins as a tiebreak) only if
+ * no exact match exists.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function findBestEntryMatch(entries: any[], matchName: string): any {
+  const needle = matchName.trim().toLowerCase();
+
+  const exact = entries.find((e) => stripCodePrefix(entryTitle(e)).toLowerCase() === needle);
+  if (exact) return exact;
+
+  const substringMatches = entries.filter((e) => entryTitle(e).toLowerCase().includes(needle));
+  if (substringMatches.length === 0) return undefined;
+
+  return substringMatches.reduce((shortest, e) =>
+    entryTitle(e).length < entryTitle(shortest).length ? e : shortest
+  );
+}
+
+/** Finds a feed entry matching `matchName` and returns its link href. */
 async function findFeedEntryHref(indexUrl: string, matchName: string): Promise<string> {
   const doc = await fetchXml(indexUrl);
   const entries = asArray(doc?.feed?.entry);
-  const needle = matchName.toLowerCase();
-  const match = entries.find((e) => entryTitle(e).toLowerCase().includes(needle));
+  const match = findBestEntryMatch(entries, matchName);
   if (!match) {
     throw new Error(
       `No entry matching "${matchName}" found in feed ${indexUrl}. ` +
@@ -160,8 +186,7 @@ async function findFeedEntryHref(indexUrl: string, matchName: string): Promise<s
 async function findZipUrl(feedUrl: string, matchName: string): Promise<string> {
   const doc = await fetchXml(feedUrl);
   const entries = asArray(doc?.feed?.entry);
-  const needle = matchName.toLowerCase();
-  const match = entries.find((e) => entryTitle(e).toLowerCase().includes(needle));
+  const match = findBestEntryMatch(entries, matchName);
   if (!match) {
     throw new Error(
       `No entry matching "${matchName}" found in feed ${feedUrl}. ` +
@@ -380,17 +405,44 @@ async function upsertBatch(records: ParcelRecord[]) {
 // ---------------------------------------------------------------------------
 
 async function runInspect(pathArg: string) {
-  const fs = await import("node:fs");
+  const isUrl = /^https?:\/\//i.test(pathArg);
   const isZip = pathArg.toLowerCase().endsWith(".zip");
-  const gmlFiles = isZip
-    ? new AdmZip(pathArg)
-        .getEntries()
-        .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
-        .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }))
-    : [{ name: pathArg, text: fs.readFileSync(pathArg, "utf-8") }];
+
+  let gmlFiles: { name: string; text: string }[];
+  if (isUrl) {
+    const res = await fetch(pathArg);
+    if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${pathArg}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    gmlFiles = isZip
+      ? new AdmZip(buffer)
+          .getEntries()
+          .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
+          .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }))
+      : [{ name: pathArg, text: buffer.toString("utf-8") }];
+  } else {
+    const fs = await import("node:fs");
+    gmlFiles = isZip
+      ? new AdmZip(pathArg)
+          .getEntries()
+          .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
+          .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }))
+      : [{ name: pathArg, text: fs.readFileSync(pathArg, "utf-8") }];
+  }
 
   for (const file of gmlFiles) {
     console.log(`--- ${file.name} ---`);
+
+    const doc = xmlParser.parse(file.text);
+    const root = doc.FeatureCollection ?? doc;
+    const members = asArray(root.featureMember ?? root.member);
+    console.log(`Raw root keys: ${Object.keys(root).join(", ")}`);
+    console.log(`Raw feature member count: ${members.length}`);
+    if (members[0]) {
+      console.log(`Raw first member keys: ${Object.keys(members[0]).join(", ")}`);
+      console.log(`Raw first member (truncated to 4000 chars):`);
+      console.log(JSON.stringify(members[0], null, 2).slice(0, 4000));
+    }
+
     const parcels = parseCadastralParcelsGml(file.text);
     const buildings = parseBuildingsGml(file.text);
     console.log(`Parsed as CadastralParcels: ${parcels.length} entries`);

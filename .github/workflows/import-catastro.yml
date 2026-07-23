@@ -25,6 +25,10 @@ on:
         description: "Limit number of parcels (leave blank for full import; use 25 for a smoke test)"
         required: false
         default: "25"
+      inspectUrl:
+        description: "Debug only: a GML zip URL to dump raw structure for (skips the DB import entirely when set)"
+        required: false
+        default: ""
 
 jobs:
   import:
@@ -41,7 +45,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Inspect GML structure (debug)
+        if: ${{ inputs.inspectUrl != '' }}
+        run: npx tsx scripts/import-catastro-parcels.ts --inspect "${{ inputs.inspectUrl }}"
+
       - name: Run Catastro import
+        if: ${{ inputs.inspectUrl == '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
