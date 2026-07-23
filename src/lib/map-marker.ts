@@ -1,5 +1,5 @@
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
-import { formatArea } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
 import { cadastralClassLabels, planningStatusLabels } from "@/lib/labels";
 
 export interface MapMarker {
@@ -45,7 +45,7 @@ export function catastroParcelToMarker(parcel: ClientCatastroParcel): MapMarker 
     lng: parcel.longitude,
     boundary: parcel.boundary,
     title: parcel.referenciaCatastral,
-    subtitle: `${parcel.municipality}, ${parcel.province}`,
+    subtitle: formatCatastroParcelAddress(parcel),
     badge: cadastralClassLabels[parcel.cadastralUse],
     areaLabel: formatArea(parcel.plotSize),
   };

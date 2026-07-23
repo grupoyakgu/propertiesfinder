@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
-import { formatArea } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
@@ -62,14 +62,7 @@ export default async function CatastroParcelPage({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <DetailSection title="General Information">
-              <DetailRow
-                label="Address"
-                value={
-                  parcel.streetName
-                    ? `${parcel.streetName}${parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}`
-                    : null
-                }
-              />
+              <DetailRow label="Address" value={formatCatastroParcelAddress(parcel)} />
               <DetailRow label="Municipality" value={parcel.municipality} />
               <DetailRow label="Province" value={parcel.province} />
               <DetailRow label="Autonomous Community" value={parcel.autonomousCommunity} />

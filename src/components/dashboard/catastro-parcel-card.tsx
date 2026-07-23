@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MapPin, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, cn } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, cn } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 
 export function CatastroParcelCard({
@@ -34,9 +34,7 @@ export function CatastroParcelCard({
 
       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
         <MapPin className="h-3.5 w-3.5 shrink-0" />
-        {parcel.streetName
-          ? `${parcel.streetName}${parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}`
-          : `${parcel.municipality}, ${parcel.province}`}
+        {formatCatastroParcelAddress(parcel)}
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">

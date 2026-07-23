@@ -31,3 +31,15 @@ export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return `${formatNumber(value, 1)}%`;
 }
+
+export function formatCatastroParcelAddress(parcel: {
+  streetName: string | null;
+  streetNumber: string | null;
+  municipality: string;
+  province: string;
+}): string {
+  const street = parcel.streetName
+    ? `${parcel.streetName}${parcel.streetNumber ? ` ${parcel.streetNumber}` : ""}`
+    : null;
+  return [street, parcel.municipality, parcel.province].filter(Boolean).join(", ");
+}
