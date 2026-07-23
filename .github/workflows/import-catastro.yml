@@ -37,6 +37,10 @@ on:
         description: "Debug only: a GML zip URL to dump raw structure for (skips the DB import entirely when set)"
         required: false
         default: ""
+      baselineMigration:
+        description: "One-time only: name of an existing migration to mark as already-applied (e.g. when the DB has tables from before Prisma tracked migrations). Leave blank normally."
+        required: false
+        default: ""
 
 jobs:
   import:
@@ -52,6 +56,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Baseline existing migration (one-time)
+        if: ${{ inputs.inspectUrl == '' && inputs.baselineMigration != '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+        run: npx prisma migrate resolve --applied "${{ inputs.baselineMigration }}"
 
       - name: Apply pending Prisma migrations
         if: ${{ inputs.inspectUrl == '' }}
