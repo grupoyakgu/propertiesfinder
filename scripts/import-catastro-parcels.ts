@@ -498,13 +498,19 @@ async function runInspect(pathArg: string) {
   for (const file of gmlFiles) {
     console.log(`--- ${file.name} ---`);
 
-    const fragments = [...iterateMemberFragments(file.buffer)];
-    console.log(`Feature member count: ${fragments.length}`);
-    if (fragments[0]) {
-      const firstFeature = parseMemberFragment(fragments[0]);
-      console.log(`Raw first member keys: ${Object.keys(firstFeature).join(", ")}`);
-      console.log(`Raw first member (truncated to 4000 chars):`);
-      console.log(JSON.stringify(firstFeature, null, 2).slice(0, 4000));
+    const byType = new Map<string, unknown>();
+    let count = 0;
+    for (const fragment of iterateMemberFragments(file.buffer)) {
+      count++;
+      const feature = parseMemberFragment(fragment);
+      const type = Object.keys(feature)[0];
+      if (type && !byType.has(type)) byType.set(type, feature);
+    }
+    console.log(`Feature member count: ${count}`);
+    console.log(`Distinct feature types: ${[...byType.keys()].join(", ")}`);
+    for (const [type, example] of byType) {
+      console.log(`--- First "${type}" example (truncated to 3000 chars) ---`);
+      console.log(JSON.stringify(example, null, 2).slice(0, 3000));
     }
 
     const parcels = parseCadastralParcelsGml(file.buffer);
