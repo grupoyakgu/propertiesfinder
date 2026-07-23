@@ -45,6 +45,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply pending Prisma migrations
+        if: ${{ inputs.inspectUrl == '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
       - name: Inspect GML structure (debug)
         if: ${{ inputs.inspectUrl != '' }}
         run: npx tsx scripts/import-catastro-parcels.ts --inspect "${{ inputs.inspectUrl }}"
