@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { LatLngBounds } from "leaflet";
 import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
@@ -38,7 +39,8 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [mapVisible, setMapVisible] = useState(true);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [mapBounds, setMapBounds] = useState<LatLngBounds | null>(null);
 
   const queryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
 
@@ -71,6 +73,34 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
     () => (source === "plots" ? plots.map(plotToMarker) : parcels.map(catastroParcelToMarker)),
     [source, plots, parcels]
   );
+
+  // Reset the viewport filter whenever the map is (re)shown or the data source changes,
+  // so a stale bounds from a previous view can't hide everything until the map refits.
+  const [boundsResetKey, setBoundsResetKey] = useState({ source, mapVisible });
+  if (boundsResetKey.source !== source || boundsResetKey.mapVisible !== mapVisible) {
+    setBoundsResetKey({ source, mapVisible });
+    setMapBounds(null);
+  }
+
+  const visibleIds = useMemo(() => {
+    if (!mapBounds) return null;
+    const ids = new Set<string>();
+    for (const m of markers) {
+      if (mapBounds.contains([m.lat, m.lng])) ids.add(m.id);
+    }
+    return ids;
+  }, [mapBounds, markers]);
+
+  const visiblePlots = useMemo(
+    () => (visibleIds ? plots.filter((p) => visibleIds.has(p.id)) : plots),
+    [plots, visibleIds]
+  );
+  const visibleParcels = useMemo(
+    () => (visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels),
+    [parcels, visibleIds]
+  );
+  const inViewCount = source === "plots" ? visiblePlots.length : visibleParcels.length;
+  const mapPaneLabel = mapBounds ? `${inViewCount} of ${resultCount} in view` : resultLabel;
 
   return (
     <div className="flex h-screen flex-col">
@@ -163,14 +193,14 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           <>
             <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
               <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-                {loading ? "Searching…" : resultLabel}
+                {loading ? "Searching…" : mapPaneLabel}
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {source === "plots"
-                  ? plots.map((plot) => (
+                  ? visiblePlots.map((plot) => (
                       <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
                     ))
-                  : parcels.map((parcel) => (
+                  : visibleParcels.map((parcel) => (
                       <CatastroParcelCard
                         key={parcel.id}
                         parcel={parcel}
@@ -185,11 +215,16 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
                       : "No official Catastro records match these filters. Try widening your search."}
                   </p>
                 )}
+                {!loading && resultCount > 0 && inViewCount === 0 && mapBounds && (
+                  <p className="pt-10 text-center text-sm text-muted-foreground">
+                    No results in the current map view. Pan or zoom out to see more.
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="relative flex-1">
-              <MapView markers={markers} hoveredId={hoveredId} />
+              <MapView markers={markers} hoveredId={hoveredId} onBoundsChange={setMapBounds} />
             </div>
           </>
         ) : (

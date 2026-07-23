@@ -10,6 +10,7 @@ import {
   Polygon,
   LayersControl,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import Link from "next/link";
@@ -50,12 +51,22 @@ function FitBounds({ markers }: { markers: MapMarker[] }) {
   return null;
 }
 
+function BoundsTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLngBounds) => void }) {
+  const map = useMapEvents({
+    moveend: () => onBoundsChange(map.getBounds()),
+    zoomend: () => onBoundsChange(map.getBounds()),
+  });
+  return null;
+}
+
 export function MapView({
   markers,
   hoveredId,
+  onBoundsChange,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
+  onBoundsChange?: (bounds: L.LatLngBounds) => void;
 }) {
   const router = useRouter();
   const center: [number, number] =
@@ -124,6 +135,7 @@ export function MapView({
       </LayersControl>
 
       <FitBounds markers={markers} />
+      {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
 
       {markers.map((marker) => (
         <Marker
