@@ -30,9 +30,9 @@ on:
         required: true
         default: "Sevilla"
       limit:
-        description: "Limit number of parcels (leave blank for full import; use 25 for a smoke test)"
+        description: "Limit number of parcels; use 25 for a smoke test. Leave blank for a full import — NOTE: GitHub substitutes this field's default when left blank, so the default here must stay empty, not '25'."
         required: false
-        default: "25"
+        default: ""
       inspectUrl:
         description: "Debug only: a GML zip URL to dump raw structure for (skips the DB import entirely when set)"
         required: false
