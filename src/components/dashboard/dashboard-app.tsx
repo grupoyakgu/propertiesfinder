@@ -42,6 +42,15 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const [mapVisible, setMapVisible] = useState(false);
   const [mapBounds, setMapBounds] = useState<LatLngBounds | null>(null);
 
+  // Mount the map the first time it's shown, and never unmount it again afterwards
+  // (visibility toggles purely via CSS below) so Leaflet keeps its pan/zoom state.
+  // This also means the map (and its ~hundreds of markers/polygons) never has to
+  // initialize at all for a session that never opens it.
+  const [mapMounted, setMapMounted] = useState(false);
+  if (mapVisible && !mapMounted) {
+    setMapMounted(true);
+  }
+
   const queryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
 
   useEffect(() => {
@@ -74,11 +83,12 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
     [source, plots, parcels]
   );
 
-  // Reset the viewport filter whenever the map is (re)shown or the data source changes,
-  // so a stale bounds from a previous view can't hide everything until the map refits.
-  const [boundsResetKey, setBoundsResetKey] = useState({ source, mapVisible });
-  if (boundsResetKey.source !== source || boundsResetKey.mapVisible !== mapVisible) {
-    setBoundsResetKey({ source, mapVisible });
+  // Reset the viewport filter when the data source changes (plots vs. parcels are
+  // different datasets). Toggling the map on/off intentionally does NOT reset this,
+  // so the map keeps its position and the table keeps reflecting the last pan/zoom.
+  const [boundsResetKey, setBoundsResetKey] = useState(source);
+  if (boundsResetKey !== source) {
+    setBoundsResetKey(source);
     setMapBounds(null);
   }
 
@@ -189,58 +199,66 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
         </div>
 
-        {mapVisible ? (
-          <>
-            <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
-              <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-                {loading ? "Searching…" : mapPaneLabel}
-              </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                {source === "plots"
-                  ? visiblePlots.map((plot) => (
-                      <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
-                    ))
-                  : visibleParcels.map((parcel) => (
-                      <CatastroParcelCard
-                        key={parcel.id}
-                        parcel={parcel}
-                        active={hoveredId === parcel.id}
-                        onHover={setHoveredId}
-                      />
-                    ))}
-                {!loading && resultCount === 0 && (
-                  <p className="pt-10 text-center text-sm text-muted-foreground">
-                    {source === "plots"
-                      ? "No plots match these filters. Try widening your search."
-                      : "No official Catastro records match these filters. Try widening your search."}
-                  </p>
-                )}
-                {!loading && resultCount > 0 && inViewCount === 0 && mapBounds && (
-                  <p className="pt-10 text-center text-sm text-muted-foreground">
-                    No results in the current map view. Pan or zoom out to see more.
-                  </p>
-                )}
-              </div>
+        {mapVisible && (
+          <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
+            <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+              {loading ? "Searching…" : mapPaneLabel}
             </div>
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              {source === "plots"
+                ? visiblePlots.map((plot) => (
+                    <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
+                  ))
+                : visibleParcels.map((parcel) => (
+                    <CatastroParcelCard
+                      key={parcel.id}
+                      parcel={parcel}
+                      active={hoveredId === parcel.id}
+                      onHover={setHoveredId}
+                    />
+                  ))}
+              {!loading && resultCount === 0 && (
+                <p className="pt-10 text-center text-sm text-muted-foreground">
+                  {source === "plots"
+                    ? "No plots match these filters. Try widening your search."
+                    : "No official Catastro records match these filters. Try widening your search."}
+                </p>
+              )}
+              {!loading && resultCount > 0 && inViewCount === 0 && mapBounds && (
+                <p className="pt-10 text-center text-sm text-muted-foreground">
+                  No results in the current map view. Pan or zoom out to see more.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
-            <div className="relative flex-1">
-              <MapView markers={markers} hoveredId={hoveredId} onBoundsChange={setMapBounds} />
-            </div>
-          </>
-        ) : (
+        {!mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-              {loading ? "Searching…" : resultLabel}
+              {loading ? "Searching…" : mapPaneLabel}
             </div>
             <div className="flex-1 overflow-auto p-4">
               {loading ? (
                 <p className="pt-10 text-center text-sm text-muted-foreground">Searching…</p>
+              ) : resultCount > 0 && inViewCount === 0 && mapBounds ? (
+                <p className="pt-10 text-center text-sm text-muted-foreground">
+                  No results in the current map view. Pan or zoom out to see more.
+                </p>
               ) : source === "plots" ? (
-                <PlotResultsTable plots={plots} />
+                <PlotResultsTable plots={visiblePlots} />
               ) : (
-                <CatastroResultsTable parcels={parcels} />
+                <CatastroResultsTable parcels={visibleParcels} />
               )}
             </div>
+          </div>
+        )}
+
+        {/* Mounted once on first show, then kept mounted (never unmounted again) so
+            Leaflet keeps its center/zoom/pan state when toggled off and back on. */}
+        {mapMounted && (
+          <div className={cn("relative", mapVisible ? "flex-1" : "hidden")}>
+            <MapView markers={markers} hoveredId={hoveredId} onBoundsChange={setMapBounds} visible={mapVisible} />
           </div>
         )}
       </div>

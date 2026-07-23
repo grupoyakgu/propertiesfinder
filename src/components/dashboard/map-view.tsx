@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -39,15 +39,30 @@ function markerIcon(highlighted: boolean) {
   });
 }
 
-function FitBounds({ markers }: { markers: MapMarker[] }) {
+function FitBounds({ markers, visible }: { markers: MapMarker[]; visible: boolean }) {
   const map = useMap();
   const key = markers.map((m) => m.id).join(",");
+  // Leaflet can't compute a sane fit against a zero-size (hidden) container, and we
+  // don't want every show/hide toggle to re-fit and discard the user's pan/zoom — so
+  // fit at most once per distinct marker set, and only once the map is actually visible.
+  const firedForKey = useRef<string | null>(null);
   useEffect(() => {
-    if (markers.length === 0) return;
+    if (!visible || markers.length === 0 || firedForKey.current === key) return;
+    firedForKey.current = key;
+    map.invalidateSize();
     const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, visible, map, markers]);
+  return null;
+}
+
+function InvalidateSizeOnShow({ visible }: { visible: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!visible) return;
+    const id = requestAnimationFrame(() => map.invalidateSize());
+    return () => cancelAnimationFrame(id);
+  }, [visible, map]);
   return null;
 }
 
@@ -63,10 +78,12 @@ export function MapView({
   markers,
   hoveredId,
   onBoundsChange,
+  visible = true,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
   onBoundsChange?: (bounds: L.LatLngBounds) => void;
+  visible?: boolean;
 }) {
   const router = useRouter();
   const center: [number, number] =
@@ -134,7 +151,8 @@ export function MapView({
         </LayersControl.Overlay>
       </LayersControl>
 
-      <FitBounds markers={markers} />
+      <FitBounds markers={markers} visible={visible} />
+      <InvalidateSizeOnShow visible={visible} />
       {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
 
       {markers.map((marker) => (
