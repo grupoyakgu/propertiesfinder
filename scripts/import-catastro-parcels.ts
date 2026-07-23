@@ -279,6 +279,16 @@ interface RawBuilding {
   builtArea: number | null;
 }
 
+/**
+ * Buildings and BuildingParts share a base reference, e.g. "3327501QA6832G"
+ * for the Building and "3327501QA6832G_part1" for one of its BuildingParts
+ * (or "..._PI.1" for a pool/other-construction part) — strip the suffix so
+ * both roll up to the same parcel-matching key.
+ */
+function stripPartSuffix(id: string): string {
+  return id.replace(/_part\d+$/i, "").replace(/_PI\.\d+$/i, "");
+}
+
 function parseBuildingsGml(gmlText: string): RawBuilding[] {
   const doc = xmlParser.parse(gmlText);
   const root = doc.FeatureCollection ?? doc;
@@ -286,23 +296,31 @@ function parseBuildingsGml(gmlText: string): RawBuilding[] {
   const buildings: RawBuilding[] = [];
 
   for (const member of members) {
-    const bu = member.Building;
+    // "Building" carries currentUse/dateOfConstruction/officialArea;
+    // "BuildingPart" (a distinct volume within a building) often carries
+    // numberOfFloorsAboveGround when the Building's own value is nil.
+    const bu = member.Building ?? member.BuildingPart;
     if (!bu) continue;
 
-    const refCat = textOf(bu.reference) ?? textOf(bu.localId) ?? textOf(bu.nationalCadastralReference);
-    if (!refCat) continue;
+    const refCatRaw =
+      textOf(bu.externalReference?.ExternalReference?.reference) ??
+      textOf(bu.inspireId?.Identifier?.localId);
+    if (!refCatRaw) continue;
+    const refCat = stripPartSuffix(refCatRaw.trim());
 
     const floorsRaw = textOf(bu.numberOfFloorsAboveGround);
     const floors = floorsRaw !== null ? Number(floorsRaw) : null;
 
-    const beginning = textOf(bu.beginning) ?? textOf(bu.beginning?.Building_value?.beginning);
-    const yearMatch = beginning?.match(/\d{4}/) ?? null;
+    const constructionDate =
+      textOf(bu.dateOfConstruction?.DateOfEvent?.beginning) ??
+      textOf(bu.dateOfConstruction?.DateOfEvent?.end);
+    const yearMatch = constructionDate?.match(/\d{4}/) ?? null;
 
-    const areaRaw = textOf(bu.value) ?? textOf(bu.officialAreaReference);
+    const areaRaw = textOf(bu.officialArea?.OfficialArea?.value);
     const builtArea = areaRaw !== null ? Number(areaRaw) : null;
 
     buildings.push({
-      referenciaCatastral: refCat.trim(),
+      referenciaCatastral: refCat,
       numberOfFloors: floors !== null && Number.isFinite(floors) ? floors : null,
       constructionYear: yearMatch ? Number(yearMatch[0]) : null,
       currentUse: textOf(bu.currentUse),
