@@ -1,0 +1,182 @@
+// Prisma schema for PropertiesFinder — Spanish land & development acquisition platform
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CadastralClass {
+  URBANO
+  RUSTICO
+}
+
+enum PlotShape {
+  REGULAR
+  IRREGULAR
+  RECTANGULAR
+  TRIANGULAR
+  L_SHAPED
+  CORNER
+}
+
+enum PlanningStatus {
+  URBAN
+  DEVELOPABLE
+  RURAL
+  PROTECTED
+  HISTORIC
+}
+
+enum DevelopmentPotential {
+  RESIDENTIAL
+  HOTEL
+  APARTHOTEL
+  COMMERCIAL
+  MIXED_USE
+  OFFICE
+  STUDENT_HOUSING
+  SENIOR_LIVING
+  LOGISTICS
+}
+
+enum Topography {
+  FLAT
+  SLOPED
+}
+
+enum LandUse {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  AGRICULTURAL
+  TOURISM
+  MIXED
+  OTHER
+}
+
+enum BuildingType {
+  DETACHED_HOUSE
+  TERRACED_HOUSE
+  APARTMENT_BLOCK
+  VILLA
+  WAREHOUSE
+  OFFICE_BUILDING
+  HOTEL_BUILDING
+  COMMERCIAL_BUILDING
+  VACANT_PLOT
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  favorites Favorite[]
+
+  @@map("users")
+}
+
+model Plot {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ---- General information ----
+  address             String
+  municipality        String
+  province            String
+  autonomousCommunity String
+  postalCode          String?
+  latitude            Float
+  longitude           Float
+  referenciaCatastral String  @unique
+  imageUrl            String?
+  description         String?
+
+  // ---- Land characteristics ----
+  plotSize          Float // Superficie del terreno (m2)
+  builtArea         Float          @default(0) // Superficie construida (m2)
+  superficieGrafica Float? // Superficie grafica (m2), from Catastro cartography
+  constructionYear  Int?
+  landUse           LandUse
+  cadastralUse      CadastralClass
+  buildingType      BuildingType
+  numberOfFloors    Int            @default(0)
+  maxBuildableArea  Float // Maximum allowed buildability (m2)
+  buildabilityRatio Float // Edificabilidad (m2 buildable / m2 plot)
+  occupancyRatio    Float // % of plot that may be occupied by footprint
+  plotShape         PlotShape
+  cornerPlot        Boolean        @default(false)
+  frontageWidth     Float
+  depth             Float
+
+  // ---- Official cadastral fields ----
+  valorCatastral Float // Valor catastral (EUR)
+
+  // ---- Planning information ----
+  planningStatus       PlanningStatus
+  developmentPotential DevelopmentPotential[]
+  allowedUses          String[]
+  maxHeight            Float? // meters
+  restrictions         String[]
+  zoning               String? // e.g. plan parcial / normativa reference
+
+  // ---- Investment ----
+  purchasePrice             Float
+  pricePerSqm               Float
+  estimatedConstructionCost Float?
+  expectedROI               Float? // %
+  expectedYield             Float? // %
+  developmentMargin         Float? // %
+
+  // ---- Physical characteristics ----
+  topography         Topography
+  doubleFrontage     Boolean    @default(false)
+  existingBuilding   Boolean    @default(false)
+  demolitionRequired Boolean    @default(false)
+  vacantLand         Boolean    @default(false)
+
+  // ---- Map ----
+  boundary        Json? // GeoJSON polygon of plot boundary
+  nearbyAmenities String[]
+
+  // ---- AI analysis cache ----
+  aiScore      Float?
+  aiSummary    String?
+  aiAnalyzedAt DateTime?
+
+  favorites Favorite[]
+
+  @@map("plots")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  plotId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plot Plot @relation(fields: [plotId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, plotId])
+  @@map("favorites")
+}
