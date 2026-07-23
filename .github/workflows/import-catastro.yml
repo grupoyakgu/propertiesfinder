@@ -6,9 +6,17 @@ name: Import Catastro Parcels
 # environments), so this is the easiest way to run the import without a
 # local terminal.
 #
-# Requires a repository secret named DATABASE_URL pointing at the
-# production Supabase connection string (Settings -> Secrets and
-# variables -> Actions -> New repository secret).
+# Requires two repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#   DATABASE_URL        - the production Supabase Transaction pooler
+#                          connection string (port 6543), same one the app
+#                          uses at runtime.
+#   DIRECT_DATABASE_URL - the SAME connection string but with the port
+#                          changed to 5432 (Supabase's Session pooler mode
+#                          on the same host). `prisma migrate deploy` needs
+#                          this: transaction-mode PgBouncer (6543) can't
+#                          reliably hold the locks migrations require and
+#                          will hang indefinitely rather than fail cleanly.
 
 on:
   workflow_dispatch:
@@ -48,7 +56,7 @@ jobs:
       - name: Apply pending Prisma migrations
         if: ${{ inputs.inspectUrl == '' }}
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
         run: npx prisma migrate deploy
 
       - name: Inspect GML structure (debug)
