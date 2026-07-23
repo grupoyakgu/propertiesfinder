@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -17,6 +17,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
 import { formatCurrency } from "@/lib/utils";
+
+/** Plain (Leaflet-free) representation of a map viewport, so it can be persisted in the
+ * URL and used to filter results even before/without the Leaflet map ever mounting. */
+export interface BoundsBox {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
 
 const planningColors: Record<string, string> = {
   URBAN: "#0f3d3e",
@@ -39,20 +48,50 @@ function markerIcon(highlighted: boolean) {
   });
 }
 
-function FitBounds({ markers, visible }: { markers: MapMarker[]; visible: boolean }) {
+function FitBounds({
+  markers,
+  visible,
+  restoreBounds,
+}: {
+  markers: MapMarker[];
+  visible: boolean;
+  /** A previously-saved viewport (e.g. from the URL) to restore on first mount instead
+   * of fitting to all markers — set once, consumed once, then ignored. */
+  restoreBounds?: BoundsBox | null;
+}) {
   const map = useMap();
   const key = markers.map((m) => m.id).join(",");
   // Leaflet can't compute a sane fit against a zero-size (hidden) container, and we
   // don't want every show/hide toggle to re-fit and discard the user's pan/zoom — so
   // fit at most once per distinct marker set, and only once the map is actually visible.
   const firedForKey = useRef<string | null>(null);
+  const restoredOnce = useRef(false);
+  // Locked in from the first render only: if a restore was requested at mount, the
+  // fit-to-all-markers branch below must never run for this component's lifetime —
+  // otherwise it fires again once markers finish loading (their id key changes from
+  // "" to the real list) and clobbers the just-restored viewport.
+  const [hasRestoreBounds] = useState(restoreBounds != null);
+
   useEffect(() => {
-    if (!visible || markers.length === 0 || firedForKey.current === key) return;
+    if (!visible) return;
+
+    if (hasRestoreBounds) {
+      if (restoredOnce.current || !restoreBounds) return;
+      restoredOnce.current = true;
+      map.invalidateSize();
+      map.fitBounds([
+        [restoreBounds.south, restoreBounds.west],
+        [restoreBounds.north, restoreBounds.east],
+      ]);
+      return;
+    }
+
+    if (markers.length === 0 || firedForKey.current === key) return;
     firedForKey.current = key;
     map.invalidateSize();
     const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-  }, [key, visible, map, markers]);
+  }, [key, visible, map, markers, restoreBounds, hasRestoreBounds]);
   return null;
 }
 
@@ -66,10 +105,19 @@ function InvalidateSizeOnShow({ visible }: { visible: boolean }) {
   return null;
 }
 
-function BoundsTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLngBounds) => void }) {
+function toBoundsBox(bounds: L.LatLngBounds): BoundsBox {
+  return {
+    south: bounds.getSouth(),
+    west: bounds.getWest(),
+    north: bounds.getNorth(),
+    east: bounds.getEast(),
+  };
+}
+
+function BoundsTracker({ onBoundsChange }: { onBoundsChange: (bounds: BoundsBox) => void }) {
   const map = useMapEvents({
-    moveend: () => onBoundsChange(map.getBounds()),
-    zoomend: () => onBoundsChange(map.getBounds()),
+    moveend: () => onBoundsChange(toBoundsBox(map.getBounds())),
+    zoomend: () => onBoundsChange(toBoundsBox(map.getBounds())),
   });
   return null;
 }
@@ -79,15 +127,21 @@ export function MapView({
   hoveredId,
   onBoundsChange,
   visible = true,
+  restoreBounds,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
-  onBoundsChange?: (bounds: L.LatLngBounds) => void;
+  onBoundsChange?: (bounds: BoundsBox) => void;
   visible?: boolean;
+  /** A previously-saved viewport (e.g. from the URL) to restore on first mount. */
+  restoreBounds?: BoundsBox | null;
 }) {
   const router = useRouter();
-  const center: [number, number] =
-    markers.length > 0 ? [markers[0].lat, markers[0].lng] : [40.4168, -3.7038];
+  const center: [number, number] = restoreBounds
+    ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
+    : markers.length > 0
+      ? [markers[0].lat, markers[0].lng]
+      : [40.4168, -3.7038];
 
   return (
     <MapContainer center={center} zoom={6} scrollWheelZoom className="h-full w-full">
@@ -151,7 +205,7 @@ export function MapView({
         </LayersControl.Overlay>
       </LayersControl>
 
-      <FitBounds markers={markers} visible={visible} />
+      <FitBounds markers={markers} visible={visible} restoreBounds={restoreBounds} />
       <InvalidateSizeOnShow visible={visible} />
       {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
 

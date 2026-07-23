@@ -17,11 +17,19 @@ export default async function DashboardPage({
   const initialSource = params.get("tab") === "plots" ? "plots" : "catastro";
   const initialMapVisible = params.get("map") === "1";
 
+  const bboxParam = params.get("bbox");
+  const bboxParts = bboxParam?.split(",").map(Number);
+  const initialMapBounds =
+    bboxParts?.length === 4 && bboxParts.every(Number.isFinite)
+      ? { south: bboxParts[0], west: bboxParts[1], north: bboxParts[2], east: bboxParts[3] }
+      : null;
+
   return (
     <DashboardApp
       initialFilters={initialFilters}
       initialSource={initialSource}
       initialMapVisible={initialMapVisible}
+      initialMapBounds={initialMapBounds}
     />
   );
 }

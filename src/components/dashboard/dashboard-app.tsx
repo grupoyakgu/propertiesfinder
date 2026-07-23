@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { LatLngBounds } from "leaflet";
 import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
@@ -19,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useLocale } from "@/lib/i18n/context";
+import type { BoundsBox } from "@/components/dashboard/map-view";
 
 const MapView = dynamic(() => import("@/components/dashboard/map-view").then((m) => m.MapView), {
   ssr: false,
@@ -40,10 +40,12 @@ export function DashboardApp({
   initialFilters,
   initialSource = "catastro",
   initialMapVisible = false,
+  initialMapBounds = null,
 }: {
   initialFilters: DashboardFilters;
   initialSource?: Source;
   initialMapVisible?: boolean;
+  initialMapBounds?: BoundsBox | null;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -56,7 +58,14 @@ export function DashboardApp({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapVisible, setMapVisible] = useState(initialMapVisible);
-  const [mapBounds, setMapBounds] = useState<LatLngBounds | null>(null);
+  const [mapBounds, setMapBounds] = useState<BoundsBox | null>(initialMapBounds);
+  // Captured once on mount: the viewport (if any) restored from the URL, handed to
+  // MapView so it can fit to exactly that instead of re-fitting to all markers. Kept
+  // separate from `mapBounds` (which keeps updating as the user pans) so it never
+  // re-triggers a restore after the first one. Only valid for the tab it was captured
+  // for — if the user switches tabs before ever showing the map, it no longer applies.
+  const [restoreBoundsForSource] = useState(initialMapBounds);
+  const restoreBounds = source === initialSource ? restoreBoundsForSource : null;
 
   // Mount the map the first time it's shown, and never unmount it again afterwards
   // (visibility toggles purely via CSS below) so Leaflet keeps its pan/zoom state.
@@ -76,8 +85,12 @@ export function DashboardApp({
     const params = filtersToSearchParams(filters);
     if (source !== "catastro") params.set("tab", source);
     if (mapVisible) params.set("map", "1");
+    if (mapBounds) {
+      const { south, west, north, east } = mapBounds;
+      params.set("bbox", [south, west, north, east].map((v) => v.toFixed(6)).join(","));
+    }
     return params.toString();
-  }, [filters, source, mapVisible]);
+  }, [filters, source, mapVisible, mapBounds]);
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
@@ -130,9 +143,10 @@ export function DashboardApp({
 
   const visibleIds = useMemo(() => {
     if (!mapBounds) return null;
+    const { south, west, north, east } = mapBounds;
     const ids = new Set<string>();
     for (const m of markers) {
-      if (mapBounds.contains([m.lat, m.lng])) ids.add(m.id);
+      if (m.lat >= south && m.lat <= north && m.lng >= west && m.lng <= east) ids.add(m.id);
     }
     return ids;
   }, [mapBounds, markers]);
@@ -303,7 +317,13 @@ export function DashboardApp({
             Leaflet keeps its center/zoom/pan state when toggled off and back on. */}
         {mapMounted && (
           <div className={cn("relative", mapVisible ? "flex-1" : "hidden")}>
-            <MapView markers={markers} hoveredId={hoveredId} onBoundsChange={setMapBounds} visible={mapVisible} />
+            <MapView
+              markers={markers}
+              hoveredId={hoveredId}
+              onBoundsChange={setMapBounds}
+              visible={mapVisible}
+              restoreBounds={restoreBounds}
+            />
           </div>
         )}
       </div>
