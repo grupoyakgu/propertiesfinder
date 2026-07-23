@@ -1,6 +1,7 @@
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
 import { cadastralClassLabels, planningStatusLabels } from "@/lib/labels";
+import type { Locale } from "@/lib/i18n/translations";
 
 export interface MapMarker {
   id: string;
@@ -19,7 +20,7 @@ export interface MapMarker {
   amenities?: string[];
 }
 
-export function plotToMarker(plot: ClientPlot): MapMarker {
+export function plotToMarker(plot: ClientPlot, locale: Locale = "en"): MapMarker {
   return {
     id: plot.id,
     href: `/property/${plot.slug}`,
@@ -28,7 +29,7 @@ export function plotToMarker(plot: ClientPlot): MapMarker {
     boundary: plot.boundary,
     title: plot.title,
     subtitle: `${plot.municipality}, ${plot.province}`,
-    badge: planningStatusLabels[plot.planningStatus],
+    badge: planningStatusLabels[locale][plot.planningStatus],
     areaLabel: formatArea(plot.plotSize),
     planningStatus: plot.planningStatus,
     price: plot.purchasePrice,
@@ -37,7 +38,7 @@ export function plotToMarker(plot: ClientPlot): MapMarker {
   };
 }
 
-export function catastroParcelToMarker(parcel: ClientCatastroParcel): MapMarker {
+export function catastroParcelToMarker(parcel: ClientCatastroParcel, locale: Locale = "en"): MapMarker {
   return {
     id: parcel.id,
     href: `/catastro/${parcel.referenciaCatastral}`,
@@ -46,7 +47,7 @@ export function catastroParcelToMarker(parcel: ClientCatastroParcel): MapMarker 
     boundary: parcel.boundary,
     title: parcel.referenciaCatastral,
     subtitle: formatCatastroParcelAddress(parcel),
-    badge: cadastralClassLabels[parcel.cadastralUse],
+    badge: cadastralClassLabels[locale][parcel.cadastralUse],
     areaLabel: formatArea(parcel.plotSize),
   };
 }

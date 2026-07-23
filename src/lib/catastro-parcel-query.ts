@@ -15,6 +15,7 @@ export function buildCatastroParcelWhere(
         { province: { contains: q, mode: "insensitive" } },
         { autonomousCommunity: { contains: q, mode: "insensitive" } },
         { referenciaCatastral: { contains: q, mode: "insensitive" } },
+        { streetName: { contains: q, mode: "insensitive" } },
       ],
     });
   }

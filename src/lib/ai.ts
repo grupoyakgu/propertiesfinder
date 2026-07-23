@@ -29,9 +29,9 @@ function buildPrompt(plot: Plot): string {
 Location: ${plot.address}, ${plot.municipality}, ${plot.province}, ${plot.autonomousCommunity}
 Referencia Catastral: ${plot.referenciaCatastral}
 
-Land: ${formatArea(plot.plotSize)} plot, ${formatArea(plot.builtArea)} built, land use ${landUseLabels[plot.landUse]}, topography ${topographyLabels[plot.topography]}
+Land: ${formatArea(plot.plotSize)} plot, ${formatArea(plot.builtArea)} built, land use ${landUseLabels.en[plot.landUse]}, topography ${topographyLabels.en[plot.topography]}
 Buildability: max buildable area ${formatArea(plot.maxBuildableArea)}, ratio ${plot.buildabilityRatio}, occupancy ${formatPercent(plot.occupancyRatio)}
-Planning: status ${planningStatusLabels[plot.planningStatus]}, zoning "${plot.zoning ?? "n/a"}", development potential: ${plot.developmentPotential.map((p) => developmentPotentialLabels[p]).join(", ")}
+Planning: status ${planningStatusLabels.en[plot.planningStatus]}, zoning "${plot.zoning ?? "n/a"}", development potential: ${plot.developmentPotential.map((p) => developmentPotentialLabels.en[p]).join(", ")}
 Restrictions: ${plot.restrictions.join("; ") || "none listed"}
 Physical: corner=${plot.cornerPlot}, doubleFrontage=${plot.doubleFrontage}, existingBuilding=${plot.existingBuilding}, demolitionRequired=${plot.demolitionRequired}, vacantLand=${plot.vacantLand}
 
@@ -72,10 +72,10 @@ function ruleBasedAnalysis(plot: Plot): PlotAnalysis {
 
   return {
     score: Math.round(score),
-    recommendedUse: developmentPotentialLabels[plot.developmentPotential[0] ?? "RESIDENTIAL"],
+    recommendedUse: developmentPotentialLabels.en[plot.developmentPotential[0] ?? "RESIDENTIAL"],
     summary: `${plot.title} in ${plot.municipality} shows a projected ROI of ${formatPercent(
       plot.expectedROI
-    )} on a ${formatArea(plot.plotSize)} plot with ${planningStatusLabels[plot.planningStatus].toLowerCase()} planning status. This is a rule-based estimate — connect an ANTHROPIC_API_KEY for full AI analysis.`,
+    )} on a ${formatArea(plot.plotSize)} plot with ${planningStatusLabels.en[plot.planningStatus].toLowerCase()} planning status. This is a rule-based estimate — connect an ANTHROPIC_API_KEY for full AI analysis.`,
     strengths: strengths.length ? strengths : ["No standout strengths identified from structured data alone"],
     risks: risks.length ? risks : ["No major structured-data red flags identified"],
     nextSteps: [

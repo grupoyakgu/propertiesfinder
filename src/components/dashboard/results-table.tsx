@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "luci
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
+import { useLocale } from "@/lib/i18n/context";
 
 const PAGE_SIZE = 25;
 
@@ -68,6 +69,7 @@ function DataTable<T extends { id: string }>({
   href: (row: T) => string;
   defaultSortKey: string;
 }) {
+  const { t } = useLocale();
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
   const [page, setPage] = useState(0);
 
@@ -131,9 +133,7 @@ function DataTable<T extends { id: string }>({
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            Showing {rangeStart}–{rangeEnd} of {sorted.length}
-          </span>
+          <span>{t("table.showing", { start: rangeStart, end: rangeEnd, total: sorted.length })}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -141,18 +141,16 @@ function DataTable<T extends { id: string }>({
               disabled={currentPage === 0}
               className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              <ChevronLeft className="h-3.5 w-3.5" /> {t("table.prev")}
             </button>
-            <span>
-              Page {currentPage + 1} of {totalPages}
-            </span>
+            <span>{t("table.pageOf", { page: currentPage + 1, total: totalPages })}</span>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage >= totalPages - 1}
               className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next <ChevronRight className="h-3.5 w-3.5" />
+              {t("table.next")} <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -162,68 +160,71 @@ function DataTable<T extends { id: string }>({
 }
 
 export function CatastroResultsTable({ parcels }: { parcels: ClientCatastroParcel[] }) {
+  const { locale, t } = useLocale();
+
   if (parcels.length === 0) {
-    return (
-      <p className="pt-10 text-center text-sm text-muted-foreground">
-        No official Catastro records match these filters. Try widening your search.
-      </p>
-    );
+    return <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.noCatastro")}</p>;
   }
 
   const columns: Column<ClientCatastroParcel>[] = [
     {
       key: "referenciaCatastral",
-      label: "Referencia Catastral",
+      label: t("table.referenciaCatastral"),
       accessor: (p) => p.referenciaCatastral,
       render: (p) => p.referenciaCatastral,
     },
     {
       key: "address",
-      label: "Address",
+      label: t("table.address"),
       accessor: (p) => formatCatastroParcelAddress(p),
       render: (p) => formatCatastroParcelAddress(p),
     },
-    { key: "municipality", label: "Municipality", accessor: (p) => p.municipality, render: (p) => p.municipality },
-    { key: "province", label: "Province", accessor: (p) => p.province, render: (p) => p.province },
+    {
+      key: "municipality",
+      label: t("table.municipality"),
+      accessor: (p) => p.municipality,
+      render: (p) => p.municipality,
+    },
+    { key: "province", label: t("table.province"), accessor: (p) => p.province, render: (p) => p.province },
     {
       key: "plotSize",
-      label: "Plot Size",
+      label: t("table.plotSize"),
       accessor: (p) => p.plotSize,
       render: (p) => formatArea(p.plotSize),
       align: "right",
     },
     {
       key: "builtArea",
-      label: "Built Area",
+      label: t("table.builtArea"),
       accessor: (p) => p.builtArea,
       render: (p) => formatArea(p.builtArea),
       align: "right",
     },
     {
       key: "constructionYear",
-      label: "Year",
+      label: t("table.year"),
       accessor: (p) => p.constructionYear,
       render: (p) => p.constructionYear ?? "—",
       align: "right",
     },
     {
       key: "numberOfFloors",
-      label: "Floors",
+      label: t("table.floors"),
       accessor: (p) => p.numberOfFloors,
       render: (p) => p.numberOfFloors ?? "—",
       align: "right",
     },
     {
       key: "cadastralUse",
-      label: "Cadastral Use",
-      accessor: (p) => cadastralClassLabels[p.cadastralUse],
-      render: (p) => cadastralClassLabels[p.cadastralUse],
+      label: t("table.cadastralUse"),
+      accessor: (p) => cadastralClassLabels[locale][p.cadastralUse],
+      render: (p) => cadastralClassLabels[locale][p.cadastralUse],
     },
     {
       key: "landUse",
-      label: "Land Use",
-      accessor: (p) => (p.landUse ? landUseLabels[p.landUse] : null),
-      render: (p) => (p.landUse ? landUseLabels[p.landUse] : "—"),
+      label: t("table.landUse"),
+      accessor: (p) => (p.landUse ? landUseLabels[locale][p.landUse] : null),
+      render: (p) => (p.landUse ? landUseLabels[locale][p.landUse] : "—"),
     },
   ];
 
@@ -238,55 +239,58 @@ export function CatastroResultsTable({ parcels }: { parcels: ClientCatastroParce
 }
 
 export function PlotResultsTable({ plots }: { plots: ClientPlot[] }) {
+  const { locale, t } = useLocale();
+
   if (plots.length === 0) {
-    return (
-      <p className="pt-10 text-center text-sm text-muted-foreground">
-        No plots match these filters. Try widening your search.
-      </p>
-    );
+    return <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.noPlots")}</p>;
   }
 
   const columns: Column<ClientPlot>[] = [
-    { key: "title", label: "Title", accessor: (p) => p.title, render: (p) => p.title },
-    { key: "municipality", label: "Municipality", accessor: (p) => p.municipality, render: (p) => p.municipality },
-    { key: "province", label: "Province", accessor: (p) => p.province, render: (p) => p.province },
+    { key: "title", label: t("table.title"), accessor: (p) => p.title, render: (p) => p.title },
+    {
+      key: "municipality",
+      label: t("table.municipality"),
+      accessor: (p) => p.municipality,
+      render: (p) => p.municipality,
+    },
+    { key: "province", label: t("table.province"), accessor: (p) => p.province, render: (p) => p.province },
     {
       key: "plotSize",
-      label: "Plot Size",
+      label: t("table.plotSize"),
       accessor: (p) => p.plotSize,
       render: (p) => formatArea(p.plotSize),
       align: "right",
     },
     {
       key: "builtArea",
-      label: "Built Area",
+      label: t("table.builtArea"),
       accessor: (p) => p.builtArea,
       render: (p) => formatArea(p.builtArea),
       align: "right",
     },
     {
       key: "planningStatus",
-      label: "Planning",
-      accessor: (p) => planningStatusLabels[p.planningStatus],
-      render: (p) => planningStatusLabels[p.planningStatus],
+      label: t("table.planning"),
+      accessor: (p) => planningStatusLabels[locale][p.planningStatus],
+      render: (p) => planningStatusLabels[locale][p.planningStatus],
     },
     {
       key: "purchasePrice",
-      label: "Price",
+      label: t("table.price"),
       accessor: (p) => p.purchasePrice,
       render: (p) => formatCurrency(p.purchasePrice),
       align: "right",
     },
     {
       key: "pricePerSqm",
-      label: "Price/m²",
+      label: t("table.pricePerSqm"),
       accessor: (p) => p.pricePerSqm,
       render: (p) => formatCurrency(p.pricePerSqm),
       align: "right",
     },
     {
       key: "expectedROI",
-      label: "ROI",
+      label: t("table.roi"),
       accessor: (p) => p.expectedROI,
       render: (p) => formatPercent(p.expectedROI),
       align: "right",

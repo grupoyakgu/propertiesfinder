@@ -3,16 +3,19 @@ import { MapPinned, Building2, Landmark, Hotel, Warehouse, Sparkles } from "luci
 import { getCurrentUser } from "@/lib/auth";
 import { LinkButton } from "@/components/ui/button";
 import { LogoutButton } from "@/components/auth/logout-button";
-
-const quickChips: { label: string; icon: React.ElementType; params: string }[] = [
-  { label: "Residential", icon: Building2, params: "potential=RESIDENTIAL" },
-  { label: "Hotel", icon: Hotel, params: "potential=HOTEL" },
-  { label: "Logistics", icon: Warehouse, params: "potential=LOGISTICS" },
-  { label: "Historic", icon: Landmark, params: "planningStatus=HISTORIC" },
-];
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function Home() {
   const user = await getCurrentUser();
+  const { t } = await getServerTranslator();
+
+  const quickChips: { label: string; icon: React.ElementType; params: string }[] = [
+    { label: t("landing.chipResidential"), icon: Building2, params: "potential=RESIDENTIAL" },
+    { label: t("landing.chipHotel"), icon: Hotel, params: "potential=HOTEL" },
+    { label: t("landing.chipLogistics"), icon: Warehouse, params: "potential=LOGISTICS" },
+    { label: t("landing.chipHistoric"), icon: Landmark, params: "planningStatus=HISTORIC" },
+  ];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -20,24 +23,25 @@ export default async function Home() {
         <div className="flex items-center gap-2 text-primary">
           <MapPinned className="h-6 w-6" strokeWidth={1.75} />
           <span className="text-lg font-semibold tracking-tight text-foreground">
-            PropertiesFinder
+            {t("brand")}
           </span>
         </div>
         <nav className="flex items-center gap-3">
+          <LanguageToggle responsive />
           {user ? (
             <>
               <LinkButton href="/dashboard" variant="ghost" size="sm">
-                Dashboard
+                {t("nav.dashboard")}
               </LinkButton>
               <LogoutButton />
             </>
           ) : (
             <>
               <LinkButton href="/login" variant="ghost" size="sm">
-                Sign in
+                {t("nav.signIn")}
               </LinkButton>
               <LinkButton href="/signup" variant="primary" size="sm">
-                Get started
+                {t("nav.getStarted")}
               </LinkButton>
             </>
           )}
@@ -47,15 +51,14 @@ export default async function Home() {
       <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
         <div className="mb-3 flex items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 text-accent" strokeWidth={2} />
-          AI acquisition analysis on official cadastral data
+          {t("landing.badge")}
         </div>
 
         <h1 className="max-w-2xl text-balance text-center text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          Find your next development opportunity in Spain
+          {t("landing.title")}
         </h1>
         <p className="mt-4 max-w-xl text-balance text-center text-base text-muted-foreground">
-          Search land and buildings by cadastral reference, planning status and investment
-          potential — backed by official Catastro data and AI-driven analysis.
+          {t("landing.subtitle")}
         </p>
 
         <form action="/dashboard" method="get" className="mt-9 w-full max-w-2xl">
@@ -64,14 +67,14 @@ export default async function Home() {
             <input
               name="q"
               type="text"
-              placeholder="Search by city, province, or referencia catastral..."
+              placeholder={t("landing.searchPlaceholder")}
               className="h-11 w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             <button
               type="submit"
               className="shrink-0 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
-              Search
+              {t("landing.searchButton")}
             </button>
           </div>
         </form>
@@ -91,8 +94,7 @@ export default async function Home() {
       </main>
 
       <footer className="border-t border-border px-6 py-6 text-center text-xs text-muted-foreground">
-        Cadastral references verified against the Sede Electrónica del Catastro. Listing data in
-        this demo is illustrative and for evaluation purposes.
+        {t("landing.footer")}
       </footer>
     </div>
   );

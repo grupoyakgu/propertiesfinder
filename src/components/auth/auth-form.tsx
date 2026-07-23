@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { useLocale } from "@/lib/i18n/context";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLocale();
   const next = searchParams.get("next") ?? "/dashboard";
 
   const [name, setName] = useState("");
@@ -31,7 +33,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong");
+        setError(data.error ?? t("auth.somethingWrong"));
         setLoading(false);
         return;
       }
@@ -39,7 +41,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       router.push(next);
       router.refresh();
     } catch {
-      setError("Network error — please try again");
+      setError(t("auth.networkError"));
       setLoading(false);
     }
   }
@@ -48,7 +50,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
       {mode === "signup" && (
         <div>
-          <FieldLabel htmlFor="name">Full name</FieldLabel>
+          <FieldLabel htmlFor="name">{t("auth.fullName")}</FieldLabel>
           <Input
             id="name"
             value={name}
@@ -60,7 +62,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </div>
       )}
       <div>
-        <FieldLabel htmlFor="email">Email</FieldLabel>
+        <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
         <Input
           id="email"
           type="email"
@@ -71,7 +73,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         />
       </div>
       <div>
-        <FieldLabel htmlFor="password">Password</FieldLabel>
+        <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
         <Input
           id="password"
           type="password"
@@ -88,22 +90,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       )}
 
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
+        {loading ? t("auth.pleaseWait") : mode === "login" ? t("auth.signIn") : t("auth.createAccount")}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
         {mode === "login" ? (
           <>
-            No account yet?{" "}
+            {t("auth.noAccount")}{" "}
             <Link href="/signup" className="font-medium text-primary">
-              Get started
+              {t("auth.getStarted")}
             </Link>
           </>
         ) : (
           <>
-            Already have an account?{" "}
+            {t("auth.haveAccount")}{" "}
             <Link href="/login" className="font-medium text-primary">
-              Sign in
+              {t("auth.signIn")}
             </Link>
           </>
         )}

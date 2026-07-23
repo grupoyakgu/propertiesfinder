@@ -5,6 +5,7 @@ import { MapPin, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
 import { formatArea, formatCatastroParcelAddress, cn } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
+import { useLocale } from "@/lib/i18n/context";
 
 export function CatastroParcelCard({
   parcel,
@@ -15,6 +16,7 @@ export function CatastroParcelCard({
   active?: boolean;
   onHover?: (id: string | null) => void;
 }) {
+  const { locale, t } = useLocale();
   return (
     <Link
       href={`/catastro/${parcel.referenciaCatastral}`}
@@ -28,7 +30,7 @@ export function CatastroParcelCard({
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">{parcel.referenciaCatastral}</h3>
         <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-          {cadastralClassLabels[parcel.cadastralUse]}
+          {cadastralClassLabels[locale][parcel.cadastralUse]}
         </span>
       </div>
 
@@ -49,10 +51,10 @@ export function CatastroParcelCard({
       <div className="mt-3 flex items-baseline justify-between border-t border-border pt-3">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Layers className="h-3.5 w-3.5" />
-          {parcel.numberOfFloors !== null ? `${parcel.numberOfFloors} floors` : "—"}
+          {parcel.numberOfFloors !== null ? `${parcel.numberOfFloors} ${t("card.floors")}` : "—"}
         </span>
         <span className="text-xs text-muted-foreground">
-          {parcel.landUse ? landUseLabels[parcel.landUse] : "—"}
+          {parcel.landUse ? landUseLabels[locale][parcel.landUse] : "—"}
         </span>
       </div>
     </Link>

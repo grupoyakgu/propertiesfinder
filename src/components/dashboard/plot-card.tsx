@@ -5,6 +5,7 @@ import { MapPin, Ruler, TrendingUp, Building2 } from "lucide-react";
 import type { ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { developmentPotentialLabels, planningStatusLabels } from "@/lib/labels";
+import { useLocale } from "@/lib/i18n/context";
 
 export function PlotCard({
   plot,
@@ -15,6 +16,7 @@ export function PlotCard({
   active?: boolean;
   onHover?: (id: string | null) => void;
 }) {
+  const { locale, t } = useLocale();
   return (
     <Link
       href={`/property/${plot.slug}`}
@@ -28,7 +30,7 @@ export function PlotCard({
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">{plot.title}</h3>
         <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-          {planningStatusLabels[plot.planningStatus]}
+          {planningStatusLabels[locale][plot.planningStatus]}
         </span>
       </div>
 
@@ -42,7 +44,7 @@ export function PlotCard({
           <Ruler className="h-3.5 w-3.5" /> {formatArea(plot.plotSize)}
         </span>
         <span className="flex items-center gap-1.5 text-muted-foreground">
-          <TrendingUp className="h-3.5 w-3.5" /> ROI {formatPercent(plot.expectedROI)}
+          <TrendingUp className="h-3.5 w-3.5" /> {t("table.roi")} {formatPercent(plot.expectedROI)}
         </span>
       </div>
 
@@ -53,7 +55,7 @@ export function PlotCard({
             className="flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] text-muted-foreground"
           >
             <Building2 className="h-3 w-3" />
-            {developmentPotentialLabels[p]}
+            {developmentPotentialLabels[locale][p]}
           </span>
         ))}
       </div>

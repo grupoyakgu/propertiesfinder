@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/lib/i18n/context";
 
 export function FilterSection({
   title,
@@ -46,6 +47,7 @@ export function RangeField({
   onMaxChange: (v: string) => void;
   placeholder?: string;
 }) {
+  const { t } = useLocale();
   return (
     <div>
       <p className="mb-1.5 text-xs text-muted-foreground">{label}</p>
@@ -54,7 +56,7 @@ export function RangeField({
           type="number"
           value={minValue}
           onChange={(e) => onMinChange(e.target.value)}
-          placeholder={`Min ${placeholder}`}
+          placeholder={`${t("filters.min")} ${placeholder}`}
           className="h-9 w-full rounded-md border border-border bg-surface px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <span className="text-muted-foreground">–</span>
@@ -62,7 +64,7 @@ export function RangeField({
           type="number"
           value={maxValue}
           onChange={(e) => onMaxChange(e.target.value)}
-          placeholder={`Max ${placeholder}`}
+          placeholder={`${t("filters.max")} ${placeholder}`}
           className="h-9 w-full rounded-md border border-border bg-surface px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
       </div>

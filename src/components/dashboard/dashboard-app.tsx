@@ -17,20 +17,28 @@ import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/r
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useLocale } from "@/lib/i18n/context";
 
 const MapView = dynamic(() => import("@/components/dashboard/map-view").then((m) => m.MapView), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-surface-muted text-sm text-muted-foreground">
-      Loading map…
-    </div>
-  ),
+  loading: () => <MapLoadingFallback />,
 });
+
+function MapLoadingFallback() {
+  const { t } = useLocale();
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-surface-muted text-sm text-muted-foreground">
+      {t("dashboard.loadingMap")}
+    </div>
+  );
+}
 
 type Source = "plots" | "catastro";
 
 export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilters }) {
   const router = useRouter();
+  const { locale, t } = useLocale();
   const [source, setSource] = useState<Source>("catastro");
   const [filters, setFilters] = useState(initialFilters);
   const [plots, setPlots] = useState<ClientPlot[]>([]);
@@ -75,12 +83,15 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const fetchedCount = source === "plots" ? plots.length : parcels.length;
   const resultCount = totalCount;
   const truncated = fetchedCount < totalCount;
-  const resultLabel = `${resultCount} result${resultCount === 1 ? "" : "s"}${
-    truncated ? ` (showing first ${fetchedCount})` : ""
-  }`;
+  const resultLabel =
+    t("dashboard.resultsCount", { n: resultCount, plural: resultCount === 1 ? "" : "s" }) +
+    (truncated ? t("dashboard.showingFirstN", { n: fetchedCount }) : "");
   const markers = useMemo(
-    () => (source === "plots" ? plots.map(plotToMarker) : parcels.map(catastroParcelToMarker)),
-    [source, plots, parcels]
+    () =>
+      source === "plots"
+        ? plots.map((p) => plotToMarker(p, locale))
+        : parcels.map((p) => catastroParcelToMarker(p, locale)),
+    [source, plots, parcels, locale]
   );
 
   // Reset the viewport filter when the data source changes (plots vs. parcels are
@@ -110,7 +121,9 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
     [parcels, visibleIds]
   );
   const inViewCount = source === "plots" ? visiblePlots.length : visibleParcels.length;
-  const mapPaneLabel = mapBounds ? `${inViewCount} of ${resultCount} in view` : resultLabel;
+  const mapPaneLabel = mapBounds
+    ? t("dashboard.inView", { n: inViewCount, total: resultCount })
+    : resultLabel;
 
   return (
     <div className="flex h-screen flex-col">
@@ -118,7 +131,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
         <Link href="/" className="flex shrink-0 items-center gap-2 text-primary">
           <MapPinned className="h-5 w-5" strokeWidth={1.75} />
           <span className="hidden text-sm font-semibold text-foreground sm:inline">
-            PropertiesFinder
+            {t("brand")}
           </span>
         </Link>
 
@@ -127,7 +140,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           <input
             value={filters.q}
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-            placeholder="Search by city, province, or referencia catastral..."
+            placeholder={t("dashboard.searchPlaceholder")}
             className="h-10 w-full bg-transparent text-sm focus:outline-none"
           />
           {filters.q && (
@@ -142,7 +155,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           onClick={() => setFiltersOpen((o) => !o)}
           className="flex items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground lg:hidden"
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+          <SlidersHorizontal className="h-3.5 w-3.5" /> {t("dashboard.filters")}
         </button>
 
         {source === "plots" && (
@@ -151,11 +164,11 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
             onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
             className="hidden w-44 shrink-0 sm:block"
           >
-            <option value="newest">Newest</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-            <option value="roi_desc">Highest ROI</option>
-            <option value="size_desc">Largest Plot</option>
+            <option value="newest">{t("dashboard.sortNewest")}</option>
+            <option value="price_asc">{t("dashboard.sortPriceAsc")}</option>
+            <option value="price_desc">{t("dashboard.sortPriceDesc")}</option>
+            <option value="roi_desc">{t("dashboard.sortRoiDesc")}</option>
+            <option value="size_desc">{t("dashboard.sortSizeDesc")}</option>
           </Select>
         )}
 
@@ -165,8 +178,10 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground sm:flex"
         >
           {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
-          {mapVisible ? "Hide Map" : "Show Map"}
+          {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
+
+        <LanguageToggle responsive />
 
         <LogoutButton />
       </header>
@@ -174,8 +189,8 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
       <div className="flex items-center gap-1 border-b border-border bg-surface px-4 py-2">
         {(
           [
-            { key: "catastro", label: "Official Catastro Records" },
-            { key: "plots", label: "Sample Opportunities" },
+            { key: "catastro", label: t("dashboard.tabCatastro") },
+            { key: "plots", label: t("dashboard.tabPlots") },
           ] as const
         ).map((tab) => (
           <button
@@ -202,7 +217,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
         {mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-              {loading ? "Searching…" : mapPaneLabel}
+              {loading ? t("dashboard.searching") : mapPaneLabel}
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {source === "plots"
@@ -219,14 +234,12 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
                   ))}
               {!loading && resultCount === 0 && (
                 <p className="pt-10 text-center text-sm text-muted-foreground">
-                  {source === "plots"
-                    ? "No plots match these filters. Try widening your search."
-                    : "No official Catastro records match these filters. Try widening your search."}
+                  {source === "plots" ? t("dashboard.noPlots") : t("dashboard.noCatastro")}
                 </p>
               )}
               {!loading && resultCount > 0 && inViewCount === 0 && mapBounds && (
                 <p className="pt-10 text-center text-sm text-muted-foreground">
-                  No results in the current map view. Pan or zoom out to see more.
+                  {t("dashboard.noResultsInView")}
                 </p>
               )}
             </div>
@@ -236,14 +249,14 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
         {!mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-              {loading ? "Searching…" : mapPaneLabel}
+              {loading ? t("dashboard.searching") : mapPaneLabel}
             </div>
             <div className="flex-1 overflow-auto p-4">
               {loading ? (
-                <p className="pt-10 text-center text-sm text-muted-foreground">Searching…</p>
+                <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.searching")}</p>
               ) : resultCount > 0 && inViewCount === 0 && mapBounds ? (
                 <p className="pt-10 text-center text-sm text-muted-foreground">
-                  No results in the current map view. Pan or zoom out to see more.
+                  {t("dashboard.noResultsInView")}
                 </p>
               ) : source === "plots" ? (
                 <PlotResultsTable plots={visiblePlots} />
