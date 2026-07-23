@@ -549,7 +549,23 @@ interface ParcelRecord {
 // rate would take on the order of two hours. This does the same upsert semantics
 // (create on new referenciaCatastral, update the same fields on conflict) in a
 // fraction of the time.
-async function upsertBatch(records: ParcelRecord[]) {
+async function upsertBatch(allRecords: ParcelRecord[]) {
+  // The parsed record set can contain more than one entry for the same
+  // referenciaCatastral (seen on the real Sevilla data — 61,612 parcels was not
+  // 61,612 distinct references). Postgres's ON CONFLICT DO UPDATE errors
+  // ("cannot affect row a second time") if a single INSERT tries to touch the
+  // same conflict target twice, unlike the old one-row-at-a-time upserts, which
+  // tolerated duplicates by just overwriting sequentially. Dedupe up front,
+  // keeping the last occurrence, to match that same "last one wins" behavior.
+  const byRef = new Map<string, ParcelRecord>();
+  for (const r of allRecords) byRef.set(r.referenciaCatastral, r);
+  const records = [...byRef.values()];
+  if (records.length !== allRecords.length) {
+    console.log(
+      `Deduplicated ${allRecords.length} records down to ${records.length} distinct referencia catastral`
+    );
+  }
+
   const CHUNK = 500;
   for (let i = 0; i < records.length; i += CHUNK) {
     const chunk = records.slice(i, i + CHUNK);
