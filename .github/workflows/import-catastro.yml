@@ -1,0 +1,57 @@
+name: Import Catastro Parcels
+
+# Manually-triggered import of official Catastro cadastral parcels into the
+# production database. Runs on GitHub's hosted runners, which have normal
+# internet access to catastro.hacienda.gob.es (unlike some sandboxed dev
+# environments), so this is the easiest way to run the import without a
+# local terminal.
+#
+# Requires a repository secret named DATABASE_URL pointing at the
+# production Supabase connection string (Settings -> Secrets and
+# variables -> Actions -> New repository secret).
+
+on:
+  workflow_dispatch:
+    inputs:
+      province:
+        description: "Province name (as it appears in the Catastro ATOM feed)"
+        required: true
+        default: "Sevilla"
+      municipality:
+        description: "Municipality name"
+        required: true
+        default: "Sevilla"
+      limit:
+        description: "Limit number of parcels (leave blank for full import; use 25 for a smoke test)"
+        required: false
+        default: "25"
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Catastro import
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -n "${{ inputs.limit }}" ]; then
+            npx tsx scripts/import-catastro-parcels.ts \
+              --province "${{ inputs.province }}" \
+              --municipality "${{ inputs.municipality }}" \
+              --limit "${{ inputs.limit }}"
+          else
+            npx tsx scripts/import-catastro-parcels.ts \
+              --province "${{ inputs.province }}" \
+              --municipality "${{ inputs.municipality }}"
+          fi
