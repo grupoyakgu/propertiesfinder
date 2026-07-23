@@ -168,6 +168,34 @@ model Plot {
   @@map("plots")
 }
 
+// Official cadastral parcels bulk-imported from Catastro's INSPIRE download
+// services (Cadastral Parcels + Buildings themes). Unlike Plot, these are
+// real government registry records with no price/ROI/zoning judgment —
+// physical and legal facts only.
+model CatastroParcel {
+  id                  String   @id @default(cuid())
+  referenciaCatastral String   @unique
+  municipality        String
+  province            String
+  autonomousCommunity String
+  latitude            Float
+  longitude           Float
+  boundary            Json // GeoJSON polygon, reprojected to WGS84
+
+  plotSize         Float // Superficie del terreno (m2), from CP geometry
+  builtArea        Float? // Superficie construida (m2), summed from joined BU footprints
+  constructionYear Int? // Año de construcción, from BU
+  numberOfFloors   Int? // From BU
+  cadastralUse     CadastralClass // Clase de inmueble (URBANO/RUSTICO)
+  landUse          LandUse? // Uso principal; null if the source code doesn't map cleanly
+
+  sourceDataset String // e.g. "INSPIRE-CP-BU", for traceability
+  importedAt    DateTime @default(now())
+
+  @@index([municipality, province])
+  @@map("catastro_parcels")
+}
+
 model Favorite {
   id        String   @id @default(cuid())
   userId    String

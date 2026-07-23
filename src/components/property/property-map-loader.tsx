@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ClientPlot } from "@/lib/types";
+import type { PropertyMapLocation } from "@/components/property/property-map";
 
 const PropertyMap = dynamic(() => import("@/components/property/property-map").then((m) => m.PropertyMap), {
   ssr: false,
@@ -12,6 +12,6 @@ const PropertyMap = dynamic(() => import("@/components/property/property-map").t
   ),
 });
 
-export function PropertyMapLoader({ plot }: { plot: ClientPlot }) {
-  return <PropertyMap plot={plot} />;
+export function PropertyMapLoader(location: PropertyMapLocation) {
+  return <PropertyMap {...location} />;
 }

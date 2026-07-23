@@ -7,7 +7,7 @@ import type {
   PlotShape,
   Topography,
 } from "@/generated/prisma/enums";
-import type { Plot } from "@/generated/prisma/client";
+import type { CatastroParcel, Plot } from "@/generated/prisma/client";
 
 export interface ClientPlot {
   id: string;
@@ -75,5 +75,34 @@ export function toClientPlot(plot: Plot): ClientPlot {
     ...plot,
     boundary: plot.boundary as ClientPlot["boundary"],
     aiAnalyzedAt: plot.aiAnalyzedAt ? plot.aiAnalyzedAt.toISOString() : null,
+  };
+}
+
+export interface ClientCatastroParcel {
+  id: string;
+  referenciaCatastral: string;
+  municipality: string;
+  province: string;
+  autonomousCommunity: string;
+  latitude: number;
+  longitude: number;
+  boundary: { type: string; coordinates: number[][][] } | null;
+
+  plotSize: number;
+  builtArea: number | null;
+  constructionYear: number | null;
+  numberOfFloors: number | null;
+  cadastralUse: CadastralClass;
+  landUse: LandUse | null;
+
+  sourceDataset: string;
+  importedAt: string;
+}
+
+export function toClientCatastroParcel(parcel: CatastroParcel): ClientCatastroParcel {
+  return {
+    ...parcel,
+    boundary: parcel.boundary as ClientCatastroParcel["boundary"],
+    importedAt: parcel.importedAt.toISOString(),
   };
 }

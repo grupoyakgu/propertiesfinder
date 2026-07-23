@@ -143,7 +143,11 @@ export default async function PropertyPage({
 
           <div className="space-y-6">
             <div className="h-72 overflow-hidden rounded-xl border border-border">
-              <PropertyMapLoader plot={plot} />
+              <PropertyMapLoader
+                latitude={plot.latitude}
+                longitude={plot.longitude}
+                boundary={plot.boundary}
+              />
             </div>
 
             {plot.nearbyAmenities.length > 0 && (

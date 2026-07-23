@@ -2,7 +2,6 @@
 
 import { MapContainer, TileLayer, Marker, Polygon, LayersControl } from "react-leaflet";
 import L from "leaflet";
-import type { ClientPlot } from "@/lib/types";
 
 const icon = L.divIcon({
   className: "",
@@ -11,14 +10,15 @@ const icon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-export function PropertyMap({ plot }: { plot: ClientPlot }) {
+export interface PropertyMapLocation {
+  latitude: number;
+  longitude: number;
+  boundary: { type: string; coordinates: number[][][] } | null;
+}
+
+export function PropertyMap({ latitude, longitude, boundary }: PropertyMapLocation) {
   return (
-    <MapContainer
-      center={[plot.latitude, plot.longitude]}
-      zoom={16}
-      scrollWheelZoom={false}
-      className="h-full w-full"
-    >
+    <MapContainer center={[latitude, longitude]} zoom={16} scrollWheelZoom={false} className="h-full w-full">
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Satellite">
           <TileLayer
@@ -34,13 +34,13 @@ export function PropertyMap({ plot }: { plot: ClientPlot }) {
         </LayersControl.BaseLayer>
       </LayersControl>
 
-      {plot.boundary && (
+      {boundary && (
         <Polygon
-          positions={plot.boundary.coordinates[0].map(([lng, lat]) => [lat, lng])}
+          positions={boundary.coordinates[0].map(([lng, lat]) => [lat, lng])}
           pathOptions={{ color: "#b08d57", weight: 2, fillOpacity: 0.15 }}
         />
       )}
-      <Marker position={[plot.latitude, plot.longitude]} icon={icon} />
+      <Marker position={[latitude, longitude]} icon={icon} />
     </MapContainer>
   );
 }

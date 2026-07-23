@@ -72,9 +72,11 @@ const topographyOptions = [
 export function FiltersSidebar({
   filters,
   onChange,
+  mode = "plots",
 }: {
   filters: DashboardFilters;
   onChange: (filters: DashboardFilters) => void;
+  mode?: "plots" | "catastro";
 }) {
   function set<K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) {
     onChange({ ...filters, [key]: value });
@@ -153,34 +155,38 @@ export function FiltersSidebar({
             onMinChange={(v) => set("floorsMin", v)}
             onMaxChange={(v) => set("floorsMax", v)}
           />
-          <RangeField
-            label="Max Buildable Area (m²)"
-            minValue={filters.buildableAreaMin}
-            maxValue={filters.buildableAreaMax}
-            onMinChange={(v) => set("buildableAreaMin", v)}
-            onMaxChange={(v) => set("buildableAreaMax", v)}
-          />
-          <RangeField
-            label="Occupancy Ratio (%)"
-            minValue={filters.occupancyMin}
-            maxValue={filters.occupancyMax}
-            onMinChange={(v) => set("occupancyMin", v)}
-            onMaxChange={(v) => set("occupancyMax", v)}
-          />
-          <RangeField
-            label="Frontage Width (m)"
-            minValue={filters.frontageMin}
-            maxValue={filters.frontageMax}
-            onMinChange={(v) => set("frontageMin", v)}
-            onMaxChange={(v) => set("frontageMax", v)}
-          />
-          <RangeField
-            label="Depth (m)"
-            minValue={filters.depthMin}
-            maxValue={filters.depthMax}
-            onMinChange={(v) => set("depthMin", v)}
-            onMaxChange={(v) => set("depthMax", v)}
-          />
+          {mode === "plots" && (
+            <>
+              <RangeField
+                label="Max Buildable Area (m²)"
+                minValue={filters.buildableAreaMin}
+                maxValue={filters.buildableAreaMax}
+                onMinChange={(v) => set("buildableAreaMin", v)}
+                onMaxChange={(v) => set("buildableAreaMax", v)}
+              />
+              <RangeField
+                label="Occupancy Ratio (%)"
+                minValue={filters.occupancyMin}
+                maxValue={filters.occupancyMax}
+                onMinChange={(v) => set("occupancyMin", v)}
+                onMaxChange={(v) => set("occupancyMax", v)}
+              />
+              <RangeField
+                label="Frontage Width (m)"
+                minValue={filters.frontageMin}
+                maxValue={filters.frontageMax}
+                onMinChange={(v) => set("frontageMin", v)}
+                onMaxChange={(v) => set("frontageMax", v)}
+              />
+              <RangeField
+                label="Depth (m)"
+                minValue={filters.depthMin}
+                maxValue={filters.depthMax}
+                onMinChange={(v) => set("depthMin", v)}
+                onMaxChange={(v) => set("depthMax", v)}
+              />
+            </>
+          )}
           <div>
             <p className="mb-1.5 text-xs text-muted-foreground">Land Use</p>
             <CheckboxGroup options={landUseOptions} values={filters.landUse} onChange={(v) => set("landUse", v)} />
@@ -193,111 +199,123 @@ export function FiltersSidebar({
               onChange={(v) => set("cadastralUse", v)}
             />
           </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Building Type</p>
-            <CheckboxGroup
-              options={buildingTypeOptions}
-              values={filters.buildingType}
-              onChange={(v) => set("buildingType", v)}
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Plot Shape</p>
-            <CheckboxGroup options={plotShapeOptions} values={filters.plotShape} onChange={(v) => set("plotShape", v)} />
-          </div>
-          <CheckboxOption
-            label="Corner plot only"
-            checked={filters.cornerPlot}
-            onChange={(v) => set("cornerPlot", v)}
-          />
+          {mode === "plots" && (
+            <>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Building Type</p>
+                <CheckboxGroup
+                  options={buildingTypeOptions}
+                  values={filters.buildingType}
+                  onChange={(v) => set("buildingType", v)}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Plot Shape</p>
+                <CheckboxGroup
+                  options={plotShapeOptions}
+                  values={filters.plotShape}
+                  onChange={(v) => set("plotShape", v)}
+                />
+              </div>
+              <CheckboxOption
+                label="Corner plot only"
+                checked={filters.cornerPlot}
+                onChange={(v) => set("cornerPlot", v)}
+              />
+            </>
+          )}
         </FilterSection>
 
-        <FilterSection title="Development Potential">
-          <CheckboxGroup
-            options={developmentPotentialOptions}
-            values={filters.potential}
-            onChange={(v) => set("potential", v)}
-          />
-        </FilterSection>
+        {mode === "plots" && (
+          <>
+            <FilterSection title="Development Potential">
+              <CheckboxGroup
+                options={developmentPotentialOptions}
+                values={filters.potential}
+                onChange={(v) => set("potential", v)}
+              />
+            </FilterSection>
 
-        <FilterSection title="Planning Status">
-          <CheckboxGroup
-            options={planningStatusOptions}
-            values={filters.planningStatus}
-            onChange={(v) => set("planningStatus", v)}
-          />
-        </FilterSection>
+            <FilterSection title="Planning Status">
+              <CheckboxGroup
+                options={planningStatusOptions}
+                values={filters.planningStatus}
+                onChange={(v) => set("planningStatus", v)}
+              />
+            </FilterSection>
 
-        <FilterSection title="Investment">
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Maximum Purchase Price (€)</p>
-            <Input
-              type="number"
-              value={filters.priceMax}
-              onChange={(e) => set("priceMax", e.target.value)}
-              placeholder="e.g. 5000000"
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Max Price per m² (€)</p>
-            <Input
-              type="number"
-              value={filters.pricePerSqmMax}
-              onChange={(e) => set("pricePerSqmMax", e.target.value)}
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Max Estimated Construction Cost (€)</p>
-            <Input
-              type="number"
-              value={filters.constructionCostMax}
-              onChange={(e) => set("constructionCostMax", e.target.value)}
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Minimum Expected ROI (%)</p>
-            <Input type="number" value={filters.roiMin} onChange={(e) => set("roiMin", e.target.value)} />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Minimum Expected Yield (%)</p>
-            <Input type="number" value={filters.yieldMin} onChange={(e) => set("yieldMin", e.target.value)} />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Minimum Development Margin (%)</p>
-            <Input type="number" value={filters.marginMin} onChange={(e) => set("marginMin", e.target.value)} />
-          </div>
-        </FilterSection>
+            <FilterSection title="Investment">
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Maximum Purchase Price (€)</p>
+                <Input
+                  type="number"
+                  value={filters.priceMax}
+                  onChange={(e) => set("priceMax", e.target.value)}
+                  placeholder="e.g. 5000000"
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Max Price per m² (€)</p>
+                <Input
+                  type="number"
+                  value={filters.pricePerSqmMax}
+                  onChange={(e) => set("pricePerSqmMax", e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Max Estimated Construction Cost (€)</p>
+                <Input
+                  type="number"
+                  value={filters.constructionCostMax}
+                  onChange={(e) => set("constructionCostMax", e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Minimum Expected ROI (%)</p>
+                <Input type="number" value={filters.roiMin} onChange={(e) => set("roiMin", e.target.value)} />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Minimum Expected Yield (%)</p>
+                <Input type="number" value={filters.yieldMin} onChange={(e) => set("yieldMin", e.target.value)} />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Minimum Development Margin (%)</p>
+                <Input type="number" value={filters.marginMin} onChange={(e) => set("marginMin", e.target.value)} />
+              </div>
+            </FilterSection>
 
-        <FilterSection title="Physical Characteristics">
-          <div>
-            <p className="mb-1.5 text-xs text-muted-foreground">Topography</p>
-            <CheckboxGroup
-              options={topographyOptions}
-              values={filters.topography}
-              onChange={(v) => set("topography", v)}
-            />
-          </div>
-          <CheckboxOption
-            label="Double frontage"
-            checked={filters.doubleFrontage}
-            onChange={(v) => set("doubleFrontage", v)}
-          />
-          <CheckboxOption
-            label="Existing building"
-            checked={filters.existingBuilding}
-            onChange={(v) => set("existingBuilding", v)}
-          />
-          <CheckboxOption
-            label="Demolition required"
-            checked={filters.demolitionRequired}
-            onChange={(v) => set("demolitionRequired", v)}
-          />
-          <CheckboxOption
-            label="Vacant land"
-            checked={filters.vacantLand}
-            onChange={(v) => set("vacantLand", v)}
-          />
-        </FilterSection>
+            <FilterSection title="Physical Characteristics">
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Topography</p>
+                <CheckboxGroup
+                  options={topographyOptions}
+                  values={filters.topography}
+                  onChange={(v) => set("topography", v)}
+                />
+              </div>
+              <CheckboxOption
+                label="Double frontage"
+                checked={filters.doubleFrontage}
+                onChange={(v) => set("doubleFrontage", v)}
+              />
+              <CheckboxOption
+                label="Existing building"
+                checked={filters.existingBuilding}
+                onChange={(v) => set("existingBuilding", v)}
+              />
+              <CheckboxOption
+                label="Demolition required"
+                checked={filters.demolitionRequired}
+                onChange={(v) => set("demolitionRequired", v)}
+              />
+              <CheckboxOption
+                label="Vacant land"
+                checked={filters.vacantLand}
+                onChange={(v) => set("vacantLand", v)}
+              />
+            </FilterSection>
+          </>
+        )}
       </div>
     </aside>
   );

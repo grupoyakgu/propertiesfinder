@@ -14,9 +14,8 @@ import {
 import L from "leaflet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ClientPlot } from "@/lib/types";
-import { formatArea, formatCurrency } from "@/lib/utils";
-import { planningStatusLabels } from "@/lib/labels";
+import type { MapMarker } from "@/lib/map-marker";
+import { formatCurrency } from "@/lib/utils";
 
 const planningColors: Record<string, string> = {
   URBAN: "#0f3d3e",
@@ -25,6 +24,7 @@ const planningColors: Record<string, string> = {
   PROTECTED: "#b3402f",
   HISTORIC: "#b08d57",
 };
+const defaultPlanningColor = "#0f3d3e";
 
 function markerIcon(highlighted: boolean) {
   const color = highlighted ? "#b08d57" : "#0f3d3e";
@@ -38,12 +38,12 @@ function markerIcon(highlighted: boolean) {
   });
 }
 
-function FitBounds({ plots }: { plots: ClientPlot[] }) {
+function FitBounds({ markers }: { markers: MapMarker[] }) {
   const map = useMap();
-  const key = plots.map((p) => p.id).join(",");
+  const key = markers.map((m) => m.id).join(",");
   useEffect(() => {
-    if (plots.length === 0) return;
-    const bounds = L.latLngBounds(plots.map((p) => [p.latitude, p.longitude]));
+    if (markers.length === 0) return;
+    const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -51,15 +51,15 @@ function FitBounds({ plots }: { plots: ClientPlot[] }) {
 }
 
 export function MapView({
-  plots,
+  markers,
   hoveredId,
 }: {
-  plots: ClientPlot[];
+  markers: MapMarker[];
   hoveredId: string | null;
 }) {
   const router = useRouter();
   const center: [number, number] =
-    plots.length > 0 ? [plots[0].latitude, plots[0].longitude] : [40.4168, -3.7038];
+    markers.length > 0 ? [markers[0].lat, markers[0].lng] : [40.4168, -3.7038];
 
   return (
     <MapContainer center={center} zoom={6} scrollWheelZoom className="h-full w-full">
@@ -91,12 +91,12 @@ export function MapView({
 
         <LayersControl.Overlay checked name="Plot boundaries">
           <>
-            {plots
-              .filter((p) => p.boundary)
-              .map((p) => (
+            {markers
+              .filter((m) => m.boundary)
+              .map((m) => (
                 <Polygon
-                  key={`boundary-${p.id}`}
-                  positions={p.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                  key={`boundary-${m.id}`}
+                  positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
                   pathOptions={{ color: "#0f3d3e", weight: 1.5, fillOpacity: 0.05 }}
                 />
               ))}
@@ -105,47 +105,47 @@ export function MapView({
 
         <LayersControl.Overlay name="Planning overlay">
           <>
-            {plots
-              .filter((p) => p.boundary)
-              .map((p) => (
-                <Polygon
-                  key={`planning-${p.id}`}
-                  positions={p.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                  pathOptions={{
-                    color: planningColors[p.planningStatus],
-                    weight: 1,
-                    fillOpacity: 0.35,
-                    fillColor: planningColors[p.planningStatus],
-                  }}
-                />
-              ))}
+            {markers
+              .filter((m) => m.boundary)
+              .map((m) => {
+                const color = m.planningStatus
+                  ? planningColors[m.planningStatus] ?? defaultPlanningColor
+                  : defaultPlanningColor;
+                return (
+                  <Polygon
+                    key={`planning-${m.id}`}
+                    positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                    pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
+                  />
+                );
+              })}
           </>
         </LayersControl.Overlay>
       </LayersControl>
 
-      <FitBounds plots={plots} />
+      <FitBounds markers={markers} />
 
-      {plots.map((plot) => (
+      {markers.map((marker) => (
         <Marker
-          key={plot.id}
-          position={[plot.latitude, plot.longitude]}
-          icon={markerIcon(hoveredId === plot.id)}
-          eventHandlers={{ click: () => router.prefetch(`/property/${plot.slug}`) }}
+          key={marker.id}
+          position={[marker.lat, marker.lng]}
+          icon={markerIcon(hoveredId === marker.id)}
+          eventHandlers={{ click: () => router.prefetch(marker.href) }}
         >
           <Popup>
             <div className="min-w-[200px] space-y-1">
-              <p className="text-sm font-semibold">{plot.title}</p>
-              <p className="text-xs text-gray-500">
-                {plot.municipality}, {plot.province}
-              </p>
+              <p className="text-sm font-semibold">{marker.title}</p>
+              <p className="text-xs text-gray-500">{marker.subtitle}</p>
               <p className="text-xs">
-                {formatArea(plot.plotSize)} &middot; {planningStatusLabels[plot.planningStatus]}
+                {marker.areaLabel} &middot; {marker.badge}
               </p>
-              <p className="text-sm font-medium">{formatCurrency(plot.purchasePrice)}</p>
-              {plot.nearbyAmenities.length > 0 && (
-                <p className="text-xs text-gray-500">{plot.nearbyAmenities.slice(0, 2).join(" · ")}</p>
+              {marker.price !== undefined && (
+                <p className="text-sm font-medium">{formatCurrency(marker.price)}</p>
               )}
-              <Link href={`/property/${plot.slug}`} className="text-xs font-medium text-emerald-800 underline">
+              {marker.amenities && marker.amenities.length > 0 && (
+                <p className="text-xs text-gray-500">{marker.amenities.slice(0, 2).join(" · ")}</p>
+              )}
+              <Link href={marker.href} className="text-xs font-medium text-emerald-800 underline">
                 View details →
               </Link>
             </div>

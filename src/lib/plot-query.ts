@@ -8,29 +8,7 @@ import type {
   PlotShape,
   Topography,
 } from "@/generated/prisma/enums";
-
-function num(value: string | null): number | undefined {
-  if (value === null || value === "") return undefined;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function bool(value: string | null): boolean | undefined {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return undefined;
-}
-
-function list<T extends string>(value: string | null): T[] | undefined {
-  if (!value) return undefined;
-  const items = value.split(",").filter(Boolean) as T[];
-  return items.length ? items : undefined;
-}
-
-export interface ParsedRange {
-  min?: number;
-  max?: number;
-}
+import { bool, list, parseRange } from "@/lib/query-helpers";
 
 export function buildPlotWhere(searchParams: URLSearchParams): Prisma.PlotWhereInput {
   const AND: Prisma.PlotWhereInput[] = [];
@@ -59,11 +37,8 @@ export function buildPlotWhere(searchParams: URLSearchParams): Prisma.PlotWhereI
   if (autonomousCommunity) AND.push({ autonomousCommunity: { equals: autonomousCommunity } });
 
   const range = (field: keyof Prisma.PlotWhereInput, minKey: string, maxKey: string) => {
-    const min = num(searchParams.get(minKey));
-    const max = num(searchParams.get(maxKey));
-    if (min !== undefined || max !== undefined) {
-      AND.push({ [field]: { gte: min, lte: max } } as Prisma.PlotWhereInput);
-    }
+    const parsed = parseRange(searchParams, minKey, maxKey);
+    if (parsed) AND.push({ [field]: parsed } as Prisma.PlotWhereInput);
   };
 
   range("plotSize", "plotSizeMin", "plotSizeMax");
