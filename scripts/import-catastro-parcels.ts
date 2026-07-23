@@ -35,10 +35,12 @@
  * Always run with --limit 25 first (see plan verification steps).
  */
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import AdmZip from "adm-zip";
 import { XMLParser } from "fast-xml-parser";
 import proj4 from "proj4";
 import { prisma } from "../src/lib/prisma";
+import { Prisma } from "../src/generated/prisma/client";
 import type { CadastralClass, LandUse } from "../src/generated/prisma/enums";
 
 const CP_ATOM_INDEX_URL =
@@ -539,20 +541,56 @@ interface ParcelRecord {
   sourceDataset: string;
 }
 
+// A single multi-row `INSERT ... ON CONFLICT DO UPDATE` per chunk — one round-trip
+// to the DB instead of one per row. The previous version ran 200 individual
+// prisma.catastroParcel.upsert() calls per chunk (each its own round-trip, just
+// wrapped in one transaction), which measured at ~24s for a 168-row chunk against
+// the Supabase pooler from GitHub Actions — a full ~61k-row city import at that
+// rate would take on the order of two hours. This does the same upsert semantics
+// (create on new referenciaCatastral, update the same fields on conflict) in a
+// fraction of the time.
 async function upsertBatch(records: ParcelRecord[]) {
-  const CHUNK = 200;
+  const CHUNK = 500;
   for (let i = 0; i < records.length; i += CHUNK) {
     const chunk = records.slice(i, i + CHUNK);
-    await prisma.$transaction(
-      chunk.map((r) =>
-        prisma.catastroParcel.upsert({
-          where: { referenciaCatastral: r.referenciaCatastral },
-          create: r,
-          update: r,
-        })
-      ),
-      { timeout: 60000 }
+    const rows = chunk.map(
+      (r) => Prisma.sql`(
+        ${randomUUID()}, ${r.referenciaCatastral}, ${r.municipality}, ${r.province}, ${r.autonomousCommunity},
+        ${r.latitude}, ${r.longitude}, ${JSON.stringify(r.boundary)}::jsonb,
+        ${r.streetName}, ${r.streetNumber},
+        ${r.plotSize}, ${r.builtArea}, ${r.constructionYear}, ${r.numberOfFloors},
+        ${r.cadastralUse}::"CadastralClass", ${r.landUse}::"LandUse",
+        ${r.sourceDataset}, now()
+      )`
     );
+
+    await prisma.$executeRaw`
+      INSERT INTO "catastro_parcels" (
+        "id", "referenciaCatastral", "municipality", "province", "autonomousCommunity",
+        "latitude", "longitude", "boundary",
+        "streetName", "streetNumber",
+        "plotSize", "builtArea", "constructionYear", "numberOfFloors",
+        "cadastralUse", "landUse",
+        "sourceDataset", "importedAt"
+      )
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("referenciaCatastral") DO UPDATE SET
+        "municipality" = EXCLUDED."municipality",
+        "province" = EXCLUDED."province",
+        "autonomousCommunity" = EXCLUDED."autonomousCommunity",
+        "latitude" = EXCLUDED."latitude",
+        "longitude" = EXCLUDED."longitude",
+        "boundary" = EXCLUDED."boundary",
+        "streetName" = EXCLUDED."streetName",
+        "streetNumber" = EXCLUDED."streetNumber",
+        "plotSize" = EXCLUDED."plotSize",
+        "builtArea" = EXCLUDED."builtArea",
+        "constructionYear" = EXCLUDED."constructionYear",
+        "numberOfFloors" = EXCLUDED."numberOfFloors",
+        "cadastralUse" = EXCLUDED."cadastralUse",
+        "landUse" = EXCLUDED."landUse",
+        "sourceDataset" = EXCLUDED."sourceDataset"
+    `;
     console.log(`Upserted ${Math.min(i + CHUNK, records.length)}/${records.length}`);
   }
 }
