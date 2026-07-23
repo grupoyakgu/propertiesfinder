@@ -124,6 +124,21 @@ export function FiltersSidebar({
               </option>
             ))}
           </Select>
+          {mode === "catastro" && (
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <Input
+                placeholder="Street name"
+                value={filters.streetName}
+                onChange={(e) => set("streetName", e.target.value)}
+              />
+              <Input
+                placeholder="No."
+                className="w-16"
+                value={filters.streetNumber}
+                onChange={(e) => set("streetNumber", e.target.value)}
+              />
+            </div>
+          )}
         </FilterSection>
 
         <FilterSection title="Land Characteristics">

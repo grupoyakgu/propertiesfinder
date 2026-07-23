@@ -28,6 +28,12 @@ export function buildCatastroParcelWhere(
   const autonomousCommunity = searchParams.get("autonomousCommunity");
   if (autonomousCommunity) AND.push({ autonomousCommunity: { equals: autonomousCommunity } });
 
+  const streetName = searchParams.get("streetName")?.trim();
+  if (streetName) AND.push({ streetName: { contains: streetName, mode: "insensitive" } });
+
+  const streetNumber = searchParams.get("streetNumber")?.trim();
+  if (streetNumber) AND.push({ streetNumber: { equals: streetNumber } });
+
   const range = (field: keyof Prisma.CatastroParcelWhereInput, minKey: string, maxKey: string) => {
     const parsed = parseRange(searchParams, minKey, maxKey);
     if (parsed) AND.push({ [field]: parsed } as Prisma.CatastroParcelWhereInput);

@@ -3,6 +3,8 @@ export interface DashboardFilters {
   municipality: string;
   province: string;
   autonomousCommunity: string;
+  streetName: string;
+  streetNumber: string;
 
   plotSizeMin: string;
   plotSizeMax: string;
@@ -50,6 +52,8 @@ export const emptyFilters: DashboardFilters = {
   municipality: "",
   province: "",
   autonomousCommunity: "",
+  streetName: "",
+  streetNumber: "",
   plotSizeMin: "",
   plotSizeMax: "",
   builtAreaMin: "",
@@ -114,6 +118,8 @@ export function filtersToSearchParams(filters: DashboardFilters): URLSearchParam
   if (filters.municipality) params.set("municipality", filters.municipality);
   if (filters.province) params.set("province", filters.province);
   if (filters.autonomousCommunity) params.set("autonomousCommunity", filters.autonomousCommunity);
+  if (filters.streetName) params.set("streetName", filters.streetName);
+  if (filters.streetNumber) params.set("streetNumber", filters.streetNumber);
 
   const range = (min: string, max: string, minKey: string, maxKey: string) => {
     if (min) params.set(minKey, min);
@@ -178,5 +184,7 @@ export function countActiveFilters(filters: DashboardFilters): number {
   count += filters.municipality ? 1 : 0;
   count += filters.province ? 1 : 0;
   count += filters.autonomousCommunity ? 1 : 0;
+  count += filters.streetName ? 1 : 0;
+  count += filters.streetNumber ? 1 : 0;
   return count;
 }
