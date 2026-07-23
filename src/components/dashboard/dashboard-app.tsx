@@ -19,6 +19,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useLocale } from "@/lib/i18n/context";
 import type { BoundsBox } from "@/components/dashboard/map-view";
+import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dashboard-cache";
 
 const MapView = dynamic(() => import("@/components/dashboard/map-view").then((m) => m.MapView), {
   ssr: false,
@@ -51,10 +52,20 @@ export function DashboardApp({
   const { locale, t } = useLocale();
   const [source, setSource] = useState<Source>(initialSource);
   const [filters, setFilters] = useState(initialFilters);
-  const [plots, setPlots] = useState<ClientPlot[]>([]);
-  const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  // If this exact view (tab + filters) was already fetched earlier in this tab —
+  // e.g. the user is landing here via "Back to search" — hydrate synchronously from
+  // that cache instead of starting from an empty/loading state. This is what avoids
+  // the map/list going blank and showing "Searching…" for a beat on every return.
+  const [initialCacheKey] = useState(
+    () => `${initialSource}:${filtersToSearchParams(initialFilters).toString()}`
+  );
+  const [initialCached] = useState(() => getCachedDashboardResults(initialCacheKey));
+
+  const [plots, setPlots] = useState<ClientPlot[]>(initialCached?.plots ?? []);
+  const [parcels, setParcels] = useState<ClientCatastroParcel[]>(initialCached?.parcels ?? []);
+  const [totalCount, setTotalCount] = useState(initialCached?.total ?? 0);
+  const [loading, setLoading] = useState(!initialCached);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapVisible, setMapVisible] = useState(initialMapVisible);
@@ -94,15 +105,25 @@ export function DashboardApp({
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
+    const cacheKey = `${source}:${apiQueryString}`;
     const handle = setTimeout(async () => {
-      setLoading(true);
+      // Only show the loading state when we have nothing to show yet. When a cache
+      // entry already exists (e.g. this is a "Back to search" landing), keep
+      // showing it and silently revalidate in the background instead of flashing
+      // to blank. Kept inside the debounce (not before it) so typing a search query
+      // still gets the original "no flicker while typing fast" behavior.
+      if (!getCachedDashboardResults(cacheKey)) setLoading(true);
       try {
         const endpoint = source === "plots" ? "/api/plots" : "/api/catastro-parcels";
         const res = await fetch(`${endpoint}?${apiQueryString}`);
         const data = await res.json();
-        if (source === "plots") setPlots(data.plots ?? []);
-        else setParcels(data.parcels ?? []);
-        setTotalCount(data.total ?? (source === "plots" ? data.plots?.length : data.parcels?.length) ?? 0);
+        const fetchedPlots: ClientPlot[] = source === "plots" ? (data.plots ?? []) : [];
+        const fetchedParcels: ClientCatastroParcel[] = source === "catastro" ? (data.parcels ?? []) : [];
+        const total = data.total ?? (source === "plots" ? data.plots?.length : data.parcels?.length) ?? 0;
+        if (source === "plots") setPlots(fetchedPlots);
+        else setParcels(fetchedParcels);
+        setTotalCount(total);
+        setCachedDashboardResults(cacheKey, { plots: fetchedPlots, parcels: fetchedParcels, total });
       } finally {
         setLoading(false);
       }
