@@ -38,10 +38,10 @@ import type { CadastralClass, LandUse } from "../src/generated/prisma/enums";
 
 const CP_ATOM_INDEX_URL =
   process.env.CATASTRO_CP_ATOM_URL ??
-  "http://www.catastro.minhap.es/INSPIRE/CadastralParcels/ES.SDGC.CP.atom.xml";
+  "https://www.catastro.hacienda.gob.es/INSPIRE/CadastralParcels/ES.SDGC.CP.atom.xml";
 const BU_ATOM_INDEX_URL =
   process.env.CATASTRO_BU_ATOM_URL ??
-  "http://www.catastro.minhap.es/INSPIRE/buildings/ES.SDGC.BU.atom.xml";
+  "https://www.catastro.hacienda.gob.es/INSPIRE/buildings/ES.SDGC.BU.atom.xml";
 
 const PROVINCE_TO_COMMUNITY: Record<string, string> = {
   sevilla: "Andalucía",
