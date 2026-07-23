@@ -130,12 +130,16 @@ export function DashboardApp({
   const resultLabel =
     t("dashboard.resultsCount", { n: resultCount, plural: resultCount === 1 ? "" : "s" }) +
     (truncated ? t("dashboard.showingFirstN", { n: fetchedCount }) : "");
+  // Deliberately NOT dependent on dashboardUrl: that changes on every pan/zoom (it
+  // carries the map's bbox), and recomputing this would force every Marker and every
+  // boundary/planning Polygon to re-render on every single pan/zoom tick. The "back to
+  // search" link is applied separately, at render time, via MapView's `backHref` prop.
   const markers = useMemo(
     () =>
       source === "plots"
-        ? plots.map((p) => plotToMarker(p, locale, dashboardUrl))
-        : parcels.map((p) => catastroParcelToMarker(p, locale, dashboardUrl)),
-    [source, plots, parcels, locale, dashboardUrl]
+        ? plots.map((p) => plotToMarker(p, locale))
+        : parcels.map((p) => catastroParcelToMarker(p, locale)),
+    [source, plots, parcels, locale]
   );
 
   // Reset the viewport filter when the data source changes (plots vs. parcels are
@@ -329,6 +333,7 @@ export function DashboardApp({
               onBoundsChange={setMapBounds}
               visible={mapVisible}
               restoreBounds={restoreBounds}
+              backHref={dashboardUrl}
             />
           </div>
         )}

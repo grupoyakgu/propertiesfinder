@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -16,7 +16,7 @@ import L from "leaflet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, withBackHref } from "@/lib/utils";
 
 /** Plain (Leaflet-free) representation of a map viewport, so it can be persisted in the
  * URL and used to filter results even before/without the Leaflet map ever mounting. */
@@ -128,6 +128,7 @@ export function MapView({
   onBoundsChange,
   visible = true,
   restoreBounds,
+  backHref,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
@@ -135,6 +136,10 @@ export function MapView({
   visible?: boolean;
   /** A previously-saved viewport (e.g. from the URL) to restore on first mount. */
   restoreBounds?: BoundsBox | null;
+  /** Applied to marker links at render/click time (not baked into `markers`) so
+   * panning/zooming — which changes this as the URL's bbox updates — never forces
+   * the marker/polygon list itself to be recomputed and re-rendered. */
+  backHref?: string;
 }) {
   const router = useRouter();
   const center: [number, number] = restoreBounds
@@ -142,6 +147,41 @@ export function MapView({
     : markers.length > 0
       ? [markers[0].lat, markers[0].lng]
       : [40.4168, -3.7038];
+
+  // Precomputed once per `markers` change (not on every render — MapView re-renders on
+  // every pan/zoom because of `backHref`/hoveredId) so panning a map with hundreds of
+  // parcel boundaries doesn't re-derive and redraw every polygon on every tick.
+  const boundaryPolygons = useMemo(
+    () =>
+      markers
+        .filter((m) => m.boundary)
+        .map((m) => (
+          <Polygon
+            key={`boundary-${m.id}`}
+            positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+            pathOptions={{ color: "#0f3d3e", weight: 1.5, fillOpacity: 0.05 }}
+          />
+        )),
+    [markers]
+  );
+  const planningPolygons = useMemo(
+    () =>
+      markers
+        .filter((m) => m.boundary)
+        .map((m) => {
+          const color = m.planningStatus
+            ? planningColors[m.planningStatus] ?? defaultPlanningColor
+            : defaultPlanningColor;
+          return (
+            <Polygon
+              key={`planning-${m.id}`}
+              positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+              pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
+            />
+          );
+        }),
+    [markers]
+  );
 
   return (
     <MapContainer center={center} zoom={6} scrollWheelZoom className="h-full w-full">
@@ -172,36 +212,11 @@ export function MapView({
         </LayersControl.Overlay>
 
         <LayersControl.Overlay checked name="Plot boundaries">
-          <>
-            {markers
-              .filter((m) => m.boundary)
-              .map((m) => (
-                <Polygon
-                  key={`boundary-${m.id}`}
-                  positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                  pathOptions={{ color: "#0f3d3e", weight: 1.5, fillOpacity: 0.05 }}
-                />
-              ))}
-          </>
+          <>{boundaryPolygons}</>
         </LayersControl.Overlay>
 
         <LayersControl.Overlay name="Planning overlay">
-          <>
-            {markers
-              .filter((m) => m.boundary)
-              .map((m) => {
-                const color = m.planningStatus
-                  ? planningColors[m.planningStatus] ?? defaultPlanningColor
-                  : defaultPlanningColor;
-                return (
-                  <Polygon
-                    key={`planning-${m.id}`}
-                    positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                    pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
-                  />
-                );
-              })}
-          </>
+          <>{planningPolygons}</>
         </LayersControl.Overlay>
       </LayersControl>
 
@@ -214,7 +229,7 @@ export function MapView({
           key={marker.id}
           position={[marker.lat, marker.lng]}
           icon={markerIcon(hoveredId === marker.id)}
-          eventHandlers={{ click: () => router.prefetch(marker.href) }}
+          eventHandlers={{ click: () => router.prefetch(withBackHref(marker.href, backHref)) }}
         >
           <Popup>
             <div className="min-w-[200px] space-y-1">
@@ -229,7 +244,7 @@ export function MapView({
               {marker.amenities && marker.amenities.length > 0 && (
                 <p className="text-xs text-gray-500">{marker.amenities.slice(0, 2).join(" · ")}</p>
               )}
-              <Link href={marker.href} className="text-xs font-medium text-emerald-800 underline">
+              <Link href={withBackHref(marker.href, backHref)} className="text-xs font-medium text-emerald-800 underline">
                 View details →
               </Link>
             </div>
