@@ -7,13 +7,12 @@ export async function GET(request: Request) {
   const where = buildCatastroParcelWhere(searchParams);
   const orderBy = parseCatastroSort(searchParams.get("sort"));
 
-  const take = Math.min(Number(searchParams.get("limit")) || 100, 200);
+  const take = Math.min(Number(searchParams.get("limit")) || 2000, 5000);
 
-  const parcels = await prisma.catastroParcel.findMany({
-    where,
-    orderBy,
-    take,
-  });
+  const [parcels, total] = await Promise.all([
+    prisma.catastroParcel.findMany({ where, orderBy, take }),
+    prisma.catastroParcel.count({ where }),
+  ]);
 
-  return NextResponse.json({ parcels, count: parcels.length });
+  return NextResponse.json({ parcels, count: parcels.length, total });
 }

@@ -34,6 +34,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const [filters, setFilters] = useState(initialFilters);
   const [plots, setPlots] = useState<ClientPlot[]>([]);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -50,6 +51,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
         const data = await res.json();
         if (source === "plots") setPlots(data.plots ?? []);
         else setParcels(data.parcels ?? []);
+        setTotalCount(data.total ?? (source === "plots" ? data.plots?.length : data.parcels?.length) ?? 0);
       } finally {
         setLoading(false);
       }
@@ -59,7 +61,12 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryString, source]);
 
-  const resultCount = source === "plots" ? plots.length : parcels.length;
+  const fetchedCount = source === "plots" ? plots.length : parcels.length;
+  const resultCount = totalCount;
+  const truncated = fetchedCount < totalCount;
+  const resultLabel = `${resultCount} result${resultCount === 1 ? "" : "s"}${
+    truncated ? ` (showing first ${fetchedCount})` : ""
+  }`;
   const markers = useMemo(
     () => (source === "plots" ? plots.map(plotToMarker) : parcels.map(catastroParcelToMarker)),
     [source, plots, parcels]
@@ -156,7 +163,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           <>
             <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
               <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-                {loading ? "Searching…" : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
+                {loading ? "Searching…" : resultLabel}
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {source === "plots"
@@ -188,7 +195,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
         ) : (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-              {loading ? "Searching…" : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
+              {loading ? "Searching…" : resultLabel}
             </div>
             <div className="flex-1 overflow-auto p-4">
               {loading ? (

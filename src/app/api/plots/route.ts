@@ -7,13 +7,12 @@ export async function GET(request: Request) {
   const where = buildPlotWhere(searchParams);
   const orderBy = parseSort(searchParams.get("sort"));
 
-  const take = Math.min(Number(searchParams.get("limit")) || 100, 200);
+  const take = Math.min(Number(searchParams.get("limit")) || 2000, 5000);
 
-  const plots = await prisma.plot.findMany({
-    where,
-    orderBy,
-    take,
-  });
+  const [plots, total] = await Promise.all([
+    prisma.plot.findMany({ where, orderBy, take }),
+    prisma.plot.count({ where }),
+  ]);
 
-  return NextResponse.json({ plots, count: plots.length });
+  return NextResponse.json({ plots, count: plots.length, total });
 }
