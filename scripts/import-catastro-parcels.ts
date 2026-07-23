@@ -199,15 +199,57 @@ async function findZipUrl(feedUrl: string, matchName: string): Promise<string> {
   return zipHref;
 }
 
-async function downloadGmlFiles(zipUrl: string): Promise<{ name: string; text: string }[]> {
+async function downloadGmlFiles(zipUrl: string): Promise<{ name: string; buffer: Buffer }[]> {
   const res = await fetch(zipUrl);
   if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${zipUrl}`);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const zip = new AdmZip(buffer);
+  const zipBuffer = Buffer.from(await res.arrayBuffer());
+  const zip = new AdmZip(zipBuffer);
   return zip
     .getEntries()
     .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
-    .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }));
+    .map((e) => ({ name: e.entryName, buffer: e.getData() }));
+}
+
+/**
+ * A big municipality's Buildings GML can easily exceed Node's ~536MB max
+ * string length (ERR_STRING_TOO_LONG) if decoded in one shot. Instead, find
+ * each individual <prefix:featureMember>...</prefix:featureMember> (or
+ * ...member...) span directly in the raw bytes and decode only that small
+ * span to a string — the whole file is never materialized as one string.
+ */
+function detectWrapperTag(buffer: Buffer, localName: string): string | null {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8192)).toString("utf-8");
+  const match = sample.match(new RegExp(`<([\\w.-]+:)?${localName}(?=[\\s>/])`));
+  if (!match) return null;
+  return `${match[1] ?? ""}${localName}`;
+}
+
+function* iterateMemberFragments(buffer: Buffer): Generator<string> {
+  for (const localName of ["featureMember", "member"]) {
+    const tag = detectWrapperTag(buffer, localName);
+    if (!tag) continue;
+
+    const openBytes = Buffer.from(`<${tag}>`, "utf-8");
+    const closeBytes = Buffer.from(`</${tag}>`, "utf-8");
+    let pos = 0;
+    while (true) {
+      const start = buffer.indexOf(openBytes, pos);
+      if (start === -1) break;
+      const end = buffer.indexOf(closeBytes, start);
+      if (end === -1) break;
+      const endWithTag = end + closeBytes.length;
+      yield buffer.subarray(start, endWithTag).toString("utf-8");
+      pos = endWithTag;
+    }
+    return;
+  }
+}
+
+/** Parses a single <featureMember>/<member> fragment and returns its feature object. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseMemberFragment(fragment: string): any {
+  const doc = xmlParser.parse(fragment);
+  return doc.featureMember ?? doc.member ?? {};
 }
 
 // ---------------------------------------------------------------------------
@@ -221,14 +263,12 @@ interface RawParcel {
   posList: string | null;
 }
 
-function parseCadastralParcelsGml(gmlText: string): RawParcel[] {
-  const doc = xmlParser.parse(gmlText);
-  const root = doc.FeatureCollection ?? doc;
-  const members = asArray(root.featureMember ?? root.member);
+function parseCadastralParcelsGml(buffer: Buffer): RawParcel[] {
   const parcels: RawParcel[] = [];
 
-  for (const member of members) {
-    const cp = member.CadastralParcel;
+  for (const fragment of iterateMemberFragments(buffer)) {
+    const feature = parseMemberFragment(fragment);
+    const cp = feature.CadastralParcel;
     if (!cp) continue;
 
     const refCat = textOf(cp.nationalCadastralReference) ?? textOf(cp.localId) ?? textOf(cp.label);
@@ -289,17 +329,15 @@ function stripPartSuffix(id: string): string {
   return id.replace(/_part\d+$/i, "").replace(/_PI\.\d+$/i, "");
 }
 
-function parseBuildingsGml(gmlText: string): RawBuilding[] {
-  const doc = xmlParser.parse(gmlText);
-  const root = doc.FeatureCollection ?? doc;
-  const members = asArray(root.featureMember ?? root.member);
+function parseBuildingsGml(buffer: Buffer): RawBuilding[] {
   const buildings: RawBuilding[] = [];
 
-  for (const member of members) {
+  for (const fragment of iterateMemberFragments(buffer)) {
+    const feature = parseMemberFragment(fragment);
     // "Building" carries currentUse/dateOfConstruction/officialArea;
     // "BuildingPart" (a distinct volume within a building) often carries
     // numberOfFloorsAboveGround when the Building's own value is nil.
-    const bu = member.Building ?? member.BuildingPart;
+    const bu = feature.Building ?? feature.BuildingPart;
     if (!bu) continue;
 
     const refCatRaw =
@@ -436,7 +474,7 @@ async function runInspect(pathArg: string) {
   const isUrl = /^https?:\/\//i.test(pathArg);
   const isZip = pathArg.toLowerCase().endsWith(".zip");
 
-  let gmlFiles: { name: string; text: string }[];
+  let gmlFiles: { name: string; buffer: Buffer }[];
   if (isUrl) {
     const res = await fetch(pathArg);
     if (!res.ok) throw new Error(`HTTP ${res.status} downloading ${pathArg}`);
@@ -445,34 +483,32 @@ async function runInspect(pathArg: string) {
       ? new AdmZip(buffer)
           .getEntries()
           .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
-          .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }))
-      : [{ name: pathArg, text: buffer.toString("utf-8") }];
+          .map((e) => ({ name: e.entryName, buffer: e.getData() }))
+      : [{ name: pathArg, buffer }];
   } else {
     const fs = await import("node:fs");
     gmlFiles = isZip
       ? new AdmZip(pathArg)
           .getEntries()
           .filter((e) => e.entryName.toLowerCase().endsWith(".gml"))
-          .map((e) => ({ name: e.entryName, text: e.getData().toString("utf-8") }))
-      : [{ name: pathArg, text: fs.readFileSync(pathArg, "utf-8") }];
+          .map((e) => ({ name: e.entryName, buffer: e.getData() }))
+      : [{ name: pathArg, buffer: fs.readFileSync(pathArg) }];
   }
 
   for (const file of gmlFiles) {
     console.log(`--- ${file.name} ---`);
 
-    const doc = xmlParser.parse(file.text);
-    const root = doc.FeatureCollection ?? doc;
-    const members = asArray(root.featureMember ?? root.member);
-    console.log(`Raw root keys: ${Object.keys(root).join(", ")}`);
-    console.log(`Raw feature member count: ${members.length}`);
-    if (members[0]) {
-      console.log(`Raw first member keys: ${Object.keys(members[0]).join(", ")}`);
+    const fragments = [...iterateMemberFragments(file.buffer)];
+    console.log(`Feature member count: ${fragments.length}`);
+    if (fragments[0]) {
+      const firstFeature = parseMemberFragment(fragments[0]);
+      console.log(`Raw first member keys: ${Object.keys(firstFeature).join(", ")}`);
       console.log(`Raw first member (truncated to 4000 chars):`);
-      console.log(JSON.stringify(members[0], null, 2).slice(0, 4000));
+      console.log(JSON.stringify(firstFeature, null, 2).slice(0, 4000));
     }
 
-    const parcels = parseCadastralParcelsGml(file.text);
-    const buildings = parseBuildingsGml(file.text);
+    const parcels = parseCadastralParcelsGml(file.buffer);
+    const buildings = parseBuildingsGml(file.buffer);
     console.log(`Parsed as CadastralParcels: ${parcels.length} entries`);
     if (parcels[0]) console.log(JSON.stringify(parcels[0], null, 2));
     console.log(`Parsed as Buildings: ${buildings.length} entries`);
@@ -506,12 +542,12 @@ async function main() {
 
   console.log("Downloading + parsing parcels...");
   const cpGmlFiles = await downloadGmlFiles(cpZipUrl);
-  const parcels = cpGmlFiles.flatMap((f) => parseCadastralParcelsGml(f.text));
+  const parcels = cpGmlFiles.flatMap((f) => parseCadastralParcelsGml(f.buffer));
   console.log(`Parsed ${parcels.length} parcels`);
 
   console.log("Downloading + parsing buildings...");
   const buGmlFiles = await downloadGmlFiles(buZipUrl);
-  const buildings = buGmlFiles.flatMap((f) => parseBuildingsGml(f.text));
+  const buildings = buGmlFiles.flatMap((f) => parseBuildingsGml(f.buffer));
   console.log(`Parsed ${buildings.length} buildings`);
 
   const buildingsByParcel = new Map<string, RawBuilding[]>();
