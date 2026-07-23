@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPinned, Search, SlidersHorizontal, X } from "lucide-react";
+import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -12,6 +12,7 @@ import { plotToMarker, catastroParcelToMarker } from "@/lib/map-marker";
 import { FiltersSidebar } from "@/components/dashboard/filters-sidebar";
 import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
+import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/results-table";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -29,13 +30,14 @@ type Source = "plots" | "catastro";
 
 export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilters }) {
   const router = useRouter();
-  const [source, setSource] = useState<Source>("plots");
+  const [source, setSource] = useState<Source>("catastro");
   const [filters, setFilters] = useState(initialFilters);
   const [plots, setPlots] = useState<ClientPlot[]>([]);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mapVisible, setMapVisible] = useState(true);
 
   const queryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
 
@@ -110,14 +112,23 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           </Select>
         )}
 
+        <button
+          type="button"
+          onClick={() => setMapVisible((v) => !v)}
+          className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground sm:flex"
+        >
+          {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
+          {mapVisible ? "Hide Map" : "Show Map"}
+        </button>
+
         <LogoutButton />
       </header>
 
       <div className="flex items-center gap-1 border-b border-border bg-surface px-4 py-2">
         {(
           [
-            { key: "plots", label: "Sample Opportunities" },
             { key: "catastro", label: "Official Catastro Records" },
+            { key: "plots", label: "Sample Opportunities" },
           ] as const
         ).map((tab) => (
           <button
@@ -141,36 +152,55 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
           <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
         </div>
 
-        <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
-          <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-            {loading ? "Searching…" : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
-          </div>
-          <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {source === "plots"
-              ? plots.map((plot) => (
-                  <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
-                ))
-              : parcels.map((parcel) => (
-                  <CatastroParcelCard
-                    key={parcel.id}
-                    parcel={parcel}
-                    active={hoveredId === parcel.id}
-                    onHover={setHoveredId}
-                  />
-                ))}
-            {!loading && resultCount === 0 && (
-              <p className="pt-10 text-center text-sm text-muted-foreground">
+        {mapVisible ? (
+          <>
+            <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
+              <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+                {loading ? "Searching…" : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {source === "plots"
-                  ? "No plots match these filters. Try widening your search."
-                  : "No official Catastro records match these filters. Try widening your search."}
-              </p>
-            )}
-          </div>
-        </div>
+                  ? plots.map((plot) => (
+                      <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
+                    ))
+                  : parcels.map((parcel) => (
+                      <CatastroParcelCard
+                        key={parcel.id}
+                        parcel={parcel}
+                        active={hoveredId === parcel.id}
+                        onHover={setHoveredId}
+                      />
+                    ))}
+                {!loading && resultCount === 0 && (
+                  <p className="pt-10 text-center text-sm text-muted-foreground">
+                    {source === "plots"
+                      ? "No plots match these filters. Try widening your search."
+                      : "No official Catastro records match these filters. Try widening your search."}
+                  </p>
+                )}
+              </div>
+            </div>
 
-        <div className="relative flex-1">
-          <MapView markers={markers} hoveredId={hoveredId} />
-        </div>
+            <div className="relative flex-1">
+              <MapView markers={markers} hoveredId={hoveredId} />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+              {loading ? "Searching…" : `${resultCount} result${resultCount === 1 ? "" : "s"}`}
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {loading ? (
+                <p className="pt-10 text-center text-sm text-muted-foreground">Searching…</p>
+              ) : source === "plots" ? (
+                <PlotResultsTable plots={plots} />
+              ) : (
+                <CatastroResultsTable parcels={parcels} />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
