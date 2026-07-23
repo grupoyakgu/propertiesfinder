@@ -13,6 +13,11 @@
  * Usage:
  *   npx tsx scripts/import-catastro-parcels.ts --province "Sevilla" --municipality "Sevilla" [--limit 25]
  *
+ * Filter to specific streets (uses the Addresses/AD theme to resolve which
+ * parcels sit on the named streets, then imports only those):
+ *   npx tsx scripts/import-catastro-parcels.ts --province "Sevilla" --municipality "Sevilla" \
+ *     --streets "Peral,Beatriz de Suabia" [--limit 25]
+ *
  * Debugging (no DB writes, just prints parsed structure of a local file):
  *   npx tsx scripts/import-catastro-parcels.ts --inspect path/to/downloaded.zip
  *
@@ -42,6 +47,9 @@ const CP_ATOM_INDEX_URL =
 const BU_ATOM_INDEX_URL =
   process.env.CATASTRO_BU_ATOM_URL ??
   "https://www.catastro.hacienda.gob.es/INSPIRE/buildings/ES.SDGC.BU.atom.xml";
+const AD_ATOM_INDEX_URL =
+  process.env.CATASTRO_AD_ATOM_URL ??
+  "https://www.catastro.hacienda.gob.es/INSPIRE/Addresses/ES.SDGC.AD.atom.xml";
 
 const PROVINCE_TO_COMMUNITY: Record<string, string> = {
   sevilla: "Andalucía",
@@ -67,6 +75,7 @@ interface Args {
   cadastralUse: CadastralClass;
   limit?: number;
   inspect?: string;
+  streets?: string[];
 }
 
 function parseArgs(): Args {
@@ -84,8 +93,24 @@ function parseArgs(): Args {
   const autonomousCommunity =
     get("--autonomous-community") ?? PROVINCE_TO_COMMUNITY[province.toLowerCase()] ?? province;
   const cadastralUse = (get("--cadastral-use")?.toUpperCase() as CadastralClass) ?? "URBANO";
+  const streetsRaw = get("--streets");
+  const streets = streetsRaw
+    ? streetsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined;
 
-  return { province, municipality, autonomousCommunity, cadastralUse, limit, inspect };
+  return { province, municipality, autonomousCommunity, cadastralUse, limit, inspect, streets };
+}
+
+/** Strips accents/diacritics and uppercases, for tolerant street-name matching. */
+function normalizeStreetText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -388,6 +413,64 @@ function mapLandUse(currentUse: string | null): LandUse | null {
 }
 
 // ---------------------------------------------------------------------------
+// GML parsing — Addresses (AD), used only for --streets filtering
+// ---------------------------------------------------------------------------
+
+interface RawAddress {
+  referenciaCatastral: string;
+  streetName: string;
+}
+
+/**
+ * Addresses (AD) mixes four feature types in one fragment stream: Address,
+ * ThoroughfareName, PostalDescriptor, AdminUnitName. An Address doesn't
+ * embed its street name — it links to a same-document ThoroughfareName via
+ * component[].@_href="#ES.SDGC.TN...", so this requires two passes: first
+ * collect every ThoroughfareName's text keyed by its @_id, then resolve each
+ * Address's TN link against that map. The base referencia catastral is
+ * embedded as the last dot-separated segment of inspireId.Identifier.localId
+ * (e.g. "41.900.1.1.4529709TG3442H" -> "4529709TG3442H").
+ */
+function parseAddressesGml(buffer: Buffer): RawAddress[] {
+  const streetNameById = new Map<string, string>();
+
+  for (const fragment of iterateMemberFragments(buffer)) {
+    const feature = parseMemberFragment(fragment);
+    const tn = feature.ThoroughfareName;
+    if (!tn) continue;
+    const id = textOf(tn["@_id"]);
+    const text = textOf(
+      tn.name?.ThoroughfareNameValue?.name?.GeographicalName?.spelling?.SpellingOfName?.text
+    );
+    if (id && text) streetNameById.set(id, text);
+  }
+
+  const addresses: RawAddress[] = [];
+  for (const fragment of iterateMemberFragments(buffer)) {
+    const feature = parseMemberFragment(fragment);
+    const ad = feature.Address;
+    if (!ad) continue;
+
+    const localId = textOf(ad.inspireId?.Identifier?.localId);
+    if (!localId) continue;
+    const refCat = localId.split(".").pop()?.trim();
+    if (!refCat) continue;
+
+    const components = asArray(ad.component);
+    const tnHref = components
+      .map((c) => textOf(c?.["@_href"]))
+      .find((href) => href?.includes(".TN."));
+    const tnId = tnHref?.replace(/^#/, "");
+    const streetName = tnId ? streetNameById.get(tnId) : undefined;
+    if (!streetName) continue;
+
+    addresses.push({ referenciaCatastral: refCat, streetName });
+  }
+
+  return addresses;
+}
+
+// ---------------------------------------------------------------------------
 // Reprojection (source CRS -> WGS84)
 // ---------------------------------------------------------------------------
 
@@ -564,7 +647,33 @@ async function main() {
     buildingsByParcel.set(key, list);
   }
 
-  const limited = args.limit ? parcels.slice(0, args.limit) : parcels;
+  let streetFilteredParcels = parcels;
+  if (args.streets && args.streets.length > 0) {
+    console.log(`Locating Addresses (AD) feed to filter by street: ${args.streets.join(", ")}...`);
+    const adProvinceFeedUrl = await findFeedEntryHref(AD_ATOM_INDEX_URL, args.province);
+    const adZipUrl = await findZipUrl(adProvinceFeedUrl, args.municipality);
+    console.log(`AD zip: ${adZipUrl}`);
+
+    console.log("Downloading + parsing addresses...");
+    const adGmlFiles = await downloadGmlFiles(adZipUrl);
+    const addresses = adGmlFiles.flatMap((f) => parseAddressesGml(f.buffer));
+    console.log(`Parsed ${addresses.length} addresses`);
+
+    const targetStreets = args.streets.map(normalizeStreetText);
+    const matchedRefs = new Set<string>();
+    for (const addr of addresses) {
+      const normalized = normalizeStreetText(addr.streetName);
+      if (targetStreets.some((target) => normalized.includes(target))) {
+        matchedRefs.add(addr.referenciaCatastral);
+      }
+    }
+    console.log(`${matchedRefs.size} distinct parcel references matched the requested streets`);
+
+    streetFilteredParcels = parcels.filter((p) => matchedRefs.has(p.referenciaCatastral.slice(0, 14)));
+    console.log(`${streetFilteredParcels.length} parcels remain after street filtering`);
+  }
+
+  const limited = args.limit ? streetFilteredParcels.slice(0, args.limit) : streetFilteredParcels;
   const records: ParcelRecord[] = [];
 
   for (const parcel of limited) {
@@ -604,7 +713,7 @@ async function main() {
       numberOfFloors,
       cadastralUse: args.cadastralUse,
       landUse: mapLandUse(relatedBuildings[0]?.currentUse ?? null),
-      sourceDataset: "INSPIRE-CP-BU",
+      sourceDataset: args.streets && args.streets.length > 0 ? "INSPIRE-CP-BU-AD" : "INSPIRE-CP-BU",
     });
   }
 

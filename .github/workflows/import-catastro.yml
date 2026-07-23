@@ -41,6 +41,10 @@ on:
         description: "One-time only: name of an existing migration to mark as already-applied (e.g. when the DB has tables from before Prisma tracked migrations). Leave blank normally."
         required: false
         default: ""
+      streets:
+        description: "Comma-separated street names to filter to (e.g. \"Peral,Beatriz de Suabia\"). Leave blank to import by municipality only."
+        required: false
+        default: ""
 
 jobs:
   import:
@@ -78,13 +82,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          args=(--province "${{ inputs.province }}" --municipality "${{ inputs.municipality }}")
           if [ -n "${{ inputs.limit }}" ]; then
-            npx tsx scripts/import-catastro-parcels.ts \
-              --province "${{ inputs.province }}" \
-              --municipality "${{ inputs.municipality }}" \
-              --limit "${{ inputs.limit }}"
-          else
-            npx tsx scripts/import-catastro-parcels.ts \
-              --province "${{ inputs.province }}" \
-              --municipality "${{ inputs.municipality }}"
+            args+=(--limit "${{ inputs.limit }}")
           fi
+          if [ -n "${{ inputs.streets }}" ]; then
+            args+=(--streets "${{ inputs.streets }}")
+          fi
+          npx tsx scripts/import-catastro-parcels.ts "${args[@]}"
