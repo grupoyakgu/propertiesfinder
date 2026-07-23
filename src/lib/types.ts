@@ -87,6 +87,8 @@ export interface ClientCatastroParcel {
   latitude: number;
   longitude: number;
   boundary: { type: string; coordinates: number[][][] } | null;
+  streetName: string | null;
+  streetNumber: string | null;
 
   plotSize: number;
   builtArea: number | null;

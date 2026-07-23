@@ -34,7 +34,9 @@ export function CatastroParcelCard({
 
       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
         <MapPin className="h-3.5 w-3.5 shrink-0" />
-        {parcel.municipality}, {parcel.province}
+        {parcel.streetName
+          ? `${parcel.streetName}${parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}`
+          : `${parcel.municipality}, ${parcel.province}`}
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">

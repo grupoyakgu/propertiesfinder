@@ -181,6 +181,8 @@ model CatastroParcel {
   latitude            Float
   longitude           Float
   boundary            Json // GeoJSON polygon, reprojected to WGS84
+  streetName          String? // Thoroughfare name, from the Addresses (AD) theme
+  streetNumber        String? // House number (designator), from the Addresses (AD) theme
 
   plotSize         Float // Superficie del terreno (m2), from CP geometry
   builtArea        Float? // Superficie construida (m2), summed from joined BU footprints

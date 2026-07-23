@@ -413,12 +413,15 @@ function mapLandUse(currentUse: string | null): LandUse | null {
 }
 
 // ---------------------------------------------------------------------------
-// GML parsing — Addresses (AD), used only for --streets filtering
+// GML parsing — Addresses (AD)
+// Always downloaded, to populate streetName/streetNumber on every parcel;
+// also used to resolve which parcels match --streets when that's given.
 // ---------------------------------------------------------------------------
 
 interface RawAddress {
   referenciaCatastral: string;
   streetName: string;
+  streetNumber: string | null;
 }
 
 /**
@@ -464,7 +467,9 @@ function parseAddressesGml(buffer: Buffer): RawAddress[] {
     const streetName = tnId ? streetNameById.get(tnId) : undefined;
     if (!streetName) continue;
 
-    addresses.push({ referenciaCatastral: refCat, streetName });
+    const streetNumber = textOf(ad.locator?.AddressLocator?.designator?.LocatorDesignator?.designator);
+
+    addresses.push({ referenciaCatastral: refCat, streetName, streetNumber });
   }
 
   return addresses;
@@ -523,6 +528,8 @@ interface ParcelRecord {
   latitude: number;
   longitude: number;
   boundary: { type: string; coordinates: number[][][] };
+  streetName: string | null;
+  streetNumber: string | null;
   plotSize: number;
   builtArea: number | null;
   constructionYear: number | null;
@@ -647,18 +654,26 @@ async function main() {
     buildingsByParcel.set(key, list);
   }
 
+  console.log("Locating Addresses (AD) feed...");
+  const adProvinceFeedUrl = await findFeedEntryHref(AD_ATOM_INDEX_URL, args.province);
+  const adZipUrl = await findZipUrl(adProvinceFeedUrl, args.municipality);
+  console.log(`AD zip: ${adZipUrl}`);
+
+  console.log("Downloading + parsing addresses...");
+  const adGmlFiles = await downloadGmlFiles(adZipUrl);
+  const addresses = adGmlFiles.flatMap((f) => parseAddressesGml(f.buffer));
+  console.log(`Parsed ${addresses.length} addresses`);
+
+  // First address wins per parcel — a parcel can have multiple portals/
+  // frontages, and we only store one representative street name + number.
+  const addressByParcel = new Map<string, RawAddress>();
+  for (const addr of addresses) {
+    const key = addr.referenciaCatastral.slice(0, 14);
+    if (!addressByParcel.has(key)) addressByParcel.set(key, addr);
+  }
+
   let streetFilteredParcels = parcels;
   if (args.streets && args.streets.length > 0) {
-    console.log(`Locating Addresses (AD) feed to filter by street: ${args.streets.join(", ")}...`);
-    const adProvinceFeedUrl = await findFeedEntryHref(AD_ATOM_INDEX_URL, args.province);
-    const adZipUrl = await findZipUrl(adProvinceFeedUrl, args.municipality);
-    console.log(`AD zip: ${adZipUrl}`);
-
-    console.log("Downloading + parsing addresses...");
-    const adGmlFiles = await downloadGmlFiles(adZipUrl);
-    const addresses = adGmlFiles.flatMap((f) => parseAddressesGml(f.buffer));
-    console.log(`Parsed ${addresses.length} addresses`);
-
     const targetStreets = args.streets.map(normalizeStreetText);
     const matchedRefs = new Set<string>();
     for (const addr of addresses) {
@@ -667,7 +682,9 @@ async function main() {
         matchedRefs.add(addr.referenciaCatastral);
       }
     }
-    console.log(`${matchedRefs.size} distinct parcel references matched the requested streets`);
+    console.log(
+      `${matchedRefs.size} distinct parcel references matched streets: ${args.streets.join(", ")}`
+    );
 
     streetFilteredParcels = parcels.filter((p) => matchedRefs.has(p.referenciaCatastral.slice(0, 14)));
     console.log(`${streetFilteredParcels.length} parcels remain after street filtering`);
@@ -698,6 +715,7 @@ async function main() {
       relatedBuildings.reduce((max, b) => Math.max(max, b.numberOfFloors ?? 0), 0) || null;
     const builtArea =
       relatedBuildings.reduce((sum, b) => sum + (b.builtArea ?? 0), 0) || null;
+    const address = addressByParcel.get(parcel.referenciaCatastral.slice(0, 14));
 
     records.push({
       referenciaCatastral: parcel.referenciaCatastral,
@@ -707,13 +725,15 @@ async function main() {
       latitude,
       longitude,
       boundary: { type: "Polygon", coordinates: [ring.map(([lng, lat]) => [lng, lat])] },
+      streetName: address?.streetName ?? null,
+      streetNumber: address?.streetNumber ?? null,
       plotSize: parcel.areaValue ?? 0,
       builtArea,
       constructionYear,
       numberOfFloors,
       cadastralUse: args.cadastralUse,
       landUse: mapLandUse(relatedBuildings[0]?.currentUse ?? null),
-      sourceDataset: args.streets && args.streets.length > 0 ? "INSPIRE-CP-BU-AD" : "INSPIRE-CP-BU",
+      sourceDataset: "INSPIRE-CP-BU-AD",
     });
   }
 

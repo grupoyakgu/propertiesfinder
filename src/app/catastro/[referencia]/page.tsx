@@ -43,6 +43,12 @@ export default async function CatastroParcelPage({
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {parcel.referenciaCatastral}
             </h1>
+            {parcel.streetName && (
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {parcel.streetName}
+                {parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}
+              </p>
+            )}
             <p className="mt-1 text-sm text-muted-foreground">
               {parcel.municipality}, {parcel.province}, {parcel.autonomousCommunity}
             </p>
@@ -56,6 +62,14 @@ export default async function CatastroParcelPage({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <DetailSection title="General Information">
+              <DetailRow
+                label="Address"
+                value={
+                  parcel.streetName
+                    ? `${parcel.streetName}${parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}`
+                    : null
+                }
+              />
               <DetailRow label="Municipality" value={parcel.municipality} />
               <DetailRow label="Province" value={parcel.province} />
               <DetailRow label="Autonomous Community" value={parcel.autonomousCommunity} />
