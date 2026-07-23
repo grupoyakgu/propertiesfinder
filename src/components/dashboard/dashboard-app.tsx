@@ -112,6 +112,12 @@ export function DashboardApp({
 
   useEffect(() => {
     const handle = setTimeout(() => {
+      // Skip the replace entirely when the URL is already exactly right — e.g. right
+      // after landing here via a "Back to search" link, which already encodes this
+      // same view. Otherwise every navigation here pays for a second, redundant
+      // server round-trip for a no-op URL update (the same page, same query).
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current === dashboardUrl) return;
       router.replace(dashboardUrl, { scroll: false });
     }, 300);
     return () => clearTimeout(handle);
