@@ -235,13 +235,23 @@ function parseCadastralParcelsGml(gmlText: string): RawParcel[] {
     if (!refCat) continue;
 
     const geometry = cp.geometry;
-    const surface = geometry?.MultiSurface ?? geometry?.Surface ?? geometry;
-    const surfaceMember = asArray(surface?.surfaceMember)[0];
-    const polygon = surfaceMember?.Polygon ?? surface?.Polygon;
-    const posListRaw = polygon?.exterior?.LinearRing?.posList;
+    const multiSurface = geometry?.MultiSurface;
+    const surfaceContainer = multiSurface ?? geometry?.Surface ?? geometry;
+    const surfaceMember = asArray(surfaceContainer?.surfaceMember)[0];
+    // Real INSPIRE CP data wraps the ring in Surface > patches > PolygonPatch
+    // (GML 3.2 style); some feeds may use a direct Polygon element instead.
+    const innerSurface = surfaceMember?.Surface ?? surfaceMember;
+    const polygonPatch = innerSurface?.patches?.PolygonPatch;
+    const legacyPolygon = innerSurface?.Polygon;
+    const ring = polygonPatch?.exterior?.LinearRing ?? legacyPolygon?.exterior?.LinearRing;
+    const posListRaw = ring?.posList;
     const posList = textOf(posListRaw);
     const srsName =
-      surface?.["@_srsName"] ?? polygon?.["@_srsName"] ?? geometry?.["@_srsName"] ?? null;
+      innerSurface?.["@_srsName"] ??
+      surfaceContainer?.["@_srsName"] ??
+      multiSurface?.["@_srsName"] ??
+      geometry?.["@_srsName"] ??
+      null;
 
     const areaRaw = textOf(cp.areaValue);
     const areaValue = areaRaw !== null ? Number(areaRaw) : null;
