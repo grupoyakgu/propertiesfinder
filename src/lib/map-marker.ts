@@ -1,5 +1,5 @@
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, planningStatusLabels } from "@/lib/labels";
 import type { Locale } from "@/lib/i18n/translations";
 
@@ -20,10 +20,10 @@ export interface MapMarker {
   amenities?: string[];
 }
 
-export function plotToMarker(plot: ClientPlot, locale: Locale = "en"): MapMarker {
+export function plotToMarker(plot: ClientPlot, locale: Locale = "en", backHref?: string): MapMarker {
   return {
     id: plot.id,
-    href: `/property/${plot.slug}`,
+    href: withBackHref(`/property/${plot.slug}`, backHref),
     lat: plot.latitude,
     lng: plot.longitude,
     boundary: plot.boundary,
@@ -38,10 +38,14 @@ export function plotToMarker(plot: ClientPlot, locale: Locale = "en"): MapMarker
   };
 }
 
-export function catastroParcelToMarker(parcel: ClientCatastroParcel, locale: Locale = "en"): MapMarker {
+export function catastroParcelToMarker(
+  parcel: ClientCatastroParcel,
+  locale: Locale = "en",
+  backHref?: string
+): MapMarker {
   return {
     id: parcel.id,
-    href: `/catastro/${parcel.referenciaCatastral}`,
+    href: withBackHref(`/catastro/${parcel.referenciaCatastral}`, backHref),
     lat: parcel.latitude,
     lng: parcel.longitude,
     boundary: parcel.boundary,

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
-import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn } from "@/lib/utils";
+import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 
@@ -63,11 +63,13 @@ function DataTable<T extends { id: string }>({
   columns,
   href,
   defaultSortKey,
+  backHref,
 }: {
   rows: T[];
   columns: Column<T>[];
   href: (row: T) => string;
   defaultSortKey: string;
+  backHref?: string;
 }) {
   const { t } = useLocale();
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
@@ -117,7 +119,7 @@ function DataTable<T extends { id: string }>({
                 {columns.map((col, i) => (
                   <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
                     {i === 0 ? (
-                      <Link href={href(row)} className="font-medium text-primary hover:underline">
+                      <Link href={withBackHref(href(row), backHref)} className="font-medium text-primary hover:underline">
                         {col.render(row)}
                       </Link>
                     ) : (
@@ -159,7 +161,13 @@ function DataTable<T extends { id: string }>({
   );
 }
 
-export function CatastroResultsTable({ parcels }: { parcels: ClientCatastroParcel[] }) {
+export function CatastroResultsTable({
+  parcels,
+  backHref,
+}: {
+  parcels: ClientCatastroParcel[];
+  backHref?: string;
+}) {
   const { locale, t } = useLocale();
 
   if (parcels.length === 0) {
@@ -234,11 +242,12 @@ export function CatastroResultsTable({ parcels }: { parcels: ClientCatastroParce
       columns={columns}
       href={(p) => `/catastro/${p.referenciaCatastral}`}
       defaultSortKey="referenciaCatastral"
+      backHref={backHref}
     />
   );
 }
 
-export function PlotResultsTable({ plots }: { plots: ClientPlot[] }) {
+export function PlotResultsTable({ plots, backHref }: { plots: ClientPlot[]; backHref?: string }) {
   const { locale, t } = useLocale();
 
   if (plots.length === 0) {
@@ -298,6 +307,12 @@ export function PlotResultsTable({ plots }: { plots: ClientPlot[] }) {
   ];
 
   return (
-    <DataTable rows={plots} columns={columns} href={(p) => `/property/${p.slug}`} defaultSortKey="title" />
+    <DataTable
+      rows={plots}
+      columns={columns}
+      href={(p) => `/property/${p.slug}`}
+      defaultSortKey="title"
+      backHref={backHref}
+    />
   );
 }

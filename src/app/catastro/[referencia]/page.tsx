@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, resolveBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
@@ -13,10 +13,13 @@ import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function CatastroParcelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ referencia: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { referencia } = await params;
+  const { from } = await searchParams;
   const record = await prisma.catastroParcel.findUnique({
     where: { referenciaCatastral: referencia },
   });
@@ -24,11 +27,12 @@ export default async function CatastroParcelPage({
 
   const parcel = toClientCatastroParcel(record);
   const { locale, t } = await getServerTranslator();
+  const backHref = resolveBackHref(from);
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Link href={backHref} className="flex items-center gap-2 text-sm font-medium text-foreground">
           <ArrowLeft className="h-4 w-4" /> {t("backToSearch")}
         </Link>
         <Link href="/" className="flex items-center gap-2 text-primary">

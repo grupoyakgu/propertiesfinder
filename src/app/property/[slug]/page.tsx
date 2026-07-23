@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientPlot } from "@/lib/types";
-import { formatArea, formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
+import { formatArea, formatCurrency, formatNumber, formatPercent, resolveBackHref } from "@/lib/utils";
 import {
   buildingTypeLabels,
   cadastralClassLabels,
@@ -21,20 +21,24 @@ import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function PropertyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { slug } = await params;
+  const { from } = await searchParams;
   const record = await prisma.plot.findUnique({ where: { slug } });
   if (!record) notFound();
 
   const plot = toClientPlot(record);
   const { locale, t } = await getServerTranslator();
+  const backHref = resolveBackHref(from);
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Link href={backHref} className="flex items-center gap-2 text-sm font-medium text-foreground">
           <ArrowLeft className="h-4 w-4" /> {t("backToSearch")}
         </Link>
         <Link href="/" className="flex items-center gap-2 text-primary">

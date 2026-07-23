@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MapPin, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress, cn } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 
@@ -11,15 +11,17 @@ export function CatastroParcelCard({
   parcel,
   active,
   onHover,
+  backHref,
 }: {
   parcel: ClientCatastroParcel;
   active?: boolean;
   onHover?: (id: string | null) => void;
+  backHref?: string;
 }) {
   const { locale, t } = useLocale();
   return (
     <Link
-      href={`/catastro/${parcel.referenciaCatastral}`}
+      href={withBackHref(`/catastro/${parcel.referenciaCatastral}`, backHref)}
       onMouseEnter={() => onHover?.(parcel.id)}
       onMouseLeave={() => onHover?.(null)}
       className={cn(

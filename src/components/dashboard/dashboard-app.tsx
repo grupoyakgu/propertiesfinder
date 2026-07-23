@@ -36,10 +36,18 @@ function MapLoadingFallback() {
 
 type Source = "plots" | "catastro";
 
-export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilters }) {
+export function DashboardApp({
+  initialFilters,
+  initialSource = "catastro",
+  initialMapVisible = false,
+}: {
+  initialFilters: DashboardFilters;
+  initialSource?: Source;
+  initialMapVisible?: boolean;
+}) {
   const router = useRouter();
   const { locale, t } = useLocale();
-  const [source, setSource] = useState<Source>("catastro");
+  const [source, setSource] = useState<Source>(initialSource);
   const [filters, setFilters] = useState(initialFilters);
   const [plots, setPlots] = useState<ClientPlot[]>([]);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
@@ -47,7 +55,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [mapVisible, setMapVisible] = useState(false);
+  const [mapVisible, setMapVisible] = useState(initialMapVisible);
   const [mapBounds, setMapBounds] = useState<LatLngBounds | null>(null);
 
   // Mount the map the first time it's shown, and never unmount it again afterwards
@@ -59,14 +67,25 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
     setMapMounted(true);
   }
 
-  const queryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
+  const apiQueryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
+
+  // The dashboard's own URL (tab + map visibility + filters), kept in sync below so
+  // "Back to search" from a detail page can restore this exact view instead of resetting
+  // to the default tab/table. Table vs. map+cards, and which tab, both round-trip through it.
+  const viewQueryString = useMemo(() => {
+    const params = filtersToSearchParams(filters);
+    if (source !== "catastro") params.set("tab", source);
+    if (mapVisible) params.set("map", "1");
+    return params.toString();
+  }, [filters, source, mapVisible]);
+  const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
     const handle = setTimeout(async () => {
       setLoading(true);
       try {
         const endpoint = source === "plots" ? "/api/plots" : "/api/catastro-parcels";
-        const res = await fetch(`${endpoint}?${queryString}`);
+        const res = await fetch(`${endpoint}?${apiQueryString}`);
         const data = await res.json();
         if (source === "plots") setPlots(data.plots ?? []);
         else setParcels(data.parcels ?? []);
@@ -74,11 +93,17 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
       } finally {
         setLoading(false);
       }
-      router.replace(`/dashboard${queryString ? `?${queryString}` : ""}`, { scroll: false });
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [apiQueryString, source]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      router.replace(dashboardUrl, { scroll: false });
     }, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryString, source]);
+  }, [dashboardUrl]);
 
   const fetchedCount = source === "plots" ? plots.length : parcels.length;
   const resultCount = totalCount;
@@ -89,9 +114,9 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
   const markers = useMemo(
     () =>
       source === "plots"
-        ? plots.map((p) => plotToMarker(p, locale))
-        : parcels.map((p) => catastroParcelToMarker(p, locale)),
-    [source, plots, parcels, locale]
+        ? plots.map((p) => plotToMarker(p, locale, dashboardUrl))
+        : parcels.map((p) => catastroParcelToMarker(p, locale, dashboardUrl)),
+    [source, plots, parcels, locale, dashboardUrl]
   );
 
   // Reset the viewport filter when the data source changes (plots vs. parcels are
@@ -222,7 +247,13 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {source === "plots"
                 ? visiblePlots.map((plot) => (
-                    <PlotCard key={plot.id} plot={plot} active={hoveredId === plot.id} onHover={setHoveredId} />
+                    <PlotCard
+                      key={plot.id}
+                      plot={plot}
+                      active={hoveredId === plot.id}
+                      onHover={setHoveredId}
+                      backHref={dashboardUrl}
+                    />
                   ))
                 : visibleParcels.map((parcel) => (
                     <CatastroParcelCard
@@ -230,6 +261,7 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
                       parcel={parcel}
                       active={hoveredId === parcel.id}
                       onHover={setHoveredId}
+                      backHref={dashboardUrl}
                     />
                   ))}
               {!loading && resultCount === 0 && (
@@ -259,9 +291,9 @@ export function DashboardApp({ initialFilters }: { initialFilters: DashboardFilt
                   {t("dashboard.noResultsInView")}
                 </p>
               ) : source === "plots" ? (
-                <PlotResultsTable plots={visiblePlots} />
+                <PlotResultsTable plots={visiblePlots} backHref={dashboardUrl} />
               ) : (
-                <CatastroResultsTable parcels={visibleParcels} />
+                <CatastroResultsTable parcels={visibleParcels} backHref={dashboardUrl} />
               )}
             </div>
           </div>

@@ -43,3 +43,15 @@ export function formatCatastroParcelAddress(parcel: {
     : null;
   return [street, parcel.municipality, parcel.province].filter(Boolean).join(", ");
 }
+
+/** Appends the dashboard view (tab, map visibility, filters) a link was opened from, so
+ * the detail page's "Back to search" link can restore that exact view instead of resetting. */
+export function withBackHref(href: string, backHref?: string): string {
+  return backHref ? `${href}?from=${encodeURIComponent(backHref)}` : href;
+}
+
+/** Resolves a detail page's "Back to search" target from a `?from=` param, restricted to
+ * internal /dashboard paths only (defends against it being used as an open-redirect vector). */
+export function resolveBackHref(from: string | undefined): string {
+  return from && from.startsWith("/dashboard") ? from : "/dashboard";
+}

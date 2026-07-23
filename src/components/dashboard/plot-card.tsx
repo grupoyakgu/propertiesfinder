@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MapPin, Ruler, TrendingUp, Building2 } from "lucide-react";
 import type { ClientPlot } from "@/lib/types";
-import { formatArea, formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatArea, formatCurrency, formatPercent, cn, withBackHref } from "@/lib/utils";
 import { developmentPotentialLabels, planningStatusLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 
@@ -11,15 +11,17 @@ export function PlotCard({
   plot,
   active,
   onHover,
+  backHref,
 }: {
   plot: ClientPlot;
   active?: boolean;
   onHover?: (id: string | null) => void;
+  backHref?: string;
 }) {
   const { locale, t } = useLocale();
   return (
     <Link
-      href={`/property/${plot.slug}`}
+      href={withBackHref(`/property/${plot.slug}`, backHref)}
       onMouseEnter={() => onHover?.(plot.id)}
       onMouseLeave={() => onHover?.(null)}
       className={cn(

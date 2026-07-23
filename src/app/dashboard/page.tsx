@@ -14,6 +14,14 @@ export default async function DashboardPage({
   }
 
   const initialFilters = filtersFromSearchParams(params);
+  const initialSource = params.get("tab") === "plots" ? "plots" : "catastro";
+  const initialMapVisible = params.get("map") === "1";
 
-  return <DashboardApp initialFilters={initialFilters} />;
+  return (
+    <DashboardApp
+      initialFilters={initialFilters}
+      initialSource={initialSource}
+      initialMapVisible={initialMapVisible}
+    />
+  );
 }
