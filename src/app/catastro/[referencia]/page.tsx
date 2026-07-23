@@ -8,6 +8,7 @@ import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { CopyButton } from "@/components/ui/copy-button";
 
 export default async function CatastroParcelPage({
   params,
@@ -40,8 +41,9 @@ export default async function CatastroParcelPage({
             <span className="mb-2 inline-block rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
               Official Catastro Record
             </span>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {parcel.referenciaCatastral}
+              <CopyButton value={parcel.referenciaCatastral} />
             </h1>
             {parcel.streetName && (
               <p className="mt-1 text-sm font-medium text-foreground">
@@ -70,7 +72,15 @@ export default async function CatastroParcelPage({
                 label="Coordinates"
                 value={`${parcel.latitude.toFixed(5)}, ${parcel.longitude.toFixed(5)}`}
               />
-              <DetailRow label="Referencia Catastral" value={parcel.referenciaCatastral} />
+              <DetailRow
+                label="Referencia Catastral"
+                value={
+                  <span className="inline-flex items-center gap-1.5">
+                    {parcel.referenciaCatastral}
+                    <CopyButton value={parcel.referenciaCatastral} />
+                  </span>
+                }
+              />
               <DetailRow label="Source Dataset" value={parcel.sourceDataset} />
               <DetailRow
                 label="Imported"

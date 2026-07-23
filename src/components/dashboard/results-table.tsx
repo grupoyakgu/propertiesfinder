@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
+
+const PAGE_SIZE = 25;
 
 type SortDirection = "asc" | "desc";
 
@@ -67,47 +69,94 @@ function DataTable<T extends { id: string }>({
   defaultSortKey: string;
 }) {
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
+  const [page, setPage] = useState(0);
+
+  // Reset to page 1 whenever the underlying rows or sort change, following
+  // React's documented pattern for adjusting state during render (not in an
+  // effect) — https://react.dev/learn/you-might-not-need-an-effect
+  const [resetTracker, setResetTracker] = useState({ rows, sort });
+  if (resetTracker.rows !== rows || resetTracker.sort !== sort) {
+    setResetTracker({ rows, sort });
+    setPage(0);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageRows = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const rangeStart = sorted.length === 0 ? 0 : currentPage * PAGE_SIZE + 1;
+  const rangeEnd = Math.min((currentPage + 1) * PAGE_SIZE, sorted.length);
 
   return (
-    <div className="overflow-auto rounded-xl border border-border">
-      <table className="w-full min-w-[900px] border-collapse text-sm">
-        <thead className="sticky top-0 bg-surface">
-          <tr className="border-b border-border">
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                onClick={() => toggleSort(col.key)}
-                className={cn(
-                  "cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground hover:text-foreground",
-                  col.align === "right" && "text-right"
-                )}
-              >
-                <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
-                  {col.label}
-                  <SortIcon active={sort.key === col.key} direction={sort.direction} />
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row) => (
-            <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-surface-muted">
-              {columns.map((col, i) => (
-                <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
-                  {i === 0 ? (
-                    <Link href={href(row)} className="font-medium text-primary hover:underline">
-                      {col.render(row)}
-                    </Link>
-                  ) : (
-                    col.render(row)
+    <div className="flex flex-col gap-3">
+      <div className="overflow-auto rounded-xl border border-border">
+        <table className="w-full min-w-[900px] border-collapse text-sm">
+          <thead className="sticky top-0 bg-surface">
+            <tr className="border-b border-border">
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => toggleSort(col.key)}
+                  className={cn(
+                    "cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground hover:text-foreground",
+                    col.align === "right" && "text-right"
                   )}
-                </td>
+                >
+                  <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
+                    {col.label}
+                    <SortIcon active={sort.key === col.key} direction={sort.direction} />
+                  </span>
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {pageRows.map((row) => (
+              <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-surface-muted">
+                {columns.map((col, i) => (
+                  <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
+                    {i === 0 ? (
+                      <Link href={href(row)} className="font-medium text-primary hover:underline">
+                        {col.render(row)}
+                      </Link>
+                    ) : (
+                      col.render(row)
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Showing {rangeStart}–{rangeEnd} of {sorted.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </button>
+            <span>
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+              className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
