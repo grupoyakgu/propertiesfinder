@@ -540,7 +540,7 @@ interface ParcelRecord {
 }
 
 async function upsertBatch(records: ParcelRecord[]) {
-  const CHUNK = 500;
+  const CHUNK = 200;
   for (let i = 0; i < records.length; i += CHUNK) {
     const chunk = records.slice(i, i + CHUNK);
     await prisma.$transaction(
@@ -550,7 +550,8 @@ async function upsertBatch(records: ParcelRecord[]) {
           create: r,
           update: r,
         })
-      )
+      ),
+      { timeout: 60000 }
     );
     console.log(`Upserted ${Math.min(i + CHUNK, records.length)}/${records.length}`);
   }
