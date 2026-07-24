@@ -13,7 +13,8 @@ import { FiltersSidebar } from "@/components/dashboard/filters-sidebar";
 import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
 import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/results-table";
-import { PresetsMenu } from "@/components/dashboard/presets-menu";
+import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
+import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -82,6 +83,11 @@ export function DashboardApp({
     source === initialSource && initialMapBounds ? { bounds: initialMapBounds, nonce: 0 } : null
   );
   const [presets, setPresets] = useState<ClientMapPreset[]>(initialPresets);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  // Preset maintenance (save/star-default/delete) lives in a dedicated Settings tab
+  // rather than a popover — a floating dropdown here would sit below Leaflet's own
+  // panes/controls in the stacking order and get visually covered by the map.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const applyPreset = (preset: ClientMapPreset) => {
     const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
@@ -90,6 +96,7 @@ export function DashboardApp({
     // if the user is currently on the table (per the answered design question).
     setMapBounds(bounds);
     setViewCommand({ bounds, nonce: Date.now() });
+    setActivePresetId(preset.id);
   };
 
   const savePreset = async (name: string) => {
@@ -112,6 +119,7 @@ export function DashboardApp({
     const res = await fetch(`/api/map-presets/${id}`, { method: "DELETE" });
     if (!res.ok) return;
     setPresets((prev) => prev.filter((p) => p.id !== id));
+    setActivePresetId((current) => (current === id ? null : current));
   };
 
   const setDefaultPreset = async (id: string) => {
@@ -217,6 +225,7 @@ export function DashboardApp({
     setBoundsResetKey(source);
     setMapBounds(null);
     setViewCommand(null);
+    setActivePresetId(null);
   }
 
   const visibleIds = useMemo(() => {
@@ -298,14 +307,7 @@ export function DashboardApp({
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
 
-        <PresetsMenu
-          presets={presets}
-          canSave={mapBounds != null}
-          onApply={applyPreset}
-          onSave={savePreset}
-          onDelete={deletePreset}
-          onSetDefault={setDefaultPreset}
-        />
+        <PresetQuickSwitch presets={presets} activePresetId={activePresetId} onApply={applyPreset} />
 
         <LanguageToggle responsive />
 
@@ -322,10 +324,13 @@ export function DashboardApp({
           <button
             key={tab.key}
             type="button"
-            onClick={() => setSource(tab.key)}
+            onClick={() => {
+              setSource(tab.key);
+              setSettingsOpen(false);
+            }}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              source === tab.key
+              !settingsOpen && source === tab.key
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-surface-muted"
             )}
@@ -333,14 +338,36 @@ export function DashboardApp({
             {tab.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            settingsOpen
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-surface-muted"
+          )}
+        >
+          {t("dashboard.tabSettings")}
+        </button>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
-          <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
-        </div>
+        {settingsOpen ? (
+          <PresetSettingsPanel
+            presets={presets}
+            canSave={mapBounds != null}
+            onSave={savePreset}
+            onDelete={deletePreset}
+            onSetDefault={setDefaultPreset}
+          />
+        ) : (
+          <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
+            <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
+          </div>
+        )}
 
-        {mapVisible && (
+        {!settingsOpen && mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -379,7 +406,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!mapVisible && (
+        {!settingsOpen && !mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -401,14 +428,15 @@ export function DashboardApp({
         )}
 
         {/* Mounted once on first show, then kept mounted (never unmounted again) so
-            Leaflet keeps its center/zoom/pan state when toggled off and back on. */}
+            Leaflet keeps its center/zoom/pan state when toggled off and back on —
+            including while the Settings tab is open, which just hides it via CSS. */}
         {mapMounted && (
-          <div className={cn("relative", mapVisible ? "flex-1" : "hidden")}>
+          <div className={cn("relative", !settingsOpen && mapVisible ? "flex-1" : "hidden")}>
             <MapView
               markers={markers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
-              visible={mapVisible}
+              visible={!settingsOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
             />

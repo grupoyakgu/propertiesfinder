@@ -51,6 +51,7 @@ const en = {
     showMap: "Show Map",
     tabCatastro: "Official Catastro Records",
     tabPlots: "Sample Opportunities",
+    tabSettings: "Settings",
     sortNewest: "Newest",
     sortPriceAsc: "Price: Low to High",
     sortPriceDesc: "Price: High to Low",
@@ -74,6 +75,10 @@ const en = {
     default: "Default",
     delete: "Delete preset",
     confirmDelete: 'Delete preset "{name}"?',
+    settingsTitle: "Map presets",
+    settingsDescription:
+      "Save the map's current pan/zoom position under a name, mark one as default to load it automatically, or delete presets you no longer need. Use the presets dropdown in the header to quickly jump between saved views.",
+    needViewToSave: "Pan or zoom the map first to save its current view.",
   },
   filters: {
     title: "Filters",
@@ -257,6 +262,7 @@ const es: typeof en = {
     showMap: "Mostrar mapa",
     tabCatastro: "Registros Oficiales del Catastro",
     tabPlots: "Oportunidades de Muestra",
+    tabSettings: "Ajustes",
     sortNewest: "Más recientes",
     sortPriceAsc: "Precio: menor a mayor",
     sortPriceDesc: "Precio: mayor a menor",
@@ -282,6 +288,10 @@ const es: typeof en = {
     default: "Predeterminado",
     delete: "Eliminar ajuste",
     confirmDelete: '¿Eliminar el ajuste "{name}"?',
+    settingsTitle: "Ajustes guardados del mapa",
+    settingsDescription:
+      "Guarda la posición actual de desplazamiento/zoom del mapa con un nombre, marca uno como predeterminado para cargarlo automáticamente, o elimina los ajustes que ya no necesites. Usa el menú desplegable de ajustes en la cabecera para saltar rápidamente entre vistas guardadas.",
+    needViewToSave: "Desplaza o haz zoom en el mapa primero para guardar la vista actual.",
   },
   filters: {
     title: "Filtros",
