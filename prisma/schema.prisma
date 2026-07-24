@@ -87,7 +87,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  favorites Favorite[]
+  favorites  Favorite[]
+  mapPresets MapPreset[]
 
   @@map("users")
 }
@@ -209,4 +210,27 @@ model Favorite {
 
   @@unique([userId, plotId])
   @@map("favorites")
+}
+
+// A saved map viewport (pan/zoom bounding box), named by the user, so they can
+// jump back to a frequently-used area instead of re-panning/zooming manually.
+// One preset per user may be marked isDefault, applied automatically when the
+// dashboard loads with no other viewport already specified (e.g. via a "back
+// to search" bbox).
+model MapPreset {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  south     Float
+  west      Float
+  north     Float
+  east      Float
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("map_presets")
 }

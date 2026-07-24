@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -48,16 +48,25 @@ function markerIcon(highlighted: boolean) {
   });
 }
 
+/** An imperative "move the map to this viewport now" instruction. `nonce` must change
+ * (e.g. Date.now()) every time the command should be (re-)applied, since applying the
+ * same bounds twice in a row (e.g. re-selecting the same preset) needs to still fire. */
+export interface ViewCommand {
+  bounds: BoundsBox;
+  nonce: number;
+}
+
 function FitBounds({
   markers,
   visible,
-  restoreBounds,
+  viewCommand,
 }: {
   markers: MapMarker[];
   visible: boolean;
-  /** A previously-saved viewport (e.g. from the URL) to restore on first mount instead
-   * of fitting to all markers — set once, consumed once, then ignored. */
-  restoreBounds?: BoundsBox | null;
+  /** An on-demand "pan/zoom to this viewport" command (e.g. restoring "back to search"
+   * state, or applying a saved preset) — consumed once per distinct nonce. Takes
+   * precedence over the fit-to-all-markers fallback whenever it's present. */
+  viewCommand?: ViewCommand | null;
 }) {
   const map = useMap();
   const key = markers.map((m) => m.id).join(",");
@@ -65,23 +74,18 @@ function FitBounds({
   // don't want every show/hide toggle to re-fit and discard the user's pan/zoom — so
   // fit at most once per distinct marker set, and only once the map is actually visible.
   const firedForKey = useRef<string | null>(null);
-  const restoredOnce = useRef(false);
-  // Locked in from the first render only: if a restore was requested at mount, the
-  // fit-to-all-markers branch below must never run for this component's lifetime —
-  // otherwise it fires again once markers finish loading (their id key changes from
-  // "" to the real list) and clobbers the just-restored viewport.
-  const [hasRestoreBounds] = useState(restoreBounds != null);
+  const lastAppliedNonce = useRef<number | null>(null);
 
   useEffect(() => {
     if (!visible) return;
 
-    if (hasRestoreBounds) {
-      if (restoredOnce.current || !restoreBounds) return;
-      restoredOnce.current = true;
+    if (viewCommand) {
+      if (viewCommand.nonce === lastAppliedNonce.current) return;
+      lastAppliedNonce.current = viewCommand.nonce;
       map.invalidateSize();
       map.fitBounds([
-        [restoreBounds.south, restoreBounds.west],
-        [restoreBounds.north, restoreBounds.east],
+        [viewCommand.bounds.south, viewCommand.bounds.west],
+        [viewCommand.bounds.north, viewCommand.bounds.east],
       ]);
       return;
     }
@@ -91,7 +95,7 @@ function FitBounds({
     map.invalidateSize();
     const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-  }, [key, visible, map, markers, restoreBounds, hasRestoreBounds]);
+  }, [key, visible, map, markers, viewCommand]);
   return null;
 }
 
@@ -127,21 +131,24 @@ export function MapView({
   hoveredId,
   onBoundsChange,
   visible = true,
-  restoreBounds,
+  viewCommand,
   backHref,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
   onBoundsChange?: (bounds: BoundsBox) => void;
   visible?: boolean;
-  /** A previously-saved viewport (e.g. from the URL) to restore on first mount. */
-  restoreBounds?: BoundsBox | null;
+  /** An on-demand "pan/zoom to this viewport" command — used both to restore a
+   * previously-saved viewport (e.g. from the URL on mount) and to apply a saved preset
+   * at any later time. */
+  viewCommand?: ViewCommand | null;
   /** Applied to marker links at render/click time (not baked into `markers`) so
    * panning/zooming — which changes this as the URL's bbox updates — never forces
    * the marker/polygon list itself to be recomputed and re-rendered. */
   backHref?: string;
 }) {
   const router = useRouter();
+  const restoreBounds = viewCommand?.bounds;
   const center: [number, number] = restoreBounds
     ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
     : markers.length > 0
@@ -220,7 +227,7 @@ export function MapView({
         </LayersControl.Overlay>
       </LayersControl>
 
-      <FitBounds markers={markers} visible={visible} restoreBounds={restoreBounds} />
+      <FitBounds markers={markers} visible={visible} viewCommand={viewCommand} />
       <InvalidateSizeOnShow visible={visible} />
       {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
 

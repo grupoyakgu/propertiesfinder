@@ -65,6 +65,16 @@ const en = {
     inView: "{n} of {total} in view",
     loadingMap: "Loading map…",
   },
+  presets: {
+    trigger: "Presets",
+    save: "Save current view",
+    namePlaceholder: "Preset name",
+    empty: "No saved presets yet. Pan/zoom the map, then save this view.",
+    setDefault: "Set as default",
+    default: "Default",
+    delete: "Delete preset",
+    confirmDelete: 'Delete preset "{name}"?',
+  },
   filters: {
     title: "Filters",
     clearAll: "Clear all",
@@ -262,6 +272,16 @@ const es: typeof en = {
     showingFirstN: " (mostrando los primeros {n})",
     inView: "{n} de {total} en vista",
     loadingMap: "Cargando mapa…",
+  },
+  presets: {
+    trigger: "Ajustes guardados",
+    save: "Guardar vista actual",
+    namePlaceholder: "Nombre del ajuste",
+    empty: "Aún no hay ajustes guardados. Desplaza o haz zoom en el mapa y guarda esta vista.",
+    setDefault: "Marcar como predeterminado",
+    default: "Predeterminado",
+    delete: "Eliminar ajuste",
+    confirmDelete: '¿Eliminar el ajuste "{name}"?',
   },
   filters: {
     title: "Filtros",

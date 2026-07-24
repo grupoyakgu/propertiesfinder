@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
-import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
+import type { ClientCatastroParcel, ClientMapPreset, ClientPlot } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
 import { plotToMarker, catastroParcelToMarker } from "@/lib/map-marker";
@@ -13,12 +13,13 @@ import { FiltersSidebar } from "@/components/dashboard/filters-sidebar";
 import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
 import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/results-table";
+import { PresetsMenu } from "@/components/dashboard/presets-menu";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useLocale } from "@/lib/i18n/context";
-import type { BoundsBox } from "@/components/dashboard/map-view";
+import type { BoundsBox, ViewCommand } from "@/components/dashboard/map-view";
 import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dashboard-cache";
 
 const MapView = dynamic(() => import("@/components/dashboard/map-view").then((m) => m.MapView), {
@@ -42,11 +43,13 @@ export function DashboardApp({
   initialSource = "catastro",
   initialMapVisible = false,
   initialMapBounds = null,
+  initialPresets = [],
 }: {
   initialFilters: DashboardFilters;
   initialSource?: Source;
   initialMapVisible?: boolean;
   initialMapBounds?: BoundsBox | null;
+  initialPresets?: ClientMapPreset[];
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -70,13 +73,56 @@ export function DashboardApp({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapVisible, setMapVisible] = useState(initialMapVisible);
   const [mapBounds, setMapBounds] = useState<BoundsBox | null>(initialMapBounds);
-  // Captured once on mount: the viewport (if any) restored from the URL, handed to
-  // MapView so it can fit to exactly that instead of re-fitting to all markers. Kept
-  // separate from `mapBounds` (which keeps updating as the user pans) so it never
-  // re-triggers a restore after the first one. Only valid for the tab it was captured
-  // for — if the user switches tabs before ever showing the map, it no longer applies.
-  const [restoreBoundsForSource] = useState(initialMapBounds);
-  const restoreBounds = source === initialSource ? restoreBoundsForSource : null;
+  // An on-demand "pan/zoom the map to this viewport now" instruction, handed to
+  // MapView so it can fit to exactly that instead of (or before) fitting to all
+  // markers. Used both to restore a viewport captured on mount (e.g. via "Back to
+  // search") and, later, to apply a saved preset at any time. Only valid for the tab
+  // it was set for — switching tabs resets it below.
+  const [viewCommand, setViewCommand] = useState<ViewCommand | null>(
+    source === initialSource && initialMapBounds ? { bounds: initialMapBounds, nonce: 0 } : null
+  );
+  const [presets, setPresets] = useState<ClientMapPreset[]>(initialPresets);
+
+  const applyPreset = (preset: ClientMapPreset) => {
+    const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
+    // Presets are meant to behave exactly like a manual pan/zoom: update the bounds
+    // filter immediately, and move the map to match — but never force map view open
+    // if the user is currently on the table (per the answered design question).
+    setMapBounds(bounds);
+    setViewCommand({ bounds, nonce: Date.now() });
+  };
+
+  const savePreset = async (name: string) => {
+    if (!mapBounds) return;
+    const res = await fetch("/api/map-presets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, ...mapBounds }),
+    });
+    if (!res.ok) return;
+    const { preset } = await res.json();
+    setPresets((prev) => {
+      const next = prev.filter((p) => p.id !== preset.id);
+      next.push(preset);
+      return next;
+    });
+  };
+
+  const deletePreset = async (id: string) => {
+    const res = await fetch(`/api/map-presets/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+    setPresets((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const setDefaultPreset = async (id: string) => {
+    const res = await fetch(`/api/map-presets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isDefault: true }),
+    });
+    if (!res.ok) return;
+    setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
+  };
 
   // Mount the map the first time it's shown, and never unmount it again afterwards
   // (visibility toggles purely via CSS below) so Leaflet keeps its pan/zoom state.
@@ -170,6 +216,7 @@ export function DashboardApp({
   if (boundsResetKey !== source) {
     setBoundsResetKey(source);
     setMapBounds(null);
+    setViewCommand(null);
   }
 
   const visibleIds = useMemo(() => {
@@ -250,6 +297,15 @@ export function DashboardApp({
           {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
+
+        <PresetsMenu
+          presets={presets}
+          canSave={mapBounds != null}
+          onApply={applyPreset}
+          onSave={savePreset}
+          onDelete={deletePreset}
+          onSetDefault={setDefaultPreset}
+        />
 
         <LanguageToggle responsive />
 
@@ -353,7 +409,7 @@ export function DashboardApp({
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
               visible={mapVisible}
-              restoreBounds={restoreBounds}
+              viewCommand={viewCommand}
               backHref={dashboardUrl}
             />
           </div>

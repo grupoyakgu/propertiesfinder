@@ -1,5 +1,8 @@
 import { DashboardApp } from "@/components/dashboard/dashboard-app";
 import { filtersFromSearchParams } from "@/lib/filter-types";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { toClientMapPreset } from "@/lib/types";
 
 export default async function DashboardPage({
   searchParams,
@@ -19,10 +22,30 @@ export default async function DashboardPage({
 
   const bboxParam = params.get("bbox");
   const bboxParts = bboxParam?.split(",").map(Number);
-  const initialMapBounds =
+  let initialMapBounds =
     bboxParts?.length === 4 && bboxParts.every(Number.isFinite)
       ? { south: bboxParts[0], west: bboxParts[1], north: bboxParts[2], east: bboxParts[3] }
       : null;
+
+  const user = await getCurrentUser();
+  const presets = user
+    ? await prisma.mapPreset.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } })
+    : [];
+  const initialPresets = presets.map(toClientMapPreset);
+
+  // A "Back to search" bbox always wins; only fall back to the default preset when
+  // no explicit viewport was requested (e.g. a fresh visit to a bare /dashboard URL).
+  if (!initialMapBounds) {
+    const defaultPreset = initialPresets.find((p) => p.isDefault);
+    if (defaultPreset) {
+      initialMapBounds = {
+        south: defaultPreset.south,
+        west: defaultPreset.west,
+        north: defaultPreset.north,
+        east: defaultPreset.east,
+      };
+    }
+  }
 
   return (
     <DashboardApp
@@ -30,6 +53,7 @@ export default async function DashboardPage({
       initialSource={initialSource}
       initialMapVisible={initialMapVisible}
       initialMapBounds={initialMapBounds}
+      initialPresets={initialPresets}
     />
   );
 }

@@ -7,7 +7,7 @@ import type {
   PlotShape,
   Topography,
 } from "@/generated/prisma/enums";
-import type { CatastroParcel, Plot } from "@/generated/prisma/client";
+import type { CatastroParcel, MapPreset, Plot } from "@/generated/prisma/client";
 
 export interface ClientPlot {
   id: string;
@@ -107,4 +107,19 @@ export function toClientCatastroParcel(parcel: CatastroParcel): ClientCatastroPa
     boundary: parcel.boundary as ClientCatastroParcel["boundary"],
     importedAt: parcel.importedAt.toISOString(),
   };
+}
+
+export interface ClientMapPreset {
+  id: string;
+  name: string;
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+  isDefault: boolean;
+}
+
+export function toClientMapPreset(preset: MapPreset): ClientMapPreset {
+  const { id, name, south, west, north, east, isDefault } = preset;
+  return { id, name, south, west, north, east, isDefault };
 }
