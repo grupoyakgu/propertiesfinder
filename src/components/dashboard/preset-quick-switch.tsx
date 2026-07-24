@@ -1,5 +1,6 @@
 "use client";
 
+import { LocateFixed } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import type { ClientMapPreset } from "@/lib/types";
 import { useLocale } from "@/lib/i18n/context";
@@ -12,32 +13,51 @@ export function PresetQuickSwitch({
   presets,
   activePresetId,
   onApply,
+  onRefocus,
 }: {
   presets: ClientMapPreset[];
   activePresetId: string | null;
   onApply: (preset: ClientMapPreset) => void;
+  /** Re-center the map on the currently active preset without touching filters —
+   * needed because panning away doesn't change the <select>'s value, so re-picking
+   * the same option again wouldn't otherwise fire a change event. */
+  onRefocus: (preset: ClientMapPreset) => void;
 }) {
   const { t } = useLocale();
 
   if (presets.length === 0) return null;
 
+  const activePreset = presets.find((p) => p.id === activePresetId) ?? null;
+
   return (
-    <Select
-      value={activePresetId ?? ""}
-      onChange={(e) => {
-        const preset = presets.find((p) => p.id === e.target.value);
-        if (preset) onApply(preset);
-      }}
-      className="hidden w-40 shrink-0 sm:block"
-    >
-      <option value="" disabled>
-        {t("presets.trigger")}
-      </option>
-      {presets.map((preset) => (
-        <option key={preset.id} value={preset.id}>
-          {preset.isDefault ? `★ ${preset.name}` : preset.name}
+    <div className="hidden items-center gap-1 sm:flex">
+      <Select
+        value={activePresetId ?? ""}
+        onChange={(e) => {
+          const preset = presets.find((p) => p.id === e.target.value);
+          if (preset) onApply(preset);
+        }}
+        className="w-40 shrink-0"
+      >
+        <option value="" disabled>
+          {t("presets.trigger")}
         </option>
-      ))}
-    </Select>
+        {presets.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {preset.isDefault ? `★ ${preset.name}` : preset.name}
+          </option>
+        ))}
+      </Select>
+      {activePreset && (
+        <button
+          type="button"
+          onClick={() => onRefocus(activePreset)}
+          title={t("presets.refocus", { name: activePreset.name })}
+          className="shrink-0 rounded-md border border-border p-2 text-muted-foreground hover:text-primary"
+        >
+          <LocateFixed className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }

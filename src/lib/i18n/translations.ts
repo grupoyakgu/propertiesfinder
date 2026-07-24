@@ -85,6 +85,7 @@ const en = {
     confirmDelete: 'Delete preset "{name}"?',
     rename: "Rename preset",
     renameFailed: "Couldn't rename preset",
+    refocus: 'Re-center the map on "{name}"',
     settingsTitle: "Map presets",
     settingsDescription:
       "Save the map's current pan/zoom position and search filters under a name, mark one as default to load it automatically, or delete presets you no longer need. Use the presets dropdown in the header to quickly jump between saved views.",
@@ -308,6 +309,7 @@ const es: typeof en = {
     confirmDelete: '¿Eliminar el ajuste "{name}"?',
     rename: "Renombrar ajuste",
     renameFailed: "No se pudo renombrar el ajuste",
+    refocus: 'Volver a centrar el mapa en "{name}"',
     settingsTitle: "Ajustes guardados del mapa",
     settingsDescription:
       "Guarda la posición actual de desplazamiento/zoom del mapa y los filtros de búsqueda con un nombre, marca uno como predeterminado para cargarlo automáticamente, o elimina los ajustes que ya no necesites. Usa el menú desplegable de ajustes en la cabecera para saltar rápidamente entre vistas guardadas.",

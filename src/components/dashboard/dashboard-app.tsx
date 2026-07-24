@@ -146,6 +146,15 @@ export function DashboardApp({
     if (preset.filters) setFilters(preset.filters);
   };
 
+  // Jump back to a preset's viewport after the user has panned away from it —
+  // deliberately leaves filters untouched (unlike applyPreset), since this is just
+  // "take me back to where this preset was pointing," not "re-run this search."
+  const refocusPreset = (preset: ClientMapPreset) => {
+    const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
+    setMapBounds(bounds);
+    setViewCommand({ bounds, nonce: nextNonce() });
+  };
+
   const savePreset = async (name: string) => {
     if (!mapBounds) return;
     const res = await fetch("/api/map-presets", {
@@ -420,7 +429,12 @@ export function DashboardApp({
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
 
-        <PresetQuickSwitch presets={presets} activePresetId={activePresetId} onApply={applyPreset} />
+        <PresetQuickSwitch
+          presets={presets}
+          activePresetId={activePresetId}
+          onApply={applyPreset}
+          onRefocus={refocusPreset}
+        />
         <PresetSaveControl canSave={mapBounds != null} onSave={savePreset} />
 
         <LanguageToggle responsive />
