@@ -16,7 +16,9 @@ import {
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
 import { AIAnalysisPanel } from "@/components/property/ai-analysis-panel";
+import { LikeButton } from "@/components/dashboard/like-button";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { getCurrentUser } from "@/lib/auth";
 import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function PropertyPage({
@@ -34,6 +36,15 @@ export default async function PropertyPage({
   const plot = toClientPlot(record);
   const { locale, t } = await getServerTranslator();
   const backHref = resolveBackHref(from);
+
+  const user = await getCurrentUser();
+  const initialLiked = user
+    ? Boolean(
+        await prisma.favorite.findUnique({
+          where: { userId_source_propertyId: { userId: user.id, source: "plots", propertyId: plot.id } },
+        })
+      )
+    : false;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -53,8 +64,9 @@ export default async function PropertyPage({
             <span className="mb-2 inline-block rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
               {planningStatusLabels[locale][plot.planningStatus]}
             </span>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {plot.title}
+              <LikeButton source="plots" propertyId={plot.id} initialLiked={initialLiked} />
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {plot.address}, {plot.municipality}, {plot.province}, {plot.autonomousCommunity}

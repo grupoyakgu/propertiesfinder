@@ -51,6 +51,7 @@ const en = {
     showMap: "Show Map",
     tabCatastro: "Official Catastro Records",
     tabPlots: "Sample Opportunities",
+    tabFavorites: "Favorites",
     tabSettings: "Settings",
     sortNewest: "Newest",
     sortPriceAsc: "Price: Low to High",
@@ -73,6 +74,8 @@ const en = {
     selectAll: "Select all",
     clearSelection: "Clear selection",
     selectedCount: "{n} selected",
+    favoritesDescription: "Properties you've liked, across both Official Catastro Records and Sample Opportunities.",
+    noFavorites: "You haven't liked any properties yet. Click the heart icon on a property to add it here.",
   },
   presets: {
     trigger: "Presets",
@@ -155,6 +158,8 @@ const en = {
   },
   card: {
     floors: "floors",
+    like: "Like",
+    unlike: "Unlike",
   },
   detail: {
     officialCatastroRecord: "Official Catastro Record",
@@ -273,6 +278,7 @@ const es: typeof en = {
     showMap: "Mostrar mapa",
     tabCatastro: "Registros Oficiales del Catastro",
     tabPlots: "Oportunidades de Muestra",
+    tabFavorites: "Favoritos",
     tabSettings: "Ajustes",
     sortNewest: "Más recientes",
     sortPriceAsc: "Precio: menor a mayor",
@@ -297,6 +303,10 @@ const es: typeof en = {
     selectAll: "Seleccionar todo",
     clearSelection: "Borrar selección",
     selectedCount: "{n} seleccionadas",
+    favoritesDescription:
+      "Propiedades que te han gustado, tanto de Registros Oficiales del Catastro como de Oportunidades de Muestra.",
+    noFavorites:
+      "Aún no te ha gustado ninguna propiedad. Haz clic en el icono de corazón de una propiedad para añadirla aquí.",
   },
   presets: {
     trigger: "Ajustes guardados",
@@ -379,6 +389,8 @@ const es: typeof en = {
   },
   card: {
     floors: "plantas",
+    like: "Me gusta",
+    unlike: "Ya no me gusta",
   },
   detail: {
     officialCatastroRecord: "Registro Oficial del Catastro",

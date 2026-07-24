@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
 import { formatCurrency, withBackHref } from "@/lib/utils";
+import { LikeButton } from "@/components/dashboard/like-button";
 
 /** Plain (Leaflet-free) representation of a map viewport, so it can be persisted in the
  * URL and used to filter results even before/without the Leaflet map ever mounting. */
@@ -133,6 +134,8 @@ export function MapView({
   visible = true,
   viewCommand,
   backHref,
+  likedIds,
+  onToggleLike,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
@@ -146,6 +149,8 @@ export function MapView({
    * panning/zooming — which changes this as the URL's bbox updates — never forces
    * the marker/polygon list itself to be recomputed and re-rendered. */
   backHref?: string;
+  likedIds?: Set<string>;
+  onToggleLike?: (id: string, source: "plots" | "catastro", liked: boolean) => void;
 }) {
   const router = useRouter();
   const restoreBounds = viewCommand?.bounds;
@@ -240,7 +245,15 @@ export function MapView({
         >
           <Popup>
             <div className="min-w-[200px] space-y-1">
-              <p className="text-sm font-semibold">{marker.title}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold">{marker.title}</p>
+                <LikeButton
+                  source={marker.source}
+                  propertyId={marker.id}
+                  initialLiked={likedIds?.has(marker.id) ?? false}
+                  onToggle={(liked) => onToggleLike?.(marker.id, marker.source, liked)}
+                />
+              </div>
               <p className="text-xs text-gray-500">{marker.subtitle}</p>
               <p className="text-xs">
                 {marker.areaLabel} &middot; {marker.badge}

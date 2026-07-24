@@ -6,6 +6,7 @@ import type { ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, cn, withBackHref } from "@/lib/utils";
 import { developmentPotentialLabels, planningStatusLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
+import { LikeButton } from "@/components/dashboard/like-button";
 
 export function PlotCard({
   plot,
@@ -16,6 +17,8 @@ export function PlotCard({
   selected,
   onToggleSelect,
   onShowOnMap,
+  liked,
+  onToggleLike,
 }: {
   plot: ClientPlot;
   active?: boolean;
@@ -28,6 +31,8 @@ export function PlotCard({
   selected?: boolean;
   onToggleSelect?: () => void;
   onShowOnMap?: () => void;
+  liked?: boolean;
+  onToggleLike?: (liked: boolean) => void;
 }) {
   const { locale, t } = useLocale();
   return (
@@ -92,16 +97,19 @@ export function PlotCard({
         </div>
       </Link>
 
-      {selectable && (
-        <button
-          type="button"
-          onClick={() => onShowOnMap?.()}
-          title={t("dashboard.showOnMap")}
-          className="mt-1 shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
-        >
-          <MapPinned className="h-4 w-4" />
-        </button>
-      )}
+      <div className="mt-1 flex shrink-0 flex-col items-center gap-1">
+        <LikeButton source="plots" propertyId={plot.id} initialLiked={liked ?? false} onToggle={onToggleLike} />
+        {selectable && (
+          <button
+            type="button"
+            onClick={() => onShowOnMap?.()}
+            title={t("dashboard.showOnMap")}
+            className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
+          >
+            <MapPinned className="h-4 w-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

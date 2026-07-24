@@ -7,8 +7,10 @@ import { formatArea, formatCatastroParcelAddress, resolveBackHref } from "@/lib/
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
+import { LikeButton } from "@/components/dashboard/like-button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CopyButton } from "@/components/ui/copy-button";
+import { getCurrentUser } from "@/lib/auth";
 import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function CatastroParcelPage({
@@ -28,6 +30,15 @@ export default async function CatastroParcelPage({
   const parcel = toClientCatastroParcel(record);
   const { locale, t } = await getServerTranslator();
   const backHref = resolveBackHref(from);
+
+  const user = await getCurrentUser();
+  const initialLiked = user
+    ? Boolean(
+        await prisma.favorite.findUnique({
+          where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId: parcel.id } },
+        })
+      )
+    : false;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -50,6 +61,7 @@ export default async function CatastroParcelPage({
             <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {parcel.referenciaCatastral}
               <CopyButton value={parcel.referenciaCatastral} />
+              <LikeButton source="catastro" propertyId={parcel.id} initialLiked={initialLiked} />
             </h1>
             {parcel.streetName && (
               <p className="mt-1 text-sm font-medium text-foreground">

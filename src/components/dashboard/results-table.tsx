@@ -7,6 +7,7 @@ import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
+import { LikeButton } from "@/components/dashboard/like-button";
 
 const PAGE_SIZE = 25;
 
@@ -68,6 +69,9 @@ function DataTable<T extends { id: string }>({
   selectedIds,
   onToggleSelect,
   onShowOnMap,
+  source,
+  likedIds,
+  onToggleLike,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -81,6 +85,9 @@ function DataTable<T extends { id: string }>({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onShowOnMap?: (id: string) => void;
+  source: "plots" | "catastro";
+  likedIds?: Set<string>;
+  onToggleLike?: (id: string, liked: boolean) => void;
 }) {
   const { t } = useLocale();
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
@@ -108,6 +115,7 @@ function DataTable<T extends { id: string }>({
           <thead className="sticky top-0 bg-surface">
             <tr className="border-b border-border">
               {selectable && <th className="w-8 px-3 py-2.5" />}
+              <th className="w-8 px-3 py-2.5" />
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -139,6 +147,14 @@ function DataTable<T extends { id: string }>({
                     />
                   </td>
                 )}
+                <td className="px-3 py-2.5">
+                  <LikeButton
+                    source={source}
+                    propertyId={row.id}
+                    initialLiked={likedIds?.has(row.id) ?? false}
+                    onToggle={(liked) => onToggleLike?.(row.id, liked)}
+                  />
+                </td>
                 {columns.map((col, i) => (
                   <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
                     {i === 0 ? (
@@ -203,6 +219,8 @@ export function CatastroResultsTable({
   selectedIds,
   onToggleSelect,
   onShowOnMap,
+  likedIds,
+  onToggleLike,
 }: {
   parcels: ClientCatastroParcel[];
   backHref?: string;
@@ -210,6 +228,8 @@ export function CatastroResultsTable({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onShowOnMap?: (id: string) => void;
+  likedIds?: Set<string>;
+  onToggleLike?: (id: string, liked: boolean) => void;
 }) {
   const { locale, t } = useLocale();
 
@@ -290,6 +310,9 @@ export function CatastroResultsTable({
       selectedIds={selectedIds}
       onToggleSelect={onToggleSelect}
       onShowOnMap={onShowOnMap}
+      source="catastro"
+      likedIds={likedIds}
+      onToggleLike={onToggleLike}
     />
   );
 }
@@ -301,6 +324,8 @@ export function PlotResultsTable({
   selectedIds,
   onToggleSelect,
   onShowOnMap,
+  likedIds,
+  onToggleLike,
 }: {
   plots: ClientPlot[];
   backHref?: string;
@@ -308,6 +333,8 @@ export function PlotResultsTable({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onShowOnMap?: (id: string) => void;
+  likedIds?: Set<string>;
+  onToggleLike?: (id: string, liked: boolean) => void;
 }) {
   const { locale, t } = useLocale();
 
@@ -378,6 +405,9 @@ export function PlotResultsTable({
       selectedIds={selectedIds}
       onToggleSelect={onToggleSelect}
       onShowOnMap={onShowOnMap}
+      source="plots"
+      likedIds={likedIds}
+      onToggleLike={onToggleLike}
     />
   );
 }

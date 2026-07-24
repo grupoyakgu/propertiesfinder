@@ -28,10 +28,14 @@ export default async function DashboardPage({
       : null;
 
   const user = await getCurrentUser();
-  const presets = user
-    ? await prisma.mapPreset.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } })
-    : [];
+  const [presets, favorites] = user
+    ? await Promise.all([
+        prisma.mapPreset.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
+        prisma.favorite.findMany({ where: { userId: user.id }, select: { propertyId: true } }),
+      ])
+    : [[], []];
   const initialPresets = presets.map(toClientMapPreset);
+  const initialLikedIds = favorites.map((f) => f.propertyId);
 
   // A "Back to search" bbox always wins; only fall back to the default preset when
   // no explicit viewport was requested (e.g. a fresh visit to a bare /dashboard URL).
@@ -54,6 +58,7 @@ export default async function DashboardPage({
       initialMapVisible={initialMapVisible}
       initialMapBounds={initialMapBounds}
       initialPresets={initialPresets}
+      initialLikedIds={initialLikedIds}
     />
   );
 }

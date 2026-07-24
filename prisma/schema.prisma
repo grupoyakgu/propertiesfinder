@@ -164,8 +164,6 @@ model Plot {
   aiSummary    String?
   aiAnalyzedAt DateTime?
 
-  favorites Favorite[]
-
   @@map("plots")
 }
 
@@ -199,16 +197,19 @@ model CatastroParcel {
   @@map("catastro_parcels")
 }
 
+// A user's "liked" property. Polymorphic across the two property tables (sample
+// Plot listings and official CatastroParcel records) via source + propertyId
+// rather than a direct foreign key, since a favorite can point at either one.
 model Favorite {
-  id        String   @id @default(cuid())
-  userId    String
-  plotId    String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  source     String // "plots" | "catastro"
+  propertyId String // Plot.id or CatastroParcel.id, depending on source
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plot Plot @relation(fields: [plotId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, plotId])
+  @@unique([userId, source, propertyId])
   @@map("favorites")
 }
 

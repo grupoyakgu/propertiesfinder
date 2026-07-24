@@ -17,6 +17,7 @@ import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
 import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
+import { FavoritesPanel } from "@/components/dashboard/favorites-panel";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -72,12 +73,14 @@ export function DashboardApp({
   initialMapVisible = false,
   initialMapBounds = null,
   initialPresets = [],
+  initialLikedIds = [],
 }: {
   initialFilters: DashboardFilters;
   initialSource?: Source;
   initialMapVisible?: boolean;
   initialMapBounds?: BoundsBox | null;
   initialPresets?: ClientMapPreset[];
+  initialLikedIds?: string[];
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -121,6 +124,22 @@ export function DashboardApp({
   // map from the list via checkboxes or a per-row "show on map" jump-to action.
   const [showAllOnMap, setShowAllOnMap] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // A separate tab (before Settings) that shows every liked property across both
+  // sources at once — mutually exclusive with normal source-browsing and Settings.
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  // Seeds every card/table row/map popup's "is this liked" state. Kept centrally so
+  // switching between card list, table, and map views (which remount their rows)
+  // always renders the current like state instead of resetting to "not liked."
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set(initialLikedIds));
+
+  const toggleLike = (id: string, liked: boolean) => {
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (liked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
 
   // A plain incrementing counter (not Date.now()) so viewCommand's nonce stays a pure
   // value to compute — every "move the map now" action just needs a value guaranteed
@@ -457,10 +476,11 @@ export function DashboardApp({
             onClick={() => {
               setSource(tab.key);
               setSettingsOpen(false);
+              setFavoritesOpen(false);
             }}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              !settingsOpen && source === tab.key
+              !settingsOpen && !favoritesOpen && source === tab.key
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-surface-muted"
             )}
@@ -470,7 +490,25 @@ export function DashboardApp({
         ))}
         <button
           type="button"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => {
+            setFavoritesOpen(true);
+            setSettingsOpen(false);
+          }}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            favoritesOpen
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-surface-muted"
+          )}
+        >
+          {t("dashboard.tabFavorites")}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSettingsOpen(true);
+            setFavoritesOpen(false);
+          }}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
             settingsOpen
@@ -495,13 +533,15 @@ export function DashboardApp({
               onRename={renamePreset}
             />
           </div>
+        ) : favoritesOpen ? (
+          <FavoritesPanel />
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
             <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
           </div>
         )}
 
-        {!settingsOpen && mapVisible && (
+        {!settingsOpen && !favoritesOpen && mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -522,6 +562,8 @@ export function DashboardApp({
                       selected={selectedIds.has(plot.id)}
                       onToggleSelect={() => toggleSelected(plot.id)}
                       onShowOnMap={() => showPropertyOnMap(plot.id)}
+                      liked={likedIds.has(plot.id)}
+                      onToggleLike={(liked) => toggleLike(plot.id, liked)}
                     />
                   ))
                 : visibleParcels.map((parcel) => (
@@ -535,6 +577,8 @@ export function DashboardApp({
                       selected={selectedIds.has(parcel.id)}
                       onToggleSelect={() => toggleSelected(parcel.id)}
                       onShowOnMap={() => showPropertyOnMap(parcel.id)}
+                      liked={likedIds.has(parcel.id)}
+                      onToggleLike={(liked) => toggleLike(parcel.id, liked)}
                     />
                   ))}
               {!loading && resultCount === 0 && (
@@ -551,7 +595,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!settingsOpen && !mapVisible && (
+        {!settingsOpen && !favoritesOpen && !mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -574,6 +618,8 @@ export function DashboardApp({
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelected}
                   onShowOnMap={showPropertyOnMap}
+                  likedIds={likedIds}
+                  onToggleLike={toggleLike}
                 />
               ) : (
                 <CatastroResultsTable
@@ -583,6 +629,8 @@ export function DashboardApp({
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelected}
                   onShowOnMap={showPropertyOnMap}
+                  likedIds={likedIds}
+                  onToggleLike={toggleLike}
                 />
               )}
             </div>
@@ -593,14 +641,16 @@ export function DashboardApp({
             Leaflet keeps its center/zoom/pan state when toggled off and back on —
             including while the Settings tab is open, which just hides it via CSS. */}
         {mapMounted && (
-          <div className={cn("relative", !settingsOpen && mapVisible ? "flex-1" : "hidden")}>
+          <div className={cn("relative", !settingsOpen && !favoritesOpen && mapVisible ? "flex-1" : "hidden")}>
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
-              visible={!settingsOpen && mapVisible}
+              visible={!settingsOpen && !favoritesOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
+              likedIds={likedIds}
+              onToggleLike={(id, _source, liked) => toggleLike(id, liked)}
             />
           </div>
         )}
