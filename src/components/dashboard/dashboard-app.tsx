@@ -14,6 +14,7 @@ import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
 import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/results-table";
 import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
+import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -113,6 +114,7 @@ export function DashboardApp({
       next.push(preset);
       return next;
     });
+    setActivePresetId(preset.id);
   };
 
   const deletePreset = async (id: string) => {
@@ -308,6 +310,7 @@ export function DashboardApp({
         </button>
 
         <PresetQuickSwitch presets={presets} activePresetId={activePresetId} onApply={applyPreset} />
+        <PresetSaveControl canSave={mapBounds != null} onSave={savePreset} />
 
         <LanguageToggle responsive />
 
