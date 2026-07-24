@@ -7,7 +7,13 @@ export async function GET(request: Request) {
   const where = buildCatastroParcelWhere(searchParams);
   const orderBy = parseCatastroSort(searchParams.get("sort"));
 
-  const take = Math.min(Number(searchParams.get("limit")) || 2000, 5000);
+  // Each parcel renders as a Marker plus up to two Polygons (boundary + planning
+  // overlay) on the map, with real official cadastral geometry and no clustering.
+  // Since the full-city Catastro import (61k+ rows for Sevilla alone), a lightly
+  // narrowing filter can still match thousands of rows — mounting that many complex
+  // Leaflet layers at once hangs the tab. Capped well below that; the existing
+  // "(showing first {n})" UI already communicates the truncation to the user.
+  const take = Math.min(Number(searchParams.get("limit")) || 500, 1000);
 
   const [parcels, total] = await Promise.all([
     prisma.catastroParcel.findMany({ where, orderBy, take }),
