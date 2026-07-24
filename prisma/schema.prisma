@@ -225,6 +225,10 @@ model MapPreset {
   west      Float
   north     Float
   east      Float
+  // The dashboard's full search filter state (location, land characteristics, etc.)
+  // at save time, so applying a preset restores the search, not just the viewport.
+  // Nullable so presets created before this field existed still load fine.
+  filters   Json?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

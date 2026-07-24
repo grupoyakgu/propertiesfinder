@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
-const patchSchema = z.object({
-  isDefault: z.literal(true),
-});
+const patchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    isDefault: z.literal(true).optional(),
+  })
+  .refine((data) => data.name !== undefined || data.isDefault !== undefined, {
+    message: "Nothing to update",
+  });
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/map-presets/[id]">) {
   const user = await getCurrentUser();
@@ -28,15 +34,31 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/map-preset
     return NextResponse.json({ error: "Preset not found" }, { status: 404 });
   }
 
-  const preset = await prisma.$transaction(async (tx) => {
-    await tx.mapPreset.updateMany({
-      where: { userId: user.id, isDefault: true },
-      data: { isDefault: false },
-    });
-    return tx.mapPreset.update({ where: { id }, data: { isDefault: true } });
-  });
+  const { name, isDefault } = parsed.data;
 
-  return NextResponse.json({ preset });
+  try {
+    const preset = await prisma.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.mapPreset.updateMany({
+          where: { userId: user.id, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+      return tx.mapPreset.update({
+        where: { id },
+        data: { ...(name !== undefined ? { name } : {}), ...(isDefault ? { isDefault: true } : {}) },
+      });
+    });
+    return NextResponse.json({ preset });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        { error: "You already have a preset with that name" },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/map-presets/[id]">) {

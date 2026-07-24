@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -10,6 +11,9 @@ const presetSchema = z.object({
   north: z.number(),
   east: z.number(),
   isDefault: z.boolean().optional(),
+  // The dashboard's full search filter state at save time — an opaque object as far
+  // as this route is concerned; only ever read back by the same client that wrote it.
+  filters: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {
@@ -41,7 +45,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, south, west, north, east, isDefault } = parsed.data;
+  const { name, south, west, north, east, isDefault, filters } = parsed.data;
+  const filtersJson = filters as Prisma.InputJsonValue | undefined;
 
   const preset = await prisma.$transaction(async (tx) => {
     if (isDefault) {
@@ -53,8 +58,17 @@ export async function POST(request: Request) {
 
     return tx.mapPreset.upsert({
       where: { userId_name: { userId: user.id, name } },
-      update: { south, west, north, east, ...(isDefault ? { isDefault: true } : {}) },
-      create: { userId: user.id, name, south, west, north, east, isDefault: isDefault ?? false },
+      update: { south, west, north, east, filters: filtersJson, ...(isDefault ? { isDefault: true } : {}) },
+      create: {
+        userId: user.id,
+        name,
+        south,
+        west,
+        north,
+        east,
+        filters: filtersJson,
+        isDefault: isDefault ?? false,
+      },
     });
   });
 

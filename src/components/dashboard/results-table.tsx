@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
 import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
@@ -64,12 +64,23 @@ function DataTable<T extends { id: string }>({
   href,
   defaultSortKey,
   backHref,
+  selectable,
+  selectedIds,
+  onToggleSelect,
+  onShowOnMap,
 }: {
   rows: T[];
   columns: Column<T>[];
   href: (row: T) => string;
   defaultSortKey: string;
   backHref?: string;
+  /** When true (the "show all on map" setting is off), adds a checkbox column and a
+   * "show on map" action column so the user can manually curate what appears on the
+   * map instead of relying on the automatic full result set. */
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onShowOnMap?: (id: string) => void;
 }) {
   const { t } = useLocale();
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
@@ -96,6 +107,7 @@ function DataTable<T extends { id: string }>({
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead className="sticky top-0 bg-surface">
             <tr className="border-b border-border">
+              {selectable && <th className="w-8 px-3 py-2.5" />}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -111,11 +123,22 @@ function DataTable<T extends { id: string }>({
                   </span>
                 </th>
               ))}
+              {selectable && <th className="w-8 px-3 py-2.5" />}
             </tr>
           </thead>
           <tbody>
             {pageRows.map((row) => (
               <tr key={row.id} className="border-b border-border/60 last:border-0 hover:bg-surface-muted">
+                {selectable && (
+                  <td className="px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds?.has(row.id) ?? false}
+                      onChange={() => onToggleSelect?.(row.id)}
+                      className="h-4 w-4 rounded border-border accent-[var(--primary)]"
+                    />
+                  </td>
+                )}
                 {columns.map((col, i) => (
                   <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
                     {i === 0 ? (
@@ -127,6 +150,18 @@ function DataTable<T extends { id: string }>({
                     )}
                   </td>
                 ))}
+                {selectable && (
+                  <td className="px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => onShowOnMap?.(row.id)}
+                      title={t("dashboard.showOnMap")}
+                      className="rounded p-1 text-muted-foreground hover:text-primary"
+                    >
+                      <MapPinned className="h-4 w-4" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -164,9 +199,17 @@ function DataTable<T extends { id: string }>({
 export function CatastroResultsTable({
   parcels,
   backHref,
+  selectable,
+  selectedIds,
+  onToggleSelect,
+  onShowOnMap,
 }: {
   parcels: ClientCatastroParcel[];
   backHref?: string;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onShowOnMap?: (id: string) => void;
 }) {
   const { locale, t } = useLocale();
 
@@ -243,11 +286,29 @@ export function CatastroResultsTable({
       href={(p) => `/catastro/${p.referenciaCatastral}`}
       defaultSortKey="referenciaCatastral"
       backHref={backHref}
+      selectable={selectable}
+      selectedIds={selectedIds}
+      onToggleSelect={onToggleSelect}
+      onShowOnMap={onShowOnMap}
     />
   );
 }
 
-export function PlotResultsTable({ plots, backHref }: { plots: ClientPlot[]; backHref?: string }) {
+export function PlotResultsTable({
+  plots,
+  backHref,
+  selectable,
+  selectedIds,
+  onToggleSelect,
+  onShowOnMap,
+}: {
+  plots: ClientPlot[];
+  backHref?: string;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onShowOnMap?: (id: string) => void;
+}) {
   const { locale, t } = useLocale();
 
   if (plots.length === 0) {
@@ -313,6 +374,10 @@ export function PlotResultsTable({ plots, backHref }: { plots: ClientPlot[]; bac
       href={(p) => `/property/${p.slug}`}
       defaultSortKey="title"
       backHref={backHref}
+      selectable={selectable}
+      selectedIds={selectedIds}
+      onToggleSelect={onToggleSelect}
+      onShowOnMap={onShowOnMap}
     />
   );
 }

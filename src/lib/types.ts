@@ -8,6 +8,7 @@ import type {
   Topography,
 } from "@/generated/prisma/enums";
 import type { CatastroParcel, MapPreset, Plot } from "@/generated/prisma/client";
+import type { DashboardFilters } from "@/lib/filter-types";
 
 export interface ClientPlot {
   id: string;
@@ -117,9 +118,12 @@ export interface ClientMapPreset {
   north: number;
   east: number;
   isDefault: boolean;
+  /** The full search filter state (location, land characteristics, etc.) captured
+   * when the preset was saved — null for presets saved before this field existed. */
+  filters: DashboardFilters | null;
 }
 
 export function toClientMapPreset(preset: MapPreset): ClientMapPreset {
-  const { id, name, south, west, north, east, isDefault } = preset;
-  return { id, name, south, west, north, east, isDefault };
+  const { id, name, south, west, north, east, isDefault, filters } = preset;
+  return { id, name, south, west, north, east, isDefault, filters: filters as DashboardFilters | null };
 }

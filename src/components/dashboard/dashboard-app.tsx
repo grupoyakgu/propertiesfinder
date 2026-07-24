@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/r
 import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
 import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
+import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
 import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -34,6 +35,31 @@ function MapLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-surface-muted text-sm text-muted-foreground">
       {t("dashboard.loadingMap")}
+    </div>
+  );
+}
+
+/** Shown above the list (card or table) whenever "show all on map" is off, so the
+ * user can bulk-manage which properties end up rendered on the map. */
+function SelectionToolbar({
+  count,
+  onSelectAll,
+  onClear,
+}: {
+  count: number;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const { t } = useLocale();
+  return (
+    <div className="flex items-center gap-3 border-b border-border bg-surface-muted px-4 py-2 text-xs">
+      <span className="font-medium text-foreground">{t("dashboard.selectedCount", { n: count })}</span>
+      <button type="button" onClick={onSelectAll} className="font-medium text-primary hover:underline">
+        {t("dashboard.selectAll")}
+      </button>
+      <button type="button" onClick={onClear} className="font-medium text-muted-foreground hover:underline">
+        {t("dashboard.clearSelection")}
+      </button>
     </div>
   );
 }
@@ -89,6 +115,21 @@ export function DashboardApp({
   // rather than a popover — a floating dropdown here would sit below Leaflet's own
   // panes/controls in the stacking order and get visually covered by the map.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // When off, the map shows only manually-picked properties instead of the full
+  // (potentially large) matching set — avoids ever rendering more markers/boundary
+  // polygons than the user actually wants to see, and lets them curate the map from
+  // the list via checkboxes or a per-row "show on map" jump-to action.
+  const [showAllOnMap, setShowAllOnMap] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // A plain incrementing counter (not Date.now()) so viewCommand's nonce stays a pure
+  // value to compute — every "move the map now" action just needs a value guaranteed
+  // to differ from the last one applied.
+  const nonceRef = useRef(0);
+  const nextNonce = () => {
+    nonceRef.current += 1;
+    return nonceRef.current;
+  };
 
   const applyPreset = (preset: ClientMapPreset) => {
     const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
@@ -96,8 +137,13 @@ export function DashboardApp({
     // filter immediately, and move the map to match — but never force map view open
     // if the user is currently on the table (per the answered design question).
     setMapBounds(bounds);
-    setViewCommand({ bounds, nonce: Date.now() });
+    setViewCommand({ bounds, nonce: nextNonce() });
     setActivePresetId(preset.id);
+    // Presets are saved searches, not just saved viewports — restore the location
+    // and land-characteristic filters that were active when it was saved too.
+    // Older presets saved before this existed have no filters; leave the current
+    // search alone in that case.
+    if (preset.filters) setFilters(preset.filters);
   };
 
   const savePreset = async (name: string) => {
@@ -105,7 +151,7 @@ export function DashboardApp({
     const res = await fetch("/api/map-presets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, ...mapBounds }),
+      body: JSON.stringify({ name, ...mapBounds, filters }),
     });
     if (!res.ok) return;
     const { preset } = await res.json();
@@ -132,6 +178,35 @@ export function DashboardApp({
     });
     if (!res.ok) return;
     setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
+  };
+
+  const renamePreset = async (id: string, name: string): Promise<{ ok: boolean; error?: string }> => {
+    const res = await fetch(`/api/map-presets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Failed to rename preset" };
+    setPresets((prev) => prev.map((p) => (p.id === id ? data.preset : p)));
+    return { ok: true };
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    // Let the map naturally re-fit to whatever ends up selected, instead of being
+    // pinned to a stale viewCommand from an earlier preset/restore.
+    setViewCommand(null);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setViewCommand(null);
   };
 
   // Mount the map the first time it's shown, and never unmount it again afterwards
@@ -228,6 +303,7 @@ export function DashboardApp({
     setMapBounds(null);
     setViewCommand(null);
     setActivePresetId(null);
+    setSelectedIds(new Set());
   }
 
   const visibleIds = useMemo(() => {
@@ -252,6 +328,41 @@ export function DashboardApp({
   const mapPaneLabel = mapBounds
     ? t("dashboard.inView", { n: inViewCount, total: resultCount })
     : resultLabel;
+
+  // What actually gets mounted on the Leaflet map: everything currently listed, or —
+  // when "show all on map" is off — only the properties the user picked. Filtering
+  // here (rather than passing the full `markers`) is what keeps the map from ever
+  // rendering more markers/boundary polygons than the user actually wants.
+  const mapMarkers = useMemo(
+    () => (showAllOnMap ? markers : markers.filter((m) => selectedIds.has(m.id))),
+    [markers, showAllOnMap, selectedIds]
+  );
+
+  const selectAllVisible = () => {
+    const ids = source === "plots" ? visiblePlots.map((p) => p.id) : visibleParcels.map((p) => p.id);
+    setSelectedIds(new Set(ids));
+    setViewCommand(null);
+  };
+
+  // Jump straight to a single property on the map: reveal it (adding it to the
+  // selection when "show all on map" is off, so it actually renders), center the
+  // view tightly on it, and switch to map view if the user is currently on the table.
+  const showPropertyOnMap = (id: string) => {
+    const marker = markers.find((m) => m.id === id);
+    if (!marker) return;
+    setSelectedIds((prev) => new Set(prev).add(id));
+    const buffer = 0.01;
+    setViewCommand({
+      bounds: {
+        south: marker.lat - buffer,
+        north: marker.lat + buffer,
+        west: marker.lng - buffer,
+        east: marker.lng + buffer,
+      },
+      nonce: nextNonce(),
+    });
+    setMapVisible(true);
+  };
 
   return (
     <div className="flex h-screen flex-col">
@@ -357,13 +468,17 @@ export function DashboardApp({
 
       <div className="flex flex-1 overflow-hidden">
         {settingsOpen ? (
-          <PresetSettingsPanel
-            presets={presets}
-            canSave={mapBounds != null}
-            onSave={savePreset}
-            onDelete={deletePreset}
-            onSetDefault={setDefaultPreset}
-          />
+          <div className="flex-1 overflow-y-auto">
+            <MapDisplaySettings showAllOnMap={showAllOnMap} onChange={setShowAllOnMap} />
+            <PresetSettingsPanel
+              presets={presets}
+              canSave={mapBounds != null}
+              onSave={savePreset}
+              onDelete={deletePreset}
+              onSetDefault={setDefaultPreset}
+              onRename={renamePreset}
+            />
+          </div>
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
             <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
@@ -375,6 +490,9 @@ export function DashboardApp({
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
             </div>
+            {!showAllOnMap && (
+              <SelectionToolbar count={selectedIds.size} onSelectAll={selectAllVisible} onClear={clearSelection} />
+            )}
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {source === "plots"
                 ? visiblePlots.map((plot) => (
@@ -384,6 +502,10 @@ export function DashboardApp({
                       active={hoveredId === plot.id}
                       onHover={setHoveredId}
                       backHref={dashboardUrl}
+                      selectable={!showAllOnMap}
+                      selected={selectedIds.has(plot.id)}
+                      onToggleSelect={() => toggleSelected(plot.id)}
+                      onShowOnMap={() => showPropertyOnMap(plot.id)}
                     />
                   ))
                 : visibleParcels.map((parcel) => (
@@ -393,6 +515,10 @@ export function DashboardApp({
                       active={hoveredId === parcel.id}
                       onHover={setHoveredId}
                       backHref={dashboardUrl}
+                      selectable={!showAllOnMap}
+                      selected={selectedIds.has(parcel.id)}
+                      onToggleSelect={() => toggleSelected(parcel.id)}
+                      onShowOnMap={() => showPropertyOnMap(parcel.id)}
                     />
                   ))}
               {!loading && resultCount === 0 && (
@@ -414,6 +540,9 @@ export function DashboardApp({
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
             </div>
+            {!showAllOnMap && (
+              <SelectionToolbar count={selectedIds.size} onSelectAll={selectAllVisible} onClear={clearSelection} />
+            )}
             <div className="flex-1 overflow-auto p-4">
               {loading ? (
                 <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.searching")}</p>
@@ -422,9 +551,23 @@ export function DashboardApp({
                   {t("dashboard.noResultsInView")}
                 </p>
               ) : source === "plots" ? (
-                <PlotResultsTable plots={visiblePlots} backHref={dashboardUrl} />
+                <PlotResultsTable
+                  plots={visiblePlots}
+                  backHref={dashboardUrl}
+                  selectable={!showAllOnMap}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelected}
+                  onShowOnMap={showPropertyOnMap}
+                />
               ) : (
-                <CatastroResultsTable parcels={visibleParcels} backHref={dashboardUrl} />
+                <CatastroResultsTable
+                  parcels={visibleParcels}
+                  backHref={dashboardUrl}
+                  selectable={!showAllOnMap}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelected}
+                  onShowOnMap={showPropertyOnMap}
+                />
               )}
             </div>
           </div>
@@ -436,7 +579,7 @@ export function DashboardApp({
         {mapMounted && (
           <div className={cn("relative", !settingsOpen && mapVisible ? "flex-1" : "hidden")}>
             <MapView
-              markers={markers}
+              markers={mapMarkers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
               visible={!settingsOpen && mapVisible}
