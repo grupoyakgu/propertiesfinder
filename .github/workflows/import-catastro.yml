@@ -83,7 +83,13 @@ jobs:
         run: npx tsx scripts/import-catastro-parcels.ts --inspect "${{ inputs.inspectUrl }}"
 
       - name: Check DB row count (verification only)
-        if: ${{ inputs.inspectUrl == '' && inputs.countOnly == 'true' }}
+        # NOTE: inputs.countOnly is a real boolean (type: boolean above) - compare it
+        # directly, not with == 'true'/!= 'true'. GitHub Actions' == operator casts
+        # both sides to numbers when they're not already the same type, and the
+        # string 'true' casts to NaN, so `inputs.countOnly == 'true'` is ALWAYS false
+        # regardless of the input's value (this bit us: the count step kept getting
+        # skipped and the full import ran instead, twice).
+        if: ${{ inputs.inspectUrl == '' && inputs.countOnly }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -91,7 +97,7 @@ jobs:
             --province "${{ inputs.province }}" --municipality "${{ inputs.municipality }}" --count
 
       - name: Run Catastro import
-        if: ${{ inputs.inspectUrl == '' && inputs.countOnly != 'true' }}
+        if: ${{ inputs.inspectUrl == '' && !inputs.countOnly }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
