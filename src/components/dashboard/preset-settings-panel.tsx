@@ -18,7 +18,7 @@ export function PresetSettingsPanel({
   canSave: boolean;
   onSave: (name: string) => void | Promise<void>;
   onDelete: (id: string) => void | Promise<void>;
-  onSetDefault: (id: string) => void | Promise<void>;
+  onSetDefault: (id: string, isDefault: boolean) => void | Promise<void>;
   onRename: (id: string, name: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const { t } = useLocale();
@@ -143,8 +143,8 @@ export function PresetSettingsPanel({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onSetDefault(preset.id)}
-                        title={preset.isDefault ? t("presets.default") : t("presets.setDefault")}
+                        onClick={() => onSetDefault(preset.id, !preset.isDefault)}
+                        title={preset.isDefault ? t("presets.unsetDefault") : t("presets.setDefault")}
                         className={cn(
                           "shrink-0 rounded p-1.5",
                           preset.isDefault ? "text-primary" : "text-muted-foreground hover:text-foreground"

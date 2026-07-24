@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
-    isDefault: z.literal(true).optional(),
+    isDefault: z.boolean().optional(),
   })
   .refine((data) => data.name !== undefined || data.isDefault !== undefined, {
     message: "Nothing to update",
@@ -38,7 +38,9 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/map-preset
 
   try {
     const preset = await prisma.$transaction(async (tx) => {
-      if (isDefault) {
+      // Setting a preset as default unsets whichever one held that spot before
+      // (only one default at a time). Unsetting is a no-op on other presets.
+      if (isDefault === true) {
         await tx.mapPreset.updateMany({
           where: { userId: user.id, isDefault: true },
           data: { isDefault: false },
@@ -46,7 +48,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/map-preset
       }
       return tx.mapPreset.update({
         where: { id },
-        data: { ...(name !== undefined ? { name } : {}), ...(isDefault ? { isDefault: true } : {}) },
+        data: { ...(name !== undefined ? { name } : {}), ...(isDefault !== undefined ? { isDefault } : {}) },
       });
     });
     return NextResponse.json({ preset });

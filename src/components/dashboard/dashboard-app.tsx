@@ -115,11 +115,11 @@ export function DashboardApp({
   // rather than a popover — a floating dropdown here would sit below Leaflet's own
   // panes/controls in the stacking order and get visually covered by the map.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // When off, the map shows only manually-picked properties instead of the full
-  // (potentially large) matching set — avoids ever rendering more markers/boundary
-  // polygons than the user actually wants to see, and lets them curate the map from
-  // the list via checkboxes or a per-row "show on map" jump-to action.
-  const [showAllOnMap, setShowAllOnMap] = useState(true);
+  // Off by default: the map shows only manually-picked properties instead of the
+  // full (potentially large) matching set — avoids ever rendering more markers/
+  // boundary polygons than the user actually wants to see, and lets them curate the
+  // map from the list via checkboxes or a per-row "show on map" jump-to action.
+  const [showAllOnMap, setShowAllOnMap] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // A plain incrementing counter (not Date.now()) so viewCommand's nonce stays a pure
@@ -179,14 +179,16 @@ export function DashboardApp({
     setActivePresetId((current) => (current === id ? null : current));
   };
 
-  const setDefaultPreset = async (id: string) => {
+  const setDefaultPreset = async (id: string, isDefault: boolean) => {
     const res = await fetch(`/api/map-presets/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isDefault: true }),
+      body: JSON.stringify({ isDefault }),
     });
     if (!res.ok) return;
-    setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
+    setPresets((prev) =>
+      prev.map((p) => (isDefault ? { ...p, isDefault: p.id === id } : p.id === id ? { ...p, isDefault: false } : p))
+    );
   };
 
   const renamePreset = async (id: string, name: string): Promise<{ ok: boolean; error?: string }> => {
