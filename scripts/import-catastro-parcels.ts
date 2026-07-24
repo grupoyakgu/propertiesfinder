@@ -78,6 +78,7 @@ interface Args {
   limit?: number;
   inspect?: string;
   streets?: string[];
+  countOnly: boolean;
 }
 
 function parseArgs(): Args {
@@ -102,8 +103,24 @@ function parseArgs(): Args {
         .map((s) => s.trim())
         .filter(Boolean)
     : undefined;
+  const countOnly = argv.includes("--count");
 
-  return { province, municipality, autonomousCommunity, cadastralUse, limit, inspect, streets };
+  return { province, municipality, autonomousCommunity, cadastralUse, limit, inspect, streets, countOnly };
+}
+
+/** Just queries and prints how many rows are actually in the DB for this
+ * municipality/province — no download/parse/upsert. Used to verify a prior
+ * import actually landed, independent of that run's own "Upserted N/M" log. */
+async function runCount(args: Args) {
+  const total = await prisma.catastroParcel.count({
+    where: { municipality: args.municipality, province: args.province },
+  });
+  const withStreet = await prisma.catastroParcel.count({
+    where: { municipality: args.municipality, province: args.province, streetName: { not: null } },
+  });
+  console.log(
+    `DB row count for ${args.municipality}, ${args.province}: ${total} total (${withStreet} with a street name)`
+  );
 }
 
 /** Strips accents/diacritics and uppercases, for tolerant street-name matching. */
@@ -676,6 +693,11 @@ async function main() {
 
   if (args.inspect) {
     await runInspect(args.inspect);
+    return;
+  }
+
+  if (args.countOnly) {
+    await runCount(args);
     return;
   }
 

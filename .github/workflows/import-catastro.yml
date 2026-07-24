@@ -45,6 +45,11 @@ on:
         description: "Comma-separated street names to filter to (e.g. \"Peral,Beatriz de Suabia\"). Leave blank to import by municipality only."
         required: false
         default: ""
+      countOnly:
+        description: "Verification only: skip the download/parse/upsert entirely and just print how many rows are actually in the DB for this municipality/province."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   import:
@@ -77,8 +82,16 @@ jobs:
         if: ${{ inputs.inspectUrl != '' }}
         run: npx tsx scripts/import-catastro-parcels.ts --inspect "${{ inputs.inspectUrl }}"
 
+      - name: Check DB row count (verification only)
+        if: ${{ inputs.inspectUrl == '' && inputs.countOnly == 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx tsx scripts/import-catastro-parcels.ts \
+            --province "${{ inputs.province }}" --municipality "${{ inputs.municipality }}" --count
+
       - name: Run Catastro import
-        if: ${{ inputs.inspectUrl == '' }}
+        if: ${{ inputs.inspectUrl == '' && inputs.countOnly != 'true' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
