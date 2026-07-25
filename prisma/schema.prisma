@@ -164,6 +164,7 @@ model Plot {
   aiSummary    String?
   aiAnalyzedAt DateTime?
 
+  @@index([latitude, longitude])
   @@map("plots")
 }
 
@@ -194,6 +195,7 @@ model CatastroParcel {
   importedAt    DateTime @default(now())
 
   @@index([municipality, province])
+  @@index([latitude, longitude])
   @@map("catastro_parcels")
 }
 
