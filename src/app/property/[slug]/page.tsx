@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { toClientPlot } from "@/lib/types";
+import { toClientComment, toClientPlot } from "@/lib/types";
 import { formatArea, formatCurrency, formatNumber, formatPercent, resolveBackHref } from "@/lib/utils";
 import {
   buildingTypeLabels,
@@ -16,6 +16,7 @@ import {
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
 import { AIAnalysisPanel } from "@/components/property/ai-analysis-panel";
+import { CommentsSection } from "@/components/property/comments-section";
 import { LikeButton } from "@/components/dashboard/like-button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { getCurrentUser } from "@/lib/auth";
@@ -45,6 +46,12 @@ export default async function PropertyPage({
         })
       )
     : false;
+  const commentRows = await prisma.comment.findMany({
+    where: { source: "plots", propertyId: plot.id },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const initialComments = commentRows.map(toClientComment);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -157,6 +164,13 @@ export default async function PropertyPage({
                 <p className="col-span-full text-sm leading-relaxed text-foreground">{plot.description}</p>
               </DetailSection>
             )}
+
+            <CommentsSection
+              source="plots"
+              propertyId={plot.id}
+              currentUserId={user?.id ?? null}
+              initialComments={initialComments}
+            />
           </div>
 
           <div className="space-y-6">

@@ -7,7 +7,7 @@ import type {
   PlotShape,
   Topography,
 } from "@/generated/prisma/enums";
-import type { CatastroParcel, MapPreset, Plot } from "@/generated/prisma/client";
+import type { CatastroParcel, Comment, MapPreset, Plot } from "@/generated/prisma/client";
 import type { DashboardFilters } from "@/lib/filter-types";
 
 export interface ClientPlot {
@@ -126,4 +126,28 @@ export interface ClientMapPreset {
 export function toClientMapPreset(preset: MapPreset): ClientMapPreset {
   const { id, name, south, west, north, east, isDefault, filters } = preset;
   return { id, name, south, west, north, east, isDefault, filters: filters as DashboardFilters | null };
+}
+
+export interface ClientComment {
+  id: string;
+  fullName: string;
+  phone: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  authorId: string;
+  authorName: string;
+}
+
+export function toClientComment(comment: Comment & { user: { id: string; name: string } }): ClientComment {
+  return {
+    id: comment.id,
+    fullName: comment.fullName,
+    phone: comment.phone,
+    body: comment.body,
+    createdAt: comment.createdAt.toISOString(),
+    updatedAt: comment.updatedAt.toISOString(),
+    authorId: comment.user.id,
+    authorName: comment.user.name,
+  };
 }

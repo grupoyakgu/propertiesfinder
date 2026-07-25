@@ -1,0 +1,236 @@
+"use client";
+
+import { useState } from "react";
+import { MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input, FieldLabel } from "@/components/ui/input";
+import type { ClientComment } from "@/lib/types";
+import { useLocale } from "@/lib/i18n/context";
+import { cn } from "@/lib/utils";
+
+const textareaClass =
+  "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
+
+export function CommentsSection({
+  source,
+  propertyId,
+  currentUserId,
+  initialComments,
+}: {
+  source: "plots" | "catastro";
+  propertyId: string;
+  /** Null when there's no signed-in user (shouldn't normally happen — these pages
+   * require a session — but getCurrentUser() can still return null, e.g. a stale
+   * token pointing at a deleted account, so this is handled defensively). */
+  currentUserId: string | null;
+  initialComments: ClientComment[];
+}) {
+  const { t, locale } = useLocale();
+  const [comments, setComments] = useState(initialComments);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleString(locale === "es" ? "es-ES" : "en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const submitNew = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !phone.trim() || !body.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, propertyId, fullName, phone, body }),
+      });
+      if (!res.ok) throw new Error("Failed to post comment");
+      const data = await res.json();
+      setComments((prev) => [data.comment, ...prev]);
+      setFullName("");
+      setPhone("");
+      setBody("");
+    } catch {
+      setError(t("comments.postError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const deleteComment = async (id: string) => {
+    if (!window.confirm(t("comments.deleteConfirm"))) return;
+    const res = await fetch(`/api/comments/${id}`, { method: "DELETE" });
+    if (res.ok) setComments((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-5">
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <MessageSquare className="h-4 w-4 text-accent" />
+        {t("comments.heading")}
+      </h3>
+
+      {currentUserId && (
+        <form onSubmit={submitNew} className="mt-4 space-y-2 border-b border-border pb-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <FieldLabel>{t("comments.fullNameLabel")}</FieldLabel>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required maxLength={200} />
+            </div>
+            <div>
+              <FieldLabel>{t("comments.phoneLabel")}</FieldLabel>
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required maxLength={50} />
+            </div>
+          </div>
+          <div>
+            <FieldLabel>{t("comments.bodyLabel")}</FieldLabel>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              required
+              maxLength={4000}
+              rows={3}
+              placeholder={t("comments.bodyPlaceholder")}
+              className={textareaClass}
+            />
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <Button type="submit" size="sm" disabled={submitting}>
+            {submitting ? t("comments.posting") : t("comments.submit")}
+          </Button>
+        </form>
+      )}
+
+      <div className="mt-4 space-y-3">
+        {comments.length === 0 && <p className="text-sm text-muted-foreground">{t("comments.empty")}</p>}
+        {comments.map((comment) => (
+          <CommentItem
+            key={comment.id}
+            comment={comment}
+            canManage={currentUserId === comment.authorId}
+            onDelete={() => deleteComment(comment.id)}
+            onSaved={(updated) => setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))}
+            formatDate={formatDate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommentItem({
+  comment,
+  canManage,
+  onDelete,
+  onSaved,
+  formatDate,
+}: {
+  comment: ClientComment;
+  canManage: boolean;
+  onDelete: () => void;
+  onSaved: (updated: ClientComment) => void;
+  formatDate: (iso: string) => string;
+}) {
+  const { t } = useLocale();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [fullName, setFullName] = useState(comment.fullName);
+  const [phone, setPhone] = useState(comment.phone);
+  const [body, setBody] = useState(comment.body);
+
+  const cancel = () => {
+    setFullName(comment.fullName);
+    setPhone(comment.phone);
+    setBody(comment.body);
+    setEditing(false);
+  };
+
+  const save = async () => {
+    if (!fullName.trim() || !phone.trim() || !body.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/comments/${comment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, phone, body }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      onSaved(data.comment);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-2 rounded-lg border border-border p-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={200} />
+          <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={50} />
+        </div>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          maxLength={4000}
+          className={textareaClass}
+        />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={save} disabled={saving}>
+            {saving ? t("comments.saving") : t("comments.save")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={cancel} disabled={saving}>
+            {t("comments.cancel")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-foreground">{comment.fullName}</p>
+          <p className="text-xs text-muted-foreground">{comment.phone}</p>
+        </div>
+        {canManage && (
+          <div className={cn("flex shrink-0 gap-1")}>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              title={t("comments.edit")}
+              className="rounded p-1 text-muted-foreground hover:text-primary"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              title={t("comments.delete")}
+              className="rounded p-1 text-muted-foreground hover:text-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{comment.body}</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t("comments.postedBy", { name: comment.authorName })} · {formatDate(comment.createdAt)}
+        {comment.updatedAt !== comment.createdAt ? ` · ${t("comments.edited")}` : ""}
+      </p>
+    </div>
+  );
+}

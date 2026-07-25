@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { toClientCatastroParcel } from "@/lib/types";
+import { toClientCatastroParcel, toClientComment } from "@/lib/types";
 import { formatArea, formatCatastroParcelAddress, resolveBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
+import { CommentsSection } from "@/components/property/comments-section";
 import { LikeButton } from "@/components/dashboard/like-button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -39,6 +40,12 @@ export default async function CatastroParcelPage({
         })
       )
     : false;
+  const commentRows = await prisma.comment.findMany({
+    where: { source: "catastro", propertyId: parcel.id },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const initialComments = commentRows.map(toClientComment);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -120,6 +127,13 @@ export default async function CatastroParcelPage({
               />
               <DetailRow label={t("detail.numberOfFloors")} value={parcel.numberOfFloors ?? "—"} />
             </DetailSection>
+
+            <CommentsSection
+              source="catastro"
+              propertyId={parcel.id}
+              currentUserId={user?.id ?? null}
+              initialComments={initialComments}
+            />
           </div>
 
           <div className="space-y-6">

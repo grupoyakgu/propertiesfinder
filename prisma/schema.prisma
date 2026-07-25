@@ -89,6 +89,7 @@ model User {
 
   favorites  Favorite[]
   mapPresets MapPreset[]
+  comments   Comment[]
 
   @@map("users")
 }
@@ -213,6 +214,28 @@ model Favorite {
 
   @@unique([userId, source, propertyId])
   @@map("favorites")
+}
+
+// A user-authored note on a property. Polymorphic across the two property tables
+// (source + propertyId) for the same reason as Favorite. fullName/phone are the
+// commenter's own supplied contact details (e.g. an agent leaving their info for a
+// colleague) — distinct from `user`, which is who is actually signed in and
+// authored the entry, kept so the record always shows who really posted it.
+model Comment {
+  id         String   @id @default(cuid())
+  userId     String
+  source     String // "plots" | "catastro"
+  propertyId String // Plot.id or CatastroParcel.id, depending on source
+  fullName   String
+  phone      String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([source, propertyId])
+  @@map("comments")
 }
 
 // A saved map viewport (pan/zoom bounding box), named by the user, so they can
