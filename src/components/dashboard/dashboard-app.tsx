@@ -26,6 +26,18 @@ import { useLocale } from "@/lib/i18n/context";
 import type { BoundsBox, ViewCommand } from "@/components/dashboard/map-view";
 import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dashboard-cache";
 
+// Shared by the fetch effect and applyPreset so both build the exact same query
+// string from the same inputs — the API scopes results to `bounds` server-side
+// (large real Catastro datasets can't rely on client-side "in view" filtering over
+// whatever page happened to get fetched).
+function buildFetchQueryString(filters: DashboardFilters, bounds: BoundsBox | null): string {
+  const params = filtersToSearchParams(filters);
+  if (bounds) {
+    params.set("bbox", [bounds.south, bounds.west, bounds.north, bounds.east].join(","));
+  }
+  return params.toString();
+}
+
 const MapView = dynamic(() => import("@/components/dashboard/map-view").then((m) => m.MapView), {
   ssr: false,
   loading: () => <MapLoadingFallback />,
@@ -172,19 +184,23 @@ export function DashboardApp({
     // object key order, so a plain JSON.stringify comparison can report "changed"
     // even when nothing actually did, which then waits forever for a refetch whose
     // query string (below) never actually changes. Recomputed here (not read from
-    // the memoized `apiQueryString`) so this plain event handler never reads a
-    // useMemo output, keeping it memoizable.
-    const currentQueryString = filtersToSearchParams(filters).toString();
-    const nextQueryString = preset.filters ? filtersToSearchParams(preset.filters).toString() : currentQueryString;
-    const filtersChanged = nextQueryString !== currentQueryString;
+    // the memoized `fetchQueryString`) so this plain event handler never reads a
+    // useMemo output, keeping it memoizable. The bounds are included too — applying
+    // a preset almost always moves to a different area, which now scopes the actual
+    // server query, so that alone must also trigger the "wait for refetch" path.
+    const nextFilters = preset.filters ?? filters;
+    const currentQueryString = buildFetchQueryString(filters, mapBounds);
+    const nextQueryString = buildFetchQueryString(nextFilters, bounds);
+    const queryChanged = nextQueryString !== currentQueryString;
     if (preset.filters) setFilters(preset.filters);
 
     // Choosing a preset is a deliberate "show me this" action, just like the per-item
     // "show on map" button — so the map should reflect the preset's matching
-    // properties regardless of the "show all on map" setting. If the filters just
-    // changed, a refetch is about to happen; select once that data lands (below). If
-    // they didn't, the currently-loaded data already matches — select immediately.
-    if (filtersChanged) {
+    // properties regardless of the "show all on map" setting. If the query (filters
+    // + bounds) just changed, a refetch is about to happen; select once that data
+    // lands (below). If it didn't, the currently-loaded data already matches — select
+    // immediately.
+    if (queryChanged) {
       pendingPresetBoundsRef.current = bounds;
     } else {
       // Filtered directly from plots/parcels (not the memoized `markers`) so this
@@ -287,7 +303,11 @@ export function DashboardApp({
     setMapMounted(true);
   }
 
-  const apiQueryString = useMemo(() => filtersToSearchParams(filters).toString(), [filters]);
+  // Scopes the actual data fetch to the current map viewport (once the user has
+  // interacted with the map) in addition to the search filters — see
+  // buildFetchQueryString for why this has to happen server-side rather than by
+  // filtering whatever page of results happened to get fetched.
+  const fetchQueryString = useMemo(() => buildFetchQueryString(filters, mapBounds), [filters, mapBounds]);
 
   // The dashboard's own URL (tab + map visibility + filters), kept in sync below so
   // "Back to search" from a detail page can restore this exact view instead of resetting
@@ -305,7 +325,7 @@ export function DashboardApp({
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
-    const cacheKey = `${source}:${apiQueryString}`;
+    const cacheKey = `${source}:${fetchQueryString}`;
     const handle = setTimeout(async () => {
       // Only show the loading state when we have nothing to show yet. When a cache
       // entry already exists (e.g. this is a "Back to search" landing), keep
@@ -315,7 +335,7 @@ export function DashboardApp({
       if (!getCachedDashboardResults(cacheKey)) setLoading(true);
       try {
         const endpoint = source === "plots" ? "/api/plots" : "/api/catastro-parcels";
-        const res = await fetch(`${endpoint}?${apiQueryString}`);
+        const res = await fetch(`${endpoint}?${fetchQueryString}`);
         const data = await res.json();
         const fetchedPlots: ClientPlot[] = source === "plots" ? (data.plots ?? []) : [];
         const fetchedParcels: ClientCatastroParcel[] = source === "catastro" ? (data.parcels ?? []) : [];
@@ -342,7 +362,7 @@ export function DashboardApp({
       }
     }, 300);
     return () => clearTimeout(handle);
-  }, [apiQueryString, source]);
+  }, [fetchQueryString, source]);
 
   useEffect(() => {
     const handle = setTimeout(() => {

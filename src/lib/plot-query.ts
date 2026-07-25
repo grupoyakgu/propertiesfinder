@@ -8,7 +8,7 @@ import type {
   PlotShape,
   Topography,
 } from "@/generated/prisma/enums";
-import { bool, list, parseRange } from "@/lib/query-helpers";
+import { bool, list, parseBBox, parseRange } from "@/lib/query-helpers";
 
 export function buildPlotWhere(searchParams: URLSearchParams): Prisma.PlotWhereInput {
   const AND: Prisma.PlotWhereInput[] = [];
@@ -94,6 +94,14 @@ export function buildPlotWhere(searchParams: URLSearchParams): Prisma.PlotWhereI
 
   const vacantLand = bool(searchParams.get("vacantLand"));
   if (vacantLand !== undefined) AND.push({ vacantLand });
+
+  const bbox = parseBBox(searchParams);
+  if (bbox) {
+    AND.push({
+      latitude: { gte: bbox.south, lte: bbox.north },
+      longitude: { gte: bbox.west, lte: bbox.east },
+    });
+  }
 
   return AND.length ? { AND } : {};
 }

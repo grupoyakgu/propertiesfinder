@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { CadastralClass, LandUse } from "@/generated/prisma/enums";
-import { list, parseRange } from "@/lib/query-helpers";
+import { list, parseBBox, parseRange } from "@/lib/query-helpers";
 
 export function buildCatastroParcelWhere(
   searchParams: URLSearchParams
@@ -50,6 +50,14 @@ export function buildCatastroParcelWhere(
 
   const landUse = list<LandUse>(searchParams.get("landUse"));
   if (landUse) AND.push({ landUse: { in: landUse } });
+
+  const bbox = parseBBox(searchParams);
+  if (bbox) {
+    AND.push({
+      latitude: { gte: bbox.south, lte: bbox.north },
+      longitude: { gte: bbox.west, lte: bbox.east },
+    });
+  }
 
   return AND.length ? { AND } : {};
 }
