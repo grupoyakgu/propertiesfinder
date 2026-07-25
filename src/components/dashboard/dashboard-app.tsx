@@ -349,12 +349,15 @@ export function DashboardApp({
     : resultLabel;
 
   // What actually gets mounted on the Leaflet map: everything currently listed, or —
-  // when "show all on map" is off — only the properties the user picked. Filtering
-  // here (rather than passing the full `markers`) is what keeps the map from ever
-  // rendering more markers/boundary polygons than the user actually wants.
+  // when "show all on map" is off — only the properties the user picked, plus whichever
+  // card is currently hovered (so hovering an unselected card previews it on the map for
+  // the duration of the hover, then it disappears again on mouse-leave).
   const mapMarkers = useMemo(
-    () => (showAllOnMap ? markers : markers.filter((m) => selectedIds.has(m.id))),
-    [markers, showAllOnMap, selectedIds]
+    () =>
+      showAllOnMap
+        ? markers
+        : markers.filter((m) => selectedIds.has(m.id) || m.id === hoveredId),
+    [markers, showAllOnMap, selectedIds, hoveredId]
   );
 
   const selectAllVisible = () => {
