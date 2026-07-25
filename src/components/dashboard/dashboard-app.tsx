@@ -150,6 +150,10 @@ export function DashboardApp({
     return nonceRef.current;
   };
 
+  // Bounds waiting for a preset-triggered refetch to land before the map's selection
+  // can be computed — see applyPreset and the fetch effect below.
+  const pendingPresetBoundsRef = useRef<BoundsBox | null>(null);
+
   const applyPreset = (preset: ClientMapPreset) => {
     const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
     // Presets are meant to behave exactly like a manual pan/zoom: update the bounds
@@ -162,7 +166,42 @@ export function DashboardApp({
     // and land-characteristic filters that were active when it was saved too.
     // Older presets saved before this existed have no filters; leave the current
     // search alone in that case.
+    //
+    // Compared as canonical query strings, not via JSON.stringify(preset.filters) —
+    // a preset's filters round-trip through Postgres JSONB, which doesn't preserve
+    // object key order, so a plain JSON.stringify comparison can report "changed"
+    // even when nothing actually did, which then waits forever for a refetch whose
+    // query string (below) never actually changes. Recomputed here (not read from
+    // the memoized `apiQueryString`) so this plain event handler never reads a
+    // useMemo output, keeping it memoizable.
+    const currentQueryString = filtersToSearchParams(filters).toString();
+    const nextQueryString = preset.filters ? filtersToSearchParams(preset.filters).toString() : currentQueryString;
+    const filtersChanged = nextQueryString !== currentQueryString;
     if (preset.filters) setFilters(preset.filters);
+
+    // Choosing a preset is a deliberate "show me this" action, just like the per-item
+    // "show on map" button — so the map should reflect the preset's matching
+    // properties regardless of the "show all on map" setting. If the filters just
+    // changed, a refetch is about to happen; select once that data lands (below). If
+    // they didn't, the currently-loaded data already matches — select immediately.
+    if (filtersChanged) {
+      pendingPresetBoundsRef.current = bounds;
+    } else {
+      // Filtered directly from plots/parcels (not the memoized `markers`) so this
+      // plain event handler never reads a useMemo output — keeps `markers`
+      // memoizable and this selection perfectly in sync with what's on screen.
+      const rows = source === "plots" ? plots : parcels;
+      const ids = rows
+        .filter(
+          (r) =>
+            r.latitude >= bounds.south &&
+            r.latitude <= bounds.north &&
+            r.longitude >= bounds.west &&
+            r.longitude <= bounds.east
+        )
+        .map((r) => r.id);
+      setSelectedIds(new Set(ids));
+    }
   };
 
   // Jump back to a preset's viewport after the user has panned away from it —
@@ -285,6 +324,19 @@ export function DashboardApp({
         else setParcels(fetchedParcels);
         setTotalCount(total);
         setCachedDashboardResults(cacheKey, { plots: fetchedPlots, parcels: fetchedParcels, total });
+
+        // A preset with different filters was just applied — this is that refetch
+        // landing. Select whatever now falls within the preset's bounds so the map
+        // shows it (see applyPreset).
+        if (pendingPresetBoundsRef.current) {
+          const b = pendingPresetBoundsRef.current;
+          pendingPresetBoundsRef.current = null;
+          const rows = source === "plots" ? fetchedPlots : fetchedParcels;
+          const ids = rows
+            .filter((r) => r.latitude >= b.south && r.latitude <= b.north && r.longitude >= b.west && r.longitude <= b.east)
+            .map((r) => r.id);
+          setSelectedIds(new Set(ids));
+        }
       } finally {
         setLoading(false);
       }
@@ -335,6 +387,13 @@ export function DashboardApp({
     setActivePresetId(null);
     setSelectedIds(new Set());
   }
+
+  // Refs aren't rendering state, so this is cleared as a side effect (not inline
+  // during render like the resets above) — otherwise a preset applied just before
+  // switching tabs could apply its stale selection to the new tab's data.
+  useEffect(() => {
+    pendingPresetBoundsRef.current = null;
+  }, [source]);
 
   const visibleIds = useMemo(() => {
     if (!mapBounds) return null;
