@@ -17,7 +17,6 @@ export default async function DashboardPage({
   }
 
   const initialFilters = filtersFromSearchParams(params);
-  const initialSource = params.get("tab") === "plots" ? "plots" : "catastro";
   const initialMapVisible = params.get("map") === "1";
 
   const bboxParam = params.get("bbox");
@@ -31,7 +30,10 @@ export default async function DashboardPage({
   const [presets, favorites] = user
     ? await Promise.all([
         prisma.mapPreset.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
-        prisma.favorite.findMany({ where: { userId: user.id }, select: { propertyId: true } }),
+        prisma.favorite.findMany({
+          where: { userId: user.id, source: "catastro" },
+          select: { propertyId: true },
+        }),
       ])
     : [[], []];
   const initialPresets = presets.map(toClientMapPreset);
@@ -54,7 +56,6 @@ export default async function DashboardPage({
   return (
     <DashboardApp
       initialFilters={initialFilters}
-      initialSource={initialSource}
       initialMapVisible={initialMapVisible}
       initialMapBounds={initialMapBounds}
       initialPresets={initialPresets}

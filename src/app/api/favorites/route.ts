@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { toClientPlot, toClientCatastroParcel } from "@/lib/types";
+import { toClientCatastroParcel } from "@/lib/types";
 
 const toggleSchema = z.object({
-  source: z.enum(["plots", "catastro"]),
   propertyId: z.string().min(1),
 });
 
@@ -16,23 +15,16 @@ export async function GET() {
   }
 
   const favorites = await prisma.favorite.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, source: "catastro" },
     orderBy: { createdAt: "desc" },
   });
-  const plotIds = favorites.filter((f) => f.source === "plots").map((f) => f.propertyId);
-  const parcelIds = favorites.filter((f) => f.source === "catastro").map((f) => f.propertyId);
+  const parcelIds = favorites.map((f) => f.propertyId);
 
-  const [plotRows, parcelRows] = await Promise.all([
-    plotIds.length ? prisma.plot.findMany({ where: { id: { in: plotIds } } }) : Promise.resolve([]),
-    parcelIds.length
-      ? prisma.catastroParcel.findMany({ where: { id: { in: parcelIds } } })
-      : Promise.resolve([]),
-  ]);
+  const parcels = parcelIds.length
+    ? await prisma.catastroParcel.findMany({ where: { id: { in: parcelIds } } })
+    : [];
 
-  return NextResponse.json({
-    plots: plotRows.map(toClientPlot),
-    parcels: parcelRows.map(toClientCatastroParcel),
-  });
+  return NextResponse.json({ parcels: parcels.map(toClientCatastroParcel) });
 }
 
 export async function POST(request: Request) {
@@ -49,10 +41,10 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const { source, propertyId } = parsed.data;
+  const { propertyId } = parsed.data;
 
   const existing = await prisma.favorite.findUnique({
-    where: { userId_source_propertyId: { userId: user.id, source, propertyId } },
+    where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId } },
   });
 
   if (existing) {
@@ -60,6 +52,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ liked: false });
   }
 
-  await prisma.favorite.create({ data: { userId: user.id, source, propertyId } });
+  await prisma.favorite.create({ data: { userId: user.id, source: "catastro", propertyId } });
   return NextResponse.json({ liked: true });
 }

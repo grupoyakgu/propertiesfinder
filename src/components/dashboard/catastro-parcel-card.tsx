@@ -87,7 +87,7 @@ export function CatastroParcelCard({
       </Link>
 
       <div className="mt-1 flex shrink-0 flex-col items-center gap-1">
-        <LikeButton source="catastro" propertyId={parcel.id} initialLiked={liked ?? false} onToggle={onToggleLike} />
+        <LikeButton propertyId={parcel.id} initialLiked={liked ?? false} onToggle={onToggleLike} />
         {selectable && (
           <button
             type="button"

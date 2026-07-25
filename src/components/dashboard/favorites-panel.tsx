@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
-import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
+import type { ClientCatastroParcel } from "@/lib/types";
 import { useLocale } from "@/lib/i18n/context";
 
-/** Fetches its own data on mount (rather than sharing dashboard-app.tsx's plots/
- * parcels state) so it always reflects the current like set — favorites can mix
- * both property types, which the main list/table views never do at once. */
+/** Fetches its own data on mount (rather than sharing dashboard-app.tsx's parcels
+ * state) so it always reflects the current like set. */
 export function FavoritesPanel() {
   const { t } = useLocale();
   const [loading, setLoading] = useState(true);
-  const [plots, setPlots] = useState<ClientPlot[]>([]);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
 
   useEffect(() => {
@@ -21,7 +18,6 @@ export function FavoritesPanel() {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        setPlots(data.plots ?? []);
         setParcels(data.parcels ?? []);
       })
       .finally(() => {
@@ -32,9 +28,8 @@ export function FavoritesPanel() {
     };
   }, []);
 
-  const removePlot = (id: string) => setPlots((prev) => prev.filter((p) => p.id !== id));
   const removeParcel = (id: string) => setParcels((prev) => prev.filter((p) => p.id !== id));
-  const isEmpty = !loading && plots.length === 0 && parcels.length === 0;
+  const isEmpty = !loading && parcels.length === 0;
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -48,42 +43,17 @@ export function FavoritesPanel() {
         {isEmpty && <p className="text-sm text-muted-foreground">{t("dashboard.noFavorites")}</p>}
 
         {parcels.length > 0 && (
-          <div>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("dashboard.tabCatastro")}
-            </h3>
-            <div className="space-y-3">
-              {parcels.map((parcel) => (
-                <CatastroParcelCard
-                  key={parcel.id}
-                  parcel={parcel}
-                  liked
-                  onToggleLike={(liked) => {
-                    if (!liked) removeParcel(parcel.id);
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {plots.length > 0 && (
-          <div>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("dashboard.tabPlots")}
-            </h3>
-            <div className="space-y-3">
-              {plots.map((plot) => (
-                <PlotCard
-                  key={plot.id}
-                  plot={plot}
-                  liked
-                  onToggleLike={(liked) => {
-                    if (!liked) removePlot(plot.id);
-                  }}
-                />
-              ))}
-            </div>
+          <div className="space-y-3">
+            {parcels.map((parcel) => (
+              <CatastroParcelCard
+                key={parcel.id}
+                parcel={parcel}
+                liked
+                onToggleLike={(liked) => {
+                  if (!liked) removeParcel(parcel.id);
+                }}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -10,13 +10,11 @@ import { useLocale } from "@/lib/i18n/context";
  * standalone server-rendered detail page. `onToggle` is optional and only needed by
  * views that must react to an unlike (e.g. removing the row from a favorites list). */
 export function LikeButton({
-  source,
   propertyId,
   initialLiked,
   onToggle,
   className,
 }: {
-  source: "plots" | "catastro";
   propertyId: string;
   initialLiked: boolean;
   onToggle?: (liked: boolean) => void;
@@ -48,7 +46,7 @@ export function LikeButton({
       const res = await fetch("/api/favorites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, propertyId }),
+        body: JSON.stringify({ propertyId }),
       });
       if (!res.ok) {
         setLiked(!optimistic);

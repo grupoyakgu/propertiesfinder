@@ -1,7 +1,7 @@
-import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
+import type { ClientCatastroParcel } from "@/lib/types";
 
 /**
- * Same-tab, in-memory cache of dashboard search results, keyed by source+query.
+ * Same-tab, in-memory cache of dashboard search results, keyed by query.
  * Survives client-side navigation away (e.g. to a detail page) and back — a plain
  * module-level Map keeps its values as long as the JS runtime isn't torn down by a
  * full page reload — so returning to an already-seen view can render instantly
@@ -9,7 +9,6 @@ import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
  * A background refetch still runs to keep it current (stale-while-revalidate).
  */
 interface DashboardCacheEntry {
-  plots: ClientPlot[];
   parcels: ClientCatastroParcel[];
   total: number;
 }

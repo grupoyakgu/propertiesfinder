@@ -5,20 +5,18 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
-import type { ClientCatastroParcel, ClientMapPreset, ClientPlot } from "@/lib/types";
+import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
-import { plotToMarker, catastroParcelToMarker } from "@/lib/map-marker";
+import { catastroParcelToMarker } from "@/lib/map-marker";
 import { FiltersSidebar } from "@/components/dashboard/filters-sidebar";
-import { PlotCard } from "@/components/dashboard/plot-card";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
-import { CatastroResultsTable, PlotResultsTable } from "@/components/dashboard/results-table";
+import { CatastroResultsTable } from "@/components/dashboard/results-table";
 import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
 import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
 import { FavoritesPanel } from "@/components/dashboard/favorites-panel";
-import { Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
@@ -77,18 +75,14 @@ function SelectionToolbar({
   );
 }
 
-type Source = "plots" | "catastro";
-
 export function DashboardApp({
   initialFilters,
-  initialSource = "catastro",
   initialMapVisible = false,
   initialMapBounds = null,
   initialPresets = [],
   initialLikedIds = [],
 }: {
   initialFilters: DashboardFilters;
-  initialSource?: Source;
   initialMapVisible?: boolean;
   initialMapBounds?: BoundsBox | null;
   initialPresets?: ClientMapPreset[];
@@ -96,19 +90,15 @@ export function DashboardApp({
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
-  const [source, setSource] = useState<Source>(initialSource);
   const [filters, setFilters] = useState(initialFilters);
 
-  // If this exact view (tab + filters) was already fetched earlier in this tab —
-  // e.g. the user is landing here via "Back to search" — hydrate synchronously from
-  // that cache instead of starting from an empty/loading state. This is what avoids
-  // the map/list going blank and showing "Searching…" for a beat on every return.
-  const [initialCacheKey] = useState(
-    () => `${initialSource}:${filtersToSearchParams(initialFilters).toString()}`
-  );
+  // If this exact view (filters) was already fetched earlier in this tab — e.g. the
+  // user is landing here via "Back to search" — hydrate synchronously from that
+  // cache instead of starting from an empty/loading state. This is what avoids the
+  // map/list going blank and showing "Searching…" for a beat on every return.
+  const [initialCacheKey] = useState(() => filtersToSearchParams(initialFilters).toString());
   const [initialCached] = useState(() => getCachedDashboardResults(initialCacheKey));
 
-  const [plots, setPlots] = useState<ClientPlot[]>(initialCached?.plots ?? []);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>(initialCached?.parcels ?? []);
   const [totalCount, setTotalCount] = useState(initialCached?.total ?? 0);
   const [loading, setLoading] = useState(!initialCached);
@@ -119,10 +109,9 @@ export function DashboardApp({
   // An on-demand "pan/zoom the map to this viewport now" instruction, handed to
   // MapView so it can fit to exactly that instead of (or before) fitting to all
   // markers. Used both to restore a viewport captured on mount (e.g. via "Back to
-  // search") and, later, to apply a saved preset at any time. Only valid for the tab
-  // it was set for — switching tabs resets it below.
+  // search") and, later, to apply a saved preset at any time.
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(
-    source === initialSource && initialMapBounds ? { bounds: initialMapBounds, nonce: 0 } : null
+    initialMapBounds ? { bounds: initialMapBounds, nonce: 0 } : null
   );
   const [presets, setPresets] = useState<ClientMapPreset[]>(initialPresets);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
@@ -136,8 +125,8 @@ export function DashboardApp({
   // map from the list via checkboxes or a per-row "show on map" jump-to action.
   const [showAllOnMap, setShowAllOnMap] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // A separate tab (before Settings) that shows every liked property across both
-  // sources at once — mutually exclusive with normal source-browsing and Settings.
+  // A separate tab (before Settings) that shows every liked property at once —
+  // mutually exclusive with normal browsing and Settings.
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   // Seeds every card/table row/map popup's "is this liked" state. Kept centrally so
   // switching between card list, table, and map views (which remount their rows)
@@ -276,23 +265,22 @@ export function DashboardApp({
   // filtering whatever page of results happened to get fetched.
   const fetchQueryString = useMemo(() => buildFetchQueryString(filters, mapBounds), [filters, mapBounds]);
 
-  // The dashboard's own URL (tab + map visibility + filters), kept in sync below so
+  // The dashboard's own URL (map visibility + filters), kept in sync below so
   // "Back to search" from a detail page can restore this exact view instead of resetting
-  // to the default tab/table. Table vs. map+cards, and which tab, both round-trip through it.
+  // to the default table view. Table vs. map+cards round-trips through it.
   const viewQueryString = useMemo(() => {
     const params = filtersToSearchParams(filters);
-    if (source !== "catastro") params.set("tab", source);
     if (mapVisible) params.set("map", "1");
     if (mapBounds) {
       const { south, west, north, east } = mapBounds;
       params.set("bbox", [south, west, north, east].map((v) => v.toFixed(6)).join(","));
     }
     return params.toString();
-  }, [filters, source, mapVisible, mapBounds]);
+  }, [filters, mapVisible, mapBounds]);
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
-    const cacheKey = `${source}:${fetchQueryString}`;
+    const cacheKey = fetchQueryString;
     const handle = setTimeout(async () => {
       // Only show the loading state when we have nothing to show yet. When a cache
       // entry already exists (e.g. this is a "Back to search" landing), keep
@@ -301,22 +289,19 @@ export function DashboardApp({
       // still gets the original "no flicker while typing fast" behavior.
       if (!getCachedDashboardResults(cacheKey)) setLoading(true);
       try {
-        const endpoint = source === "plots" ? "/api/plots" : "/api/catastro-parcels";
-        const res = await fetch(`${endpoint}?${fetchQueryString}`);
+        const res = await fetch(`/api/catastro-parcels?${fetchQueryString}`);
         const data = await res.json();
-        const fetchedPlots: ClientPlot[] = source === "plots" ? (data.plots ?? []) : [];
-        const fetchedParcels: ClientCatastroParcel[] = source === "catastro" ? (data.parcels ?? []) : [];
-        const total = data.total ?? (source === "plots" ? data.plots?.length : data.parcels?.length) ?? 0;
-        if (source === "plots") setPlots(fetchedPlots);
-        else setParcels(fetchedParcels);
+        const fetchedParcels: ClientCatastroParcel[] = data.parcels ?? [];
+        const total = data.total ?? fetchedParcels.length ?? 0;
+        setParcels(fetchedParcels);
         setTotalCount(total);
-        setCachedDashboardResults(cacheKey, { plots: fetchedPlots, parcels: fetchedParcels, total });
+        setCachedDashboardResults(cacheKey, { parcels: fetchedParcels, total });
       } finally {
         setLoading(false);
       }
     }, 300);
     return () => clearTimeout(handle);
-  }, [fetchQueryString, source]);
+  }, [fetchQueryString]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -332,7 +317,7 @@ export function DashboardApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashboardUrl]);
 
-  const fetchedCount = source === "plots" ? plots.length : parcels.length;
+  const fetchedCount = parcels.length;
   const resultCount = totalCount;
   const truncated = fetchedCount < totalCount;
   const resultLabel =
@@ -340,27 +325,9 @@ export function DashboardApp({
     (truncated ? t("dashboard.showingFirstN", { n: fetchedCount }) : "");
   // Deliberately NOT dependent on dashboardUrl: that changes on every pan/zoom (it
   // carries the map's bbox), and recomputing this would force every Marker and every
-  // boundary/planning Polygon to re-render on every single pan/zoom tick. The "back to
+  // boundary Polygon to re-render on every single pan/zoom tick. The "back to
   // search" link is applied separately, at render time, via MapView's `backHref` prop.
-  const markers = useMemo(
-    () =>
-      source === "plots"
-        ? plots.map((p) => plotToMarker(p, locale))
-        : parcels.map((p) => catastroParcelToMarker(p, locale)),
-    [source, plots, parcels, locale]
-  );
-
-  // Reset the viewport filter when the data source changes (plots vs. parcels are
-  // different datasets). Toggling the map on/off intentionally does NOT reset this,
-  // so the map keeps its position and the table keeps reflecting the last pan/zoom.
-  const [boundsResetKey, setBoundsResetKey] = useState(source);
-  if (boundsResetKey !== source) {
-    setBoundsResetKey(source);
-    setMapBounds(null);
-    setViewCommand(null);
-    setActivePresetId(null);
-    setSelectedIds(new Set());
-  }
+  const markers = useMemo(() => parcels.map((p) => catastroParcelToMarker(p, locale)), [parcels, locale]);
 
   const visibleIds = useMemo(() => {
     if (!mapBounds) return null;
@@ -372,15 +339,11 @@ export function DashboardApp({
     return ids;
   }, [mapBounds, markers]);
 
-  const visiblePlots = useMemo(
-    () => (visibleIds ? plots.filter((p) => visibleIds.has(p.id)) : plots),
-    [plots, visibleIds]
-  );
   const visibleParcels = useMemo(
     () => (visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels),
     [parcels, visibleIds]
   );
-  const inViewCount = source === "plots" ? visiblePlots.length : visibleParcels.length;
+  const inViewCount = visibleParcels.length;
   const mapPaneLabel = mapBounds
     ? t("dashboard.inView", { n: inViewCount, total: resultCount })
     : resultLabel;
@@ -395,8 +358,7 @@ export function DashboardApp({
   );
 
   const selectAllVisible = () => {
-    const ids = source === "plots" ? visiblePlots.map((p) => p.id) : visibleParcels.map((p) => p.id);
-    setSelectedIds(new Set(ids));
+    setSelectedIds(new Set(visibleParcels.map((p) => p.id)));
   };
 
   // Reveal a single property on the map: add it to the selection (so it actually
@@ -466,20 +428,6 @@ export function DashboardApp({
           <SlidersHorizontal className="h-3.5 w-3.5" /> {t("dashboard.filters")}
         </button>
 
-        {source === "plots" && (
-          <Select
-            value={filters.sort}
-            onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-            className="hidden w-44 shrink-0 sm:block"
-          >
-            <option value="newest">{t("dashboard.sortNewest")}</option>
-            <option value="price_asc">{t("dashboard.sortPriceAsc")}</option>
-            <option value="price_desc">{t("dashboard.sortPriceDesc")}</option>
-            <option value="roi_desc">{t("dashboard.sortRoiDesc")}</option>
-            <option value="size_desc">{t("dashboard.sortSizeDesc")}</option>
-          </Select>
-        )}
-
         <button
           type="button"
           onClick={() => setMapVisible((v) => !v)}
@@ -503,30 +451,21 @@ export function DashboardApp({
       </header>
 
       <div className="flex items-center gap-1 border-b border-border bg-surface px-4 py-2">
-        {(
-          [
-            { key: "catastro", label: t("dashboard.tabCatastro") },
-            { key: "plots", label: t("dashboard.tabPlots") },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => {
-              setSource(tab.key);
-              setSettingsOpen(false);
-              setFavoritesOpen(false);
-            }}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              !settingsOpen && !favoritesOpen && source === tab.key
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-surface-muted"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => {
+            setFavoritesOpen(false);
+            setSettingsOpen(false);
+          }}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            !settingsOpen && !favoritesOpen
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-surface-muted"
+          )}
+        >
+          {t("dashboard.tabCatastro")}
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -576,7 +515,7 @@ export function DashboardApp({
           <FavoritesPanel />
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
-            <FiltersSidebar filters={filters} onChange={setFilters} mode={source} />
+            <FiltersSidebar filters={filters} onChange={setFilters} />
           </div>
         )}
 
@@ -589,41 +528,23 @@ export function DashboardApp({
               <SelectionToolbar count={selectedIds.size} onSelectAll={selectAllVisible} onClear={clearSelection} />
             )}
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {source === "plots"
-                ? visiblePlots.map((plot) => (
-                    <PlotCard
-                      key={plot.id}
-                      plot={plot}
-                      active={hoveredId === plot.id}
-                      onHover={setHoveredId}
-                      backHref={dashboardUrl}
-                      selectable={!showAllOnMap}
-                      selected={selectedIds.has(plot.id)}
-                      onToggleSelect={() => toggleSelected(plot.id)}
-                      onShowOnMap={() => showPropertyOnMap(plot.id)}
-                      liked={likedIds.has(plot.id)}
-                      onToggleLike={(liked) => toggleLike(plot.id, liked)}
-                    />
-                  ))
-                : visibleParcels.map((parcel) => (
-                    <CatastroParcelCard
-                      key={parcel.id}
-                      parcel={parcel}
-                      active={hoveredId === parcel.id}
-                      onHover={setHoveredId}
-                      backHref={dashboardUrl}
-                      selectable={!showAllOnMap}
-                      selected={selectedIds.has(parcel.id)}
-                      onToggleSelect={() => toggleSelected(parcel.id)}
-                      onShowOnMap={() => showPropertyOnMap(parcel.id)}
-                      liked={likedIds.has(parcel.id)}
-                      onToggleLike={(liked) => toggleLike(parcel.id, liked)}
-                    />
-                  ))}
+              {visibleParcels.map((parcel) => (
+                <CatastroParcelCard
+                  key={parcel.id}
+                  parcel={parcel}
+                  active={hoveredId === parcel.id}
+                  onHover={setHoveredId}
+                  backHref={dashboardUrl}
+                  selectable={!showAllOnMap}
+                  selected={selectedIds.has(parcel.id)}
+                  onToggleSelect={() => toggleSelected(parcel.id)}
+                  onShowOnMap={() => showPropertyOnMap(parcel.id)}
+                  liked={likedIds.has(parcel.id)}
+                  onToggleLike={(liked) => toggleLike(parcel.id, liked)}
+                />
+              ))}
               {!loading && resultCount === 0 && (
-                <p className="pt-10 text-center text-sm text-muted-foreground">
-                  {source === "plots" ? t("dashboard.noPlots") : t("dashboard.noCatastro")}
-                </p>
+                <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.noCatastro")}</p>
               )}
               {!loading && resultCount > 0 && inViewCount === 0 && mapBounds && (
                 <p className="pt-10 text-center text-sm text-muted-foreground">
@@ -649,17 +570,6 @@ export function DashboardApp({
                 <p className="pt-10 text-center text-sm text-muted-foreground">
                   {t("dashboard.noResultsInView")}
                 </p>
-              ) : source === "plots" ? (
-                <PlotResultsTable
-                  plots={visiblePlots}
-                  backHref={dashboardUrl}
-                  selectable={!showAllOnMap}
-                  selectedIds={selectedIds}
-                  onToggleSelect={toggleSelected}
-                  onShowOnMap={showPropertyOnMap}
-                  likedIds={likedIds}
-                  onToggleLike={toggleLike}
-                />
               ) : (
                 <CatastroResultsTable
                   parcels={visibleParcels}
@@ -689,7 +599,7 @@ export function DashboardApp({
               viewCommand={viewCommand}
               backHref={dashboardUrl}
               likedIds={likedIds}
-              onToggleLike={(id, _source, liked) => toggleLike(id, liked)}
+              onToggleLike={(id, liked) => toggleLike(id, liked)}
             />
           </div>
         )}

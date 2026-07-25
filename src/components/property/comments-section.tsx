@@ -11,12 +11,10 @@ const textareaClass =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
 
 export function CommentsSection({
-  source,
   propertyId,
   currentUserId,
   initialComments,
 }: {
-  source: "plots" | "catastro";
   propertyId: string;
   /** Null when there's no signed-in user (shouldn't normally happen — these pages
    * require a session — but getCurrentUser() can still return null, e.g. a stale
@@ -49,7 +47,7 @@ export function CommentsSection({
       const res = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, propertyId, body }),
+        body: JSON.stringify({ propertyId, body }),
       });
       if (!res.ok) throw new Error("Failed to post comment");
       const data = await res.json();

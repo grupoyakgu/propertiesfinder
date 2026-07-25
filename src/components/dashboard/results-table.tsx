@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
-import type { ClientCatastroParcel, ClientPlot } from "@/lib/types";
-import { formatArea, formatCurrency, formatPercent, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
-import { cadastralClassLabels, landUseLabels, planningStatusLabels } from "@/lib/labels";
+import type { ClientCatastroParcel } from "@/lib/types";
+import { formatArea, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
+import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 import { LikeButton } from "@/components/dashboard/like-button";
 
@@ -69,7 +69,6 @@ function DataTable<T extends { id: string }>({
   selectedIds,
   onToggleSelect,
   onShowOnMap,
-  source,
   likedIds,
   onToggleLike,
 }: {
@@ -85,7 +84,6 @@ function DataTable<T extends { id: string }>({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onShowOnMap?: (id: string) => void;
-  source: "plots" | "catastro";
   likedIds?: Set<string>;
   onToggleLike?: (id: string, liked: boolean) => void;
 }) {
@@ -149,7 +147,6 @@ function DataTable<T extends { id: string }>({
                 )}
                 <td className="px-3 py-2.5">
                   <LikeButton
-                    source={source}
                     propertyId={row.id}
                     initialLiked={likedIds?.has(row.id) ?? false}
                     onToggle={(liked) => onToggleLike?.(row.id, liked)}
@@ -310,102 +307,6 @@ export function CatastroResultsTable({
       selectedIds={selectedIds}
       onToggleSelect={onToggleSelect}
       onShowOnMap={onShowOnMap}
-      source="catastro"
-      likedIds={likedIds}
-      onToggleLike={onToggleLike}
-    />
-  );
-}
-
-export function PlotResultsTable({
-  plots,
-  backHref,
-  selectable,
-  selectedIds,
-  onToggleSelect,
-  onShowOnMap,
-  likedIds,
-  onToggleLike,
-}: {
-  plots: ClientPlot[];
-  backHref?: string;
-  selectable?: boolean;
-  selectedIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
-  onShowOnMap?: (id: string) => void;
-  likedIds?: Set<string>;
-  onToggleLike?: (id: string, liked: boolean) => void;
-}) {
-  const { locale, t } = useLocale();
-
-  if (plots.length === 0) {
-    return <p className="pt-10 text-center text-sm text-muted-foreground">{t("dashboard.noPlots")}</p>;
-  }
-
-  const columns: Column<ClientPlot>[] = [
-    { key: "title", label: t("table.title"), accessor: (p) => p.title, render: (p) => p.title },
-    {
-      key: "municipality",
-      label: t("table.municipality"),
-      accessor: (p) => p.municipality,
-      render: (p) => p.municipality,
-    },
-    { key: "province", label: t("table.province"), accessor: (p) => p.province, render: (p) => p.province },
-    {
-      key: "plotSize",
-      label: t("table.plotSize"),
-      accessor: (p) => p.plotSize,
-      render: (p) => formatArea(p.plotSize),
-      align: "right",
-    },
-    {
-      key: "builtArea",
-      label: t("table.builtArea"),
-      accessor: (p) => p.builtArea,
-      render: (p) => formatArea(p.builtArea),
-      align: "right",
-    },
-    {
-      key: "planningStatus",
-      label: t("table.planning"),
-      accessor: (p) => planningStatusLabels[locale][p.planningStatus],
-      render: (p) => planningStatusLabels[locale][p.planningStatus],
-    },
-    {
-      key: "purchasePrice",
-      label: t("table.price"),
-      accessor: (p) => p.purchasePrice,
-      render: (p) => formatCurrency(p.purchasePrice),
-      align: "right",
-    },
-    {
-      key: "pricePerSqm",
-      label: t("table.pricePerSqm"),
-      accessor: (p) => p.pricePerSqm,
-      render: (p) => formatCurrency(p.pricePerSqm),
-      align: "right",
-    },
-    {
-      key: "expectedROI",
-      label: t("table.roi"),
-      accessor: (p) => p.expectedROI,
-      render: (p) => formatPercent(p.expectedROI),
-      align: "right",
-    },
-  ];
-
-  return (
-    <DataTable
-      rows={plots}
-      columns={columns}
-      href={(p) => `/property/${p.slug}`}
-      defaultSortKey="title"
-      backHref={backHref}
-      selectable={selectable}
-      selectedIds={selectedIds}
-      onToggleSelect={onToggleSelect}
-      onShowOnMap={onShowOnMap}
-      source="plots"
       likedIds={likedIds}
       onToggleLike={onToggleLike}
     />

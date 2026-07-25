@@ -17,7 +17,7 @@ import L from "leaflet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
-import { formatCurrency, withBackHref } from "@/lib/utils";
+import { withBackHref } from "@/lib/utils";
 import { LikeButton } from "@/components/dashboard/like-button";
 
 // Real cadastral boundary/planning polygons have genuine, often many-vertex
@@ -36,15 +36,6 @@ export interface BoundsBox {
   north: number;
   east: number;
 }
-
-const planningColors: Record<string, string> = {
-  URBAN: "#0f3d3e",
-  DEVELOPABLE: "#2f6f63",
-  RURAL: "#8a8f5c",
-  PROTECTED: "#b3402f",
-  HISTORIC: "#b08d57",
-};
-const defaultPlanningColor = "#0f3d3e";
 
 function markerIcon(highlighted: boolean) {
   const color = highlighted ? "#b08d57" : "#0f3d3e";
@@ -159,7 +150,7 @@ export function MapView({
    * the marker/polygon list itself to be recomputed and re-rendered. */
   backHref?: string;
   likedIds?: Set<string>;
-  onToggleLike?: (id: string, source: "plots" | "catastro", liked: boolean) => void;
+  onToggleLike?: (id: string, liked: boolean) => void;
 }) {
   const router = useRouter();
   const restoreBounds = viewCommand?.bounds;
@@ -187,27 +178,6 @@ export function MapView({
             )),
     [markers]
   );
-  const planningPolygons = useMemo(
-    () =>
-      markers.length > MAX_POLYGON_MARKERS
-        ? []
-        : markers
-            .filter((m) => m.boundary)
-            .map((m) => {
-              const color = m.planningStatus
-                ? planningColors[m.planningStatus] ?? defaultPlanningColor
-                : defaultPlanningColor;
-              return (
-                <Polygon
-                  key={`planning-${m.id}`}
-                  positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-                  pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
-                />
-              );
-            }),
-    [markers]
-  );
-
   return (
     <MapContainer center={center} zoom={6} scrollWheelZoom preferCanvas className="h-full w-full">
       <LayersControl position="topright">
@@ -236,12 +206,8 @@ export function MapView({
           />
         </LayersControl.Overlay>
 
-        <LayersControl.Overlay checked name="Plot boundaries">
+        <LayersControl.Overlay checked name="Parcel boundaries">
           <>{boundaryPolygons}</>
-        </LayersControl.Overlay>
-
-        <LayersControl.Overlay name="Planning overlay">
-          <>{planningPolygons}</>
         </LayersControl.Overlay>
       </LayersControl>
 
@@ -267,22 +233,15 @@ export function MapView({
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold">{marker.title}</p>
                   <LikeButton
-                    source={marker.source}
                     propertyId={marker.id}
                     initialLiked={likedIds?.has(marker.id) ?? false}
-                    onToggle={(liked) => onToggleLike?.(marker.id, marker.source, liked)}
+                    onToggle={(liked) => onToggleLike?.(marker.id, liked)}
                   />
                 </div>
                 <p className="text-xs text-gray-500">{marker.subtitle}</p>
                 <p className="text-xs">
                   {marker.areaLabel} &middot; {marker.badge}
                 </p>
-                {marker.price !== undefined && (
-                  <p className="text-sm font-medium">{formatCurrency(marker.price)}</p>
-                )}
-                {marker.amenities && marker.amenities.length > 0 && (
-                  <p className="text-xs text-gray-500">{marker.amenities.slice(0, 2).join(" · ")}</p>
-                )}
                 <Link href={withBackHref(marker.href, backHref)} className="text-xs font-medium text-emerald-800 underline">
                   View details →
                 </Link>

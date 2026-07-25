@@ -6,12 +6,10 @@ import { toClientComment } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
 
 const querySchema = z.object({
-  source: z.enum(["plots", "catastro"]),
   propertyId: z.string().min(1),
 });
 
 const createSchema = z.object({
-  source: z.enum(["plots", "catastro"]),
   propertyId: z.string().min(1),
   body: z.string().trim().min(1).max(4000),
 });
@@ -24,7 +22,6 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
-    source: searchParams.get("source"),
     propertyId: searchParams.get("propertyId"),
   });
   if (!parsed.success) {
@@ -34,7 +31,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const comments = await getClientComments(parsed.data.source, parsed.data.propertyId);
+  const comments = await getClientComments(parsed.data.propertyId);
   return NextResponse.json({ comments });
 }
 
@@ -52,19 +49,19 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const { source, propertyId } = parsed.data;
+  const { propertyId, body: commentBody } = parsed.data;
 
   const [comment] = await prisma.$transaction([
     prisma.comment.create({
-      data: { userId: user.id, ...parsed.data },
+      data: { userId: user.id, source: "catastro", propertyId, body: commentBody },
       include: { user: { select: { id: true, name: true } } },
     }),
     // Commenting on a property is treated as expressing interest in it — like it
     // too, the same way the property's own Like button would. Upsert (rather than
     // create) since re-commenting on an already-liked property shouldn't error.
     prisma.favorite.upsert({
-      where: { userId_source_propertyId: { userId: user.id, source, propertyId } },
-      create: { userId: user.id, source, propertyId },
+      where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId } },
+      create: { userId: user.id, source: "catastro", propertyId },
       update: {},
     }),
   ]);

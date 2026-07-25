@@ -11,7 +11,6 @@
     "import:catastro": "tsx scripts/import-catastro-parcels.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.113.0",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "@types/leaflet.markercluster": "^1.5.6",

@@ -14,35 +14,8 @@ export interface DashboardFilters {
   constructionYearMax: string;
   landUse: string[];
   cadastralUse: string[];
-  buildingType: string[];
   floorsMin: string;
   floorsMax: string;
-  buildableAreaMin: string;
-  buildableAreaMax: string;
-  occupancyMin: string;
-  occupancyMax: string;
-  plotShape: string[];
-  cornerPlot: boolean;
-  frontageMin: string;
-  frontageMax: string;
-  depthMin: string;
-  depthMax: string;
-
-  potential: string[];
-  planningStatus: string[];
-
-  priceMax: string;
-  pricePerSqmMax: string;
-  constructionCostMax: string;
-  roiMin: string;
-  yieldMin: string;
-  marginMin: string;
-
-  topography: string[];
-  doubleFrontage: boolean;
-  existingBuilding: boolean;
-  demolitionRequired: boolean;
-  vacantLand: boolean;
 
   sort: string;
 }
@@ -62,46 +35,19 @@ export const emptyFilters: DashboardFilters = {
   constructionYearMax: "",
   landUse: [],
   cadastralUse: [],
-  buildingType: [],
   floorsMin: "",
   floorsMax: "",
-  buildableAreaMin: "",
-  buildableAreaMax: "",
-  occupancyMin: "",
-  occupancyMax: "",
-  plotShape: [],
-  cornerPlot: false,
-  frontageMin: "",
-  frontageMax: "",
-  depthMin: "",
-  depthMax: "",
-  potential: [],
-  planningStatus: [],
-  priceMax: "",
-  pricePerSqmMax: "",
-  constructionCostMax: "",
-  roiMin: "",
-  yieldMin: "",
-  marginMin: "",
-  topography: [],
-  doubleFrontage: false,
-  existingBuilding: false,
-  demolitionRequired: false,
-  vacantLand: false,
   sort: "newest",
 };
 
-const arrayKeys = ["landUse", "cadastralUse", "buildingType", "plotShape", "potential", "planningStatus", "topography"] as const;
-const boolKeys = ["cornerPlot", "doubleFrontage", "existingBuilding", "demolitionRequired", "vacantLand"] as const;
+const arrayKeys = ["landUse", "cadastralUse"] as const;
 
 export function filtersFromSearchParams(params: URLSearchParams): DashboardFilters {
   const filters = { ...emptyFilters };
   for (const key of Object.keys(emptyFilters) as (keyof DashboardFilters)[]) {
     if ((arrayKeys as readonly string[]).includes(key)) {
-      const v = params.get(key === "potential" ? "potential" : key);
+      const v = params.get(key);
       (filters[key] as string[]) = v ? v.split(",") : [];
-    } else if ((boolKeys as readonly string[]).includes(key)) {
-      (filters[key] as boolean) = params.get(key) === "true";
     } else {
       const v = params.get(key);
       if (v !== null) (filters[key] as string) = v;
@@ -129,31 +75,9 @@ export function filtersToSearchParams(filters: DashboardFilters): URLSearchParam
   range(filters.builtAreaMin, filters.builtAreaMax, "builtAreaMin", "builtAreaMax");
   range(filters.constructionYearMin, filters.constructionYearMax, "constructionYearMin", "constructionYearMax");
   range(filters.floorsMin, filters.floorsMax, "floorsMin", "floorsMax");
-  range(filters.buildableAreaMin, filters.buildableAreaMax, "buildableAreaMin", "buildableAreaMax");
-  range(filters.occupancyMin, filters.occupancyMax, "occupancyMin", "occupancyMax");
-  range(filters.frontageMin, filters.frontageMax, "frontageMin", "frontageMax");
-  range(filters.depthMin, filters.depthMax, "depthMin", "depthMax");
 
   if (filters.landUse.length) params.set("landUse", filters.landUse.join(","));
   if (filters.cadastralUse.length) params.set("cadastralUse", filters.cadastralUse.join(","));
-  if (filters.buildingType.length) params.set("buildingType", filters.buildingType.join(","));
-  if (filters.plotShape.length) params.set("plotShape", filters.plotShape.join(","));
-  if (filters.potential.length) params.set("potential", filters.potential.join(","));
-  if (filters.planningStatus.length) params.set("planningStatus", filters.planningStatus.join(","));
-  if (filters.topography.length) params.set("topography", filters.topography.join(","));
-
-  if (filters.priceMax) params.set("priceMax", filters.priceMax);
-  if (filters.pricePerSqmMax) params.set("pricePerSqmMax", filters.pricePerSqmMax);
-  if (filters.constructionCostMax) params.set("constructionCostMax", filters.constructionCostMax);
-  if (filters.roiMin) params.set("roiMin", filters.roiMin);
-  if (filters.yieldMin) params.set("yieldMin", filters.yieldMin);
-  if (filters.marginMin) params.set("marginMin", filters.marginMin);
-
-  if (filters.cornerPlot) params.set("cornerPlot", "true");
-  if (filters.doubleFrontage) params.set("doubleFrontage", "true");
-  if (filters.existingBuilding) params.set("existingBuilding", "true");
-  if (filters.demolitionRequired) params.set("demolitionRequired", "true");
-  if (filters.vacantLand) params.set("vacantLand", "true");
 
   if (filters.sort && filters.sort !== "newest") params.set("sort", filters.sort);
 
@@ -163,24 +87,13 @@ export function filtersToSearchParams(filters: DashboardFilters): URLSearchParam
 export function countActiveFilters(filters: DashboardFilters): number {
   let count = 0;
   for (const key of arrayKeys) count += filters[key].length > 0 ? 1 : 0;
-  for (const key of boolKeys) count += filters[key] ? 1 : 0;
   const ranges: [string, string][] = [
     [filters.plotSizeMin, filters.plotSizeMax],
     [filters.builtAreaMin, filters.builtAreaMax],
     [filters.constructionYearMin, filters.constructionYearMax],
     [filters.floorsMin, filters.floorsMax],
-    [filters.buildableAreaMin, filters.buildableAreaMax],
-    [filters.occupancyMin, filters.occupancyMax],
-    [filters.frontageMin, filters.frontageMax],
-    [filters.depthMin, filters.depthMax],
   ];
   for (const [min, max] of ranges) count += min || max ? 1 : 0;
-  count += filters.priceMax ? 1 : 0;
-  count += filters.pricePerSqmMax ? 1 : 0;
-  count += filters.constructionCostMax ? 1 : 0;
-  count += filters.roiMin ? 1 : 0;
-  count += filters.yieldMin ? 1 : 0;
-  count += filters.marginMin ? 1 : 0;
   count += filters.municipality ? 1 : 0;
   count += filters.province ? 1 : 0;
   count += filters.autonomousCommunity ? 1 : 0;

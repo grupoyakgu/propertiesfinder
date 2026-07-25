@@ -41,7 +41,7 @@ export default async function CatastroParcelPage({
         })
       )
     : false;
-  const initialComments = await getClientComments("catastro", parcel.id);
+  const initialComments = await getClientComments(parcel.id);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -64,7 +64,7 @@ export default async function CatastroParcelPage({
             <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {parcel.referenciaCatastral}
               <CopyButton value={parcel.referenciaCatastral} />
-              <LikeButton source="catastro" propertyId={parcel.id} initialLiked={initialLiked} />
+              <LikeButton propertyId={parcel.id} initialLiked={initialLiked} />
             </h1>
             {parcel.streetName && (
               <p className="mt-1 text-sm font-medium text-foreground">
@@ -125,7 +125,6 @@ export default async function CatastroParcelPage({
             </DetailSection>
 
             <CommentsSection
-              source="catastro"
               propertyId={parcel.id}
               currentUserId={user?.id ?? null}
               initialComments={initialComments}
