@@ -33,16 +33,10 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/comments/[
   const comment = await prisma.comment.update({
     where: { id },
     data: parsed.data,
-    include: { user: { select: { id: true, name: true } }, _count: { select: { likes: true } } },
+    include: { user: { select: { id: true, name: true } } },
   });
 
-  const likedByMe = Boolean(
-    await prisma.commentLike.findUnique({
-      where: { userId_commentId: { userId: user.id, commentId: id } },
-    })
-  );
-
-  return NextResponse.json({ comment: toClientComment(comment, likedByMe) });
+  return NextResponse.json({ comment: toClientComment(comment) });
 }
 
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/comments/[id]">) {

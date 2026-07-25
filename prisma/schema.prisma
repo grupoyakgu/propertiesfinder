@@ -87,10 +87,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  favorites    Favorite[]
-  mapPresets   MapPreset[]
-  comments     Comment[]
-  commentLikes CommentLike[]
+  favorites  Favorite[]
+  mapPresets MapPreset[]
+  comments   Comment[]
 
   @@map("users")
 }
@@ -228,27 +227,10 @@ model Comment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes CommentLike[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([source, propertyId])
   @@map("comments")
-}
-
-// One user's like on a comment. Unlike Favorite/Comment, this always references a
-// real row in this same database (Comment.id), so a direct FK works fine — no need
-// for the polymorphic source+propertyId pattern.
-model CommentLike {
-  id        String   @id @default(cuid())
-  userId    String
-  commentId String
-  createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, commentId])
-  @@map("comment_likes")
 }
 
 // A saved map viewport (pan/zoom bounding box), named by the user, so they can

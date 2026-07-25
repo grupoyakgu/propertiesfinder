@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const comments = await getClientComments(parsed.data.source, parsed.data.propertyId, user.id);
+  const comments = await getClientComments(parsed.data.source, parsed.data.propertyId);
   return NextResponse.json({ comments });
 }
 
@@ -52,12 +52,22 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const { source, propertyId } = parsed.data;
 
-  const comment = await prisma.comment.create({
-    data: { userId: user.id, ...parsed.data },
-    include: { user: { select: { id: true, name: true } }, _count: { select: { likes: true } } },
-  });
+  const [comment] = await prisma.$transaction([
+    prisma.comment.create({
+      data: { userId: user.id, ...parsed.data },
+      include: { user: { select: { id: true, name: true } } },
+    }),
+    // Commenting on a property is treated as expressing interest in it — like it
+    // too, the same way the property's own Like button would. Upsert (rather than
+    // create) since re-commenting on an already-liked property shouldn't error.
+    prisma.favorite.upsert({
+      where: { userId_source_propertyId: { userId: user.id, source, propertyId } },
+      create: { userId: user.id, source, propertyId },
+      update: {},
+    }),
+  ]);
 
-  // A brand-new comment can't have any likes yet, including from its own author.
-  return NextResponse.json({ comment: toClientComment(comment, false) }, { status: 201 });
+  return NextResponse.json({ comment: toClientComment(comment), propertyLiked: true }, { status: 201 });
 }

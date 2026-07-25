@@ -47,7 +47,7 @@ export default async function PropertyPage({
         })
       )
     : false;
-  const initialComments = await getClientComments("plots", plot.id, user?.id ?? null);
+  const initialComments = await getClientComments("plots", plot.id);
 
   return (
     <div className="flex min-h-screen flex-col">

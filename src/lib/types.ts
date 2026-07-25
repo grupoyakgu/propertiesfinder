@@ -135,14 +135,9 @@ export interface ClientComment {
   updatedAt: string;
   authorId: string;
   authorName: string;
-  likeCount: number;
-  likedByMe: boolean;
 }
 
-export function toClientComment(
-  comment: Comment & { user: { id: string; name: string }; _count: { likes: number } },
-  likedByMe: boolean
-): ClientComment {
+export function toClientComment(comment: Comment & { user: { id: string; name: string } }): ClientComment {
   return {
     id: comment.id,
     body: comment.body,
@@ -150,7 +145,5 @@ export function toClientComment(
     updatedAt: comment.updatedAt.toISOString(),
     authorId: comment.user.id,
     authorName: comment.user.name,
-    likeCount: comment._count.likes,
-    likedByMe,
   };
 }

@@ -41,7 +41,7 @@ export default async function CatastroParcelPage({
         })
       )
     : false;
-  const initialComments = await getClientComments("catastro", parcel.id, user?.id ?? null);
+  const initialComments = await getClientComments("catastro", parcel.id);
 
   return (
     <div className="flex min-h-screen flex-col">

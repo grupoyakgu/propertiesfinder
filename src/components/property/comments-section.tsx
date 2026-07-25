@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ClientComment } from "@/lib/types";
 import { useLocale } from "@/lib/i18n/context";
-import { cn } from "@/lib/utils";
 
 const textareaClass =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary";
@@ -25,6 +25,7 @@ export function CommentsSection({
   initialComments: ClientComment[];
 }) {
   const { t, locale } = useLocale();
+  const router = useRouter();
   const [comments, setComments] = useState(initialComments);
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +55,9 @@ export function CommentsSection({
       const data = await res.json();
       setComments((prev) => [data.comment, ...prev]);
       setBody("");
+      // Commenting also likes the property (server-side) — re-render the server
+      // component tree so the page's LikeButton picks up the new liked state.
+      router.refresh();
     } catch {
       setError(t("comments.postError"));
     } finally {
@@ -198,64 +202,10 @@ function CommentItem({
         )}
       </div>
       <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{comment.body}</p>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {formatDate(comment.createdAt)}
-          {comment.updatedAt !== comment.createdAt ? ` · ${t("comments.edited")}` : ""}
-        </p>
-        <CommentLikeButton commentId={comment.id} initialLiked={comment.likedByMe} initialCount={comment.likeCount} />
-      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {formatDate(comment.createdAt)}
+        {comment.updatedAt !== comment.createdAt ? ` · ${t("comments.edited")}` : ""}
+      </p>
     </div>
-  );
-}
-
-function CommentLikeButton({
-  commentId,
-  initialLiked,
-  initialCount,
-}: {
-  commentId: string;
-  initialLiked: boolean;
-  initialCount: number;
-}) {
-  const { t } = useLocale();
-  const [liked, setLiked] = useState(initialLiked);
-  const [count, setCount] = useState(initialCount);
-  const [pending, setPending] = useState(false);
-
-  const toggle = async () => {
-    if (pending) return;
-    setPending(true);
-    const optimisticLiked = !liked;
-    setLiked(optimisticLiked);
-    setCount((c) => c + (optimisticLiked ? 1 : -1));
-    try {
-      const res = await fetch(`/api/comments/${commentId}/like`, { method: "POST" });
-      if (!res.ok) {
-        setLiked(!optimisticLiked);
-        setCount((c) => c + (optimisticLiked ? -1 : 1));
-        return;
-      }
-      const data = await res.json();
-      setLiked(data.liked);
-      setCount(data.likeCount);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={liked ? t("card.unlike") : t("card.like")}
-      className={cn(
-        "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
-        liked ? "text-primary" : "text-muted-foreground hover:text-primary"
-      )}
-    >
-      <Heart className="h-3.5 w-3.5" fill={liked ? "currentColor" : "none"} />
-      {count}
-    </button>
   );
 }

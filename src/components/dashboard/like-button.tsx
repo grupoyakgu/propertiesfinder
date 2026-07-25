@@ -26,6 +26,19 @@ export function LikeButton({
   const [liked, setLiked] = useState(initialLiked);
   const [pending, setPending] = useState(false);
 
+  // Resyncs when a fresh server-computed value arrives (e.g. a detail page's
+  // router.refresh() after some other action — like posting a comment — also
+  // liked the property) via the "adjust state during render" pattern, since
+  // setState-in-effect isn't allowed here. Safe against clobbering an in-flight
+  // toggle: the parent only ever passes a new initialLiked once it has the
+  // server's confirmed value, by which point this button's own optimistic state
+  // already matches it.
+  const [prevInitialLiked, setPrevInitialLiked] = useState(initialLiked);
+  if (initialLiked !== prevInitialLiked) {
+    setPrevInitialLiked(initialLiked);
+    setLiked(initialLiked);
+  }
+
   const toggle = async () => {
     if (pending) return;
     setPending(true);
