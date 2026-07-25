@@ -240,6 +240,14 @@ export function DashboardApp({
     return { ok: true };
   };
 
+  // None of these touch viewCommand: a preset (or "Back to search" restore, or
+  // "Refocus") establishes a deliberate viewport, and curating the selection within
+  // it shouldn't perturb that — the map should keep showing that same area with
+  // whichever of its properties are currently checked, not re-fit to a tight box
+  // around just the selection. When no viewCommand is active (viewCommand stays null
+  // until one of those is used), FitBounds's own fallback already re-fits to
+  // whatever's selected on every change, so nothing further is needed here for that
+  // case either.
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -247,14 +255,10 @@ export function DashboardApp({
       else next.add(id);
       return next;
     });
-    // Let the map naturally re-fit to whatever ends up selected, instead of being
-    // pinned to a stale viewCommand from an earlier preset/restore.
-    setViewCommand(null);
   };
 
   const clearSelection = () => {
     setSelectedIds(new Set());
-    setViewCommand(null);
   };
 
   // Mount the map the first time it's shown, and never unmount it again afterwards
@@ -393,16 +397,30 @@ export function DashboardApp({
   const selectAllVisible = () => {
     const ids = source === "plots" ? visiblePlots.map((p) => p.id) : visibleParcels.map((p) => p.id);
     setSelectedIds(new Set(ids));
-    setViewCommand(null);
   };
 
-  // Jump straight to a single property on the map: reveal it (adding it to the
-  // selection when "show all on map" is off, so it actually renders), center the
-  // view tightly on it, and switch to map view if the user is currently on the table.
+  // Reveal a single property on the map: add it to the selection (so it actually
+  // renders when "show all on map" is off) and switch to map view if the user is
+  // currently on the table. A card can only be clicked from the list that's already
+  // scoped to the current map view (or, before any pan/preset, the unscoped full
+  // list) — so re-centering/zooming on it here would either do nothing useful or,
+  // worse, collapse the viewport (and therefore the table/card scope, and every
+  // other selection) down to a tiny box around just this one property. Only pan/zoom
+  // when there's no established view yet, or the marker genuinely falls outside it.
   const showPropertyOnMap = (id: string) => {
     const marker = markers.find((m) => m.id === id);
     if (!marker) return;
     setSelectedIds((prev) => new Set(prev).add(id));
+    setMapVisible(true);
+
+    const alreadyInView =
+      mapBounds != null &&
+      marker.lat >= mapBounds.south &&
+      marker.lat <= mapBounds.north &&
+      marker.lng >= mapBounds.west &&
+      marker.lng <= mapBounds.east;
+    if (alreadyInView) return;
+
     const buffer = 0.01;
     setViewCommand({
       bounds: {
@@ -413,7 +431,6 @@ export function DashboardApp({
       },
       nonce: nextNonce(),
     });
-    setMapVisible(true);
   };
 
   return (
