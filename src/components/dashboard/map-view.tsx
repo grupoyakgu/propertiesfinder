@@ -12,12 +12,21 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
 import { formatCurrency, withBackHref } from "@/lib/utils";
 import { LikeButton } from "@/components/dashboard/like-button";
+
+// Real cadastral boundary/planning polygons have genuine, often many-vertex
+// geometry. Mounting hundreds of them as individual SVG paths at once (e.g. right
+// after enabling "show all on map" with a wide, unzoomed viewport) freezes the tab.
+// Past this many markers, skip the polygon overlays entirely — they're visually
+// meaningless at that scale anyway — and rely on clustered markers instead; they
+// reappear automatically once the view narrows (zooming in or applying a preset).
+const MAX_POLYGON_MARKERS = 150;
 
 /** Plain (Leaflet-free) representation of a map viewport, so it can be persisted in the
  * URL and used to filter results even before/without the Leaflet map ever mounting. */
@@ -165,38 +174,42 @@ export function MapView({
   // parcel boundaries doesn't re-derive and redraw every polygon on every tick.
   const boundaryPolygons = useMemo(
     () =>
-      markers
-        .filter((m) => m.boundary)
-        .map((m) => (
-          <Polygon
-            key={`boundary-${m.id}`}
-            positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-            pathOptions={{ color: "#0f3d3e", weight: 1.5, fillOpacity: 0.05 }}
-          />
-        )),
+      markers.length > MAX_POLYGON_MARKERS
+        ? []
+        : markers
+            .filter((m) => m.boundary)
+            .map((m) => (
+              <Polygon
+                key={`boundary-${m.id}`}
+                positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                pathOptions={{ color: "#0f3d3e", weight: 1.5, fillOpacity: 0.05 }}
+              />
+            )),
     [markers]
   );
   const planningPolygons = useMemo(
     () =>
-      markers
-        .filter((m) => m.boundary)
-        .map((m) => {
-          const color = m.planningStatus
-            ? planningColors[m.planningStatus] ?? defaultPlanningColor
-            : defaultPlanningColor;
-          return (
-            <Polygon
-              key={`planning-${m.id}`}
-              positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
-              pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
-            />
-          );
-        }),
+      markers.length > MAX_POLYGON_MARKERS
+        ? []
+        : markers
+            .filter((m) => m.boundary)
+            .map((m) => {
+              const color = m.planningStatus
+                ? planningColors[m.planningStatus] ?? defaultPlanningColor
+                : defaultPlanningColor;
+              return (
+                <Polygon
+                  key={`planning-${m.id}`}
+                  positions={m.boundary!.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                  pathOptions={{ color, weight: 1, fillOpacity: 0.35, fillColor: color }}
+                />
+              );
+            }),
     [markers]
   );
 
   return (
-    <MapContainer center={center} zoom={6} scrollWheelZoom className="h-full w-full">
+    <MapContainer center={center} zoom={6} scrollWheelZoom preferCanvas className="h-full w-full">
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Street">
           <TileLayer
@@ -236,41 +249,48 @@ export function MapView({
       <InvalidateSizeOnShow visible={visible} />
       {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
 
-      {markers.map((marker) => (
-        <Marker
-          key={marker.id}
-          position={[marker.lat, marker.lng]}
-          icon={markerIcon(hoveredId === marker.id)}
-          eventHandlers={{ click: () => router.prefetch(withBackHref(marker.href, backHref)) }}
-        >
-          <Popup>
-            <div className="min-w-[200px] space-y-1">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold">{marker.title}</p>
-                <LikeButton
-                  source={marker.source}
-                  propertyId={marker.id}
-                  initialLiked={likedIds?.has(marker.id) ?? false}
-                  onToggle={(liked) => onToggleLike?.(marker.id, marker.source, liked)}
-                />
+      {/* Clustering keeps large marker counts (e.g. a wide, unzoomed "show all on
+          map" view) from mounting hundreds of individual pins at once — nearby
+          markers group into a single bubble until the user zooms in. chunkedLoading
+          spreads that initial mount across animation frames instead of doing it all
+          synchronously, which is what actually caused the tab to hang. */}
+      <MarkerClusterGroup chunkedLoading maxClusterRadius={60}>
+        {markers.map((marker) => (
+          <Marker
+            key={marker.id}
+            position={[marker.lat, marker.lng]}
+            icon={markerIcon(hoveredId === marker.id)}
+            eventHandlers={{ click: () => router.prefetch(withBackHref(marker.href, backHref)) }}
+          >
+            <Popup>
+              <div className="min-w-[200px] space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">{marker.title}</p>
+                  <LikeButton
+                    source={marker.source}
+                    propertyId={marker.id}
+                    initialLiked={likedIds?.has(marker.id) ?? false}
+                    onToggle={(liked) => onToggleLike?.(marker.id, marker.source, liked)}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">{marker.subtitle}</p>
+                <p className="text-xs">
+                  {marker.areaLabel} &middot; {marker.badge}
+                </p>
+                {marker.price !== undefined && (
+                  <p className="text-sm font-medium">{formatCurrency(marker.price)}</p>
+                )}
+                {marker.amenities && marker.amenities.length > 0 && (
+                  <p className="text-xs text-gray-500">{marker.amenities.slice(0, 2).join(" · ")}</p>
+                )}
+                <Link href={withBackHref(marker.href, backHref)} className="text-xs font-medium text-emerald-800 underline">
+                  View details →
+                </Link>
               </div>
-              <p className="text-xs text-gray-500">{marker.subtitle}</p>
-              <p className="text-xs">
-                {marker.areaLabel} &middot; {marker.badge}
-              </p>
-              {marker.price !== undefined && (
-                <p className="text-sm font-medium">{formatCurrency(marker.price)}</p>
-              )}
-              {marker.amenities && marker.amenities.length > 0 && (
-                <p className="text-xs text-gray-500">{marker.amenities.slice(0, 2).join(" · ")}</p>
-              )}
-              <Link href={withBackHref(marker.href, backHref)} className="text-xs font-medium text-emerald-800 underline">
-                View details →
-              </Link>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
     </MapContainer>
   );
 }
