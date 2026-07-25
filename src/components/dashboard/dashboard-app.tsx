@@ -17,6 +17,7 @@ import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
 import { FavoritesPanel } from "@/components/dashboard/favorites-panel";
+import { AnalysisEnginePanel } from "@/components/dashboard/analysis-engine-panel";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
@@ -128,6 +129,9 @@ export function DashboardApp({
   // A separate tab (before Settings) that shows every liked property at once —
   // mutually exclusive with normal browsing and Settings.
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  // Another separate tab: the AI-powered urban-planning feasibility engine, run
+  // against one of the user's liked properties — mutually exclusive with the rest.
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   // Seeds every card/table row/map popup's "is this liked" state. Kept centrally so
   // switching between card list, table, and map views (which remount their rows)
   // always renders the current like state instead of resetting to "not liked."
@@ -458,11 +462,12 @@ export function DashboardApp({
           type="button"
           onClick={() => {
             setFavoritesOpen(false);
+            setAnalysisOpen(false);
             setSettingsOpen(false);
           }}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            !settingsOpen && !favoritesOpen
+            !settingsOpen && !favoritesOpen && !analysisOpen
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-surface-muted"
           )}
@@ -473,6 +478,7 @@ export function DashboardApp({
           type="button"
           onClick={() => {
             setFavoritesOpen(true);
+            setAnalysisOpen(false);
             setSettingsOpen(false);
           }}
           className={cn(
@@ -487,8 +493,25 @@ export function DashboardApp({
         <button
           type="button"
           onClick={() => {
+            setAnalysisOpen(true);
+            setFavoritesOpen(false);
+            setSettingsOpen(false);
+          }}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+            analysisOpen
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-surface-muted"
+          )}
+        >
+          {t("dashboard.tabAnalysis")}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
             setSettingsOpen(true);
             setFavoritesOpen(false);
+            setAnalysisOpen(false);
           }}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -516,13 +539,15 @@ export function DashboardApp({
           </div>
         ) : favoritesOpen ? (
           <FavoritesPanel />
+        ) : analysisOpen ? (
+          <AnalysisEnginePanel />
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
             <FiltersSidebar filters={filters} onChange={setFilters} />
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && mapVisible && (
+        {!settingsOpen && !favoritesOpen && !analysisOpen && mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -558,7 +583,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && !mapVisible && (
+        {!settingsOpen && !favoritesOpen && !analysisOpen && !mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -593,12 +618,17 @@ export function DashboardApp({
             Leaflet keeps its center/zoom/pan state when toggled off and back on —
             including while the Settings tab is open, which just hides it via CSS. */}
         {mapMounted && (
-          <div className={cn("relative", !settingsOpen && !favoritesOpen && mapVisible ? "flex-1" : "hidden")}>
+          <div
+            className={cn(
+              "relative",
+              !settingsOpen && !favoritesOpen && !analysisOpen && mapVisible ? "flex-1" : "hidden"
+            )}
+          >
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
-              visible={!settingsOpen && !favoritesOpen && mapVisible}
+              visible={!settingsOpen && !favoritesOpen && !analysisOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
               likedIds={likedIds}
