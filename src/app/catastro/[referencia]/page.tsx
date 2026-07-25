@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { toClientCatastroParcel, toClientComment } from "@/lib/types";
+import { toClientCatastroParcel } from "@/lib/types";
+import { getClientComments } from "@/lib/comments";
 import { formatArea, formatCatastroParcelAddress, resolveBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
@@ -40,12 +41,7 @@ export default async function CatastroParcelPage({
         })
       )
     : false;
-  const commentRows = await prisma.comment.findMany({
-    where: { source: "catastro", propertyId: parcel.id },
-    include: { user: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-  const initialComments = commentRows.map(toClientComment);
+  const initialComments = await getClientComments("catastro", parcel.id, user?.id ?? null);
 
   return (
     <div className="flex min-h-screen flex-col">

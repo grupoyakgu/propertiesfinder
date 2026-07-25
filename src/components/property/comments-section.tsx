@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { Heart, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, FieldLabel } from "@/components/ui/input";
 import type { ClientComment } from "@/lib/types";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
@@ -27,8 +26,6 @@ export function CommentsSection({
 }) {
   const { t, locale } = useLocale();
   const [comments, setComments] = useState(initialComments);
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,20 +41,18 @@ export function CommentsSection({
 
   const submitNew = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim() || !body.trim()) return;
+    if (!body.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, propertyId, fullName, phone, body }),
+        body: JSON.stringify({ source, propertyId, body }),
       });
       if (!res.ok) throw new Error("Failed to post comment");
       const data = await res.json();
       setComments((prev) => [data.comment, ...prev]);
-      setFullName("");
-      setPhone("");
       setBody("");
     } catch {
       setError(t("comments.postError"));
@@ -81,28 +76,15 @@ export function CommentsSection({
 
       {currentUserId && (
         <form onSubmit={submitNew} className="mt-4 space-y-2 border-b border-border pb-5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div>
-              <FieldLabel>{t("comments.fullNameLabel")}</FieldLabel>
-              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required maxLength={200} />
-            </div>
-            <div>
-              <FieldLabel>{t("comments.phoneLabel")}</FieldLabel>
-              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required maxLength={50} />
-            </div>
-          </div>
-          <div>
-            <FieldLabel>{t("comments.bodyLabel")}</FieldLabel>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              required
-              maxLength={4000}
-              rows={3}
-              placeholder={t("comments.bodyPlaceholder")}
-              className={textareaClass}
-            />
-          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            required
+            maxLength={4000}
+            rows={3}
+            placeholder={t("comments.bodyPlaceholder")}
+            className={textareaClass}
+          />
           {error && <p className="text-xs text-danger">{error}</p>}
           <Button type="submit" size="sm" disabled={submitting}>
             {submitting ? t("comments.posting") : t("comments.submit")}
@@ -143,25 +125,21 @@ function CommentItem({
   const { t } = useLocale();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [fullName, setFullName] = useState(comment.fullName);
-  const [phone, setPhone] = useState(comment.phone);
   const [body, setBody] = useState(comment.body);
 
   const cancel = () => {
-    setFullName(comment.fullName);
-    setPhone(comment.phone);
     setBody(comment.body);
     setEditing(false);
   };
 
   const save = async () => {
-    if (!fullName.trim() || !phone.trim() || !body.trim()) return;
+    if (!body.trim()) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/comments/${comment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, phone, body }),
+        body: JSON.stringify({ body }),
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -175,10 +153,6 @@ function CommentItem({
   if (editing) {
     return (
       <div className="space-y-2 rounded-lg border border-border p-3">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={200} />
-          <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={50} />
-        </div>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -201,12 +175,9 @@ function CommentItem({
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-foreground">{comment.fullName}</p>
-          <p className="text-xs text-muted-foreground">{comment.phone}</p>
-        </div>
+        <p className="text-sm font-medium text-foreground">{comment.authorName}</p>
         {canManage && (
-          <div className={cn("flex shrink-0 gap-1")}>
+          <div className="flex shrink-0 gap-1">
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -227,10 +198,64 @@ function CommentItem({
         )}
       </div>
       <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{comment.body}</p>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {t("comments.postedBy", { name: comment.authorName })} · {formatDate(comment.createdAt)}
-        {comment.updatedAt !== comment.createdAt ? ` · ${t("comments.edited")}` : ""}
-      </p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {formatDate(comment.createdAt)}
+          {comment.updatedAt !== comment.createdAt ? ` · ${t("comments.edited")}` : ""}
+        </p>
+        <CommentLikeButton commentId={comment.id} initialLiked={comment.likedByMe} initialCount={comment.likeCount} />
+      </div>
     </div>
+  );
+}
+
+function CommentLikeButton({
+  commentId,
+  initialLiked,
+  initialCount,
+}: {
+  commentId: string;
+  initialLiked: boolean;
+  initialCount: number;
+}) {
+  const { t } = useLocale();
+  const [liked, setLiked] = useState(initialLiked);
+  const [count, setCount] = useState(initialCount);
+  const [pending, setPending] = useState(false);
+
+  const toggle = async () => {
+    if (pending) return;
+    setPending(true);
+    const optimisticLiked = !liked;
+    setLiked(optimisticLiked);
+    setCount((c) => c + (optimisticLiked ? 1 : -1));
+    try {
+      const res = await fetch(`/api/comments/${commentId}/like`, { method: "POST" });
+      if (!res.ok) {
+        setLiked(!optimisticLiked);
+        setCount((c) => c + (optimisticLiked ? -1 : 1));
+        return;
+      }
+      const data = await res.json();
+      setLiked(data.liked);
+      setCount(data.likeCount);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={liked ? t("card.unlike") : t("card.like")}
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
+        liked ? "text-primary" : "text-muted-foreground hover:text-primary"
+      )}
+    >
+      <Heart className="h-3.5 w-3.5" fill={liked ? "currentColor" : "none"} />
+      {count}
+    </button>
   );
 }

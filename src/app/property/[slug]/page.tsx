@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { toClientComment, toClientPlot } from "@/lib/types";
+import { toClientPlot } from "@/lib/types";
+import { getClientComments } from "@/lib/comments";
 import { formatArea, formatCurrency, formatNumber, formatPercent, resolveBackHref } from "@/lib/utils";
 import {
   buildingTypeLabels,
@@ -46,12 +47,7 @@ export default async function PropertyPage({
         })
       )
     : false;
-  const commentRows = await prisma.comment.findMany({
-    where: { source: "plots", propertyId: plot.id },
-    include: { user: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-  const initialComments = commentRows.map(toClientComment);
+  const initialComments = await getClientComments("plots", plot.id, user?.id ?? null);
 
   return (
     <div className="flex min-h-screen flex-col">

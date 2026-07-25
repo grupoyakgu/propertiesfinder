@@ -87,9 +87,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  favorites  Favorite[]
-  mapPresets MapPreset[]
-  comments   Comment[]
+  favorites    Favorite[]
+  mapPresets   MapPreset[]
+  comments     Comment[]
+  commentLikes CommentLike[]
 
   @@map("users")
 }
@@ -217,25 +218,37 @@ model Favorite {
 }
 
 // A user-authored note on a property. Polymorphic across the two property tables
-// (source + propertyId) for the same reason as Favorite. fullName/phone are the
-// commenter's own supplied contact details (e.g. an agent leaving their info for a
-// colleague) — distinct from `user`, which is who is actually signed in and
-// authored the entry, kept so the record always shows who really posted it.
+// (source + propertyId) for the same reason as Favorite.
 model Comment {
   id         String   @id @default(cuid())
   userId     String
   source     String // "plots" | "catastro"
   propertyId String // Plot.id or CatastroParcel.id, depending on source
-  fullName   String
-  phone      String
   body       String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes CommentLike[]
 
   @@index([source, propertyId])
   @@map("comments")
+}
+
+// One user's like on a comment. Unlike Favorite/Comment, this always references a
+// real row in this same database (Comment.id), so a direct FK works fine — no need
+// for the polymorphic source+propertyId pattern.
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@map("comment_likes")
 }
 
 // A saved map viewport (pan/zoom bounding box), named by the user, so they can

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { toClientComment } from "@/lib/types";
+import { getClientComments } from "@/lib/comments";
 
 const querySchema = z.object({
   source: z.enum(["plots", "catastro"]),
@@ -12,8 +13,6 @@ const querySchema = z.object({
 const createSchema = z.object({
   source: z.enum(["plots", "catastro"]),
   propertyId: z.string().min(1),
-  fullName: z.string().trim().min(1).max(200),
-  phone: z.string().trim().min(1).max(50),
   body: z.string().trim().min(1).max(4000),
 });
 
@@ -35,13 +34,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const comments = await prisma.comment.findMany({
-    where: { source: parsed.data.source, propertyId: parsed.data.propertyId },
-    include: { user: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ comments: comments.map(toClientComment) });
+  const comments = await getClientComments(parsed.data.source, parsed.data.propertyId, user.id);
+  return NextResponse.json({ comments });
 }
 
 export async function POST(request: Request) {
@@ -61,8 +55,9 @@ export async function POST(request: Request) {
 
   const comment = await prisma.comment.create({
     data: { userId: user.id, ...parsed.data },
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true } }, _count: { select: { likes: true } } },
   });
 
-  return NextResponse.json({ comment: toClientComment(comment) }, { status: 201 });
+  // A brand-new comment can't have any likes yet, including from its own author.
+  return NextResponse.json({ comment: toClientComment(comment, false) }, { status: 201 });
 }

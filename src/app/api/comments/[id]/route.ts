@@ -4,15 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { toClientComment } from "@/lib/types";
 
-const patchSchema = z
-  .object({
-    fullName: z.string().trim().min(1).max(200).optional(),
-    phone: z.string().trim().min(1).max(50).optional(),
-    body: z.string().trim().min(1).max(4000).optional(),
-  })
-  .refine((data) => data.fullName !== undefined || data.phone !== undefined || data.body !== undefined, {
-    message: "Nothing to update",
-  });
+const patchSchema = z.object({
+  body: z.string().trim().min(1).max(4000),
+});
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/comments/[id]">) {
   const user = await getCurrentUser();
@@ -30,9 +24,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/comments/[
     );
   }
 
-  // Only the comment's own author may edit it — checked against the signed-in
-  // user, not the fullName/phone contact fields (which are freeform text the
-  // author supplies and aren't an identity check).
+  // Only the comment's own author may edit it.
   const existing = await prisma.comment.findUnique({ where: { id } });
   if (!existing || existing.userId !== user.id) {
     return NextResponse.json({ error: "Comment not found" }, { status: 404 });
@@ -41,10 +33,16 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/comments/[
   const comment = await prisma.comment.update({
     where: { id },
     data: parsed.data,
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true } }, _count: { select: { likes: true } } },
   });
 
-  return NextResponse.json({ comment: toClientComment(comment) });
+  const likedByMe = Boolean(
+    await prisma.commentLike.findUnique({
+      where: { userId_commentId: { userId: user.id, commentId: id } },
+    })
+  );
+
+  return NextResponse.json({ comment: toClientComment(comment, likedByMe) });
 }
 
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/comments/[id]">) {

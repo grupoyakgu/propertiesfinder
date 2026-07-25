@@ -130,24 +130,27 @@ export function toClientMapPreset(preset: MapPreset): ClientMapPreset {
 
 export interface ClientComment {
   id: string;
-  fullName: string;
-  phone: string;
   body: string;
   createdAt: string;
   updatedAt: string;
   authorId: string;
   authorName: string;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
-export function toClientComment(comment: Comment & { user: { id: string; name: string } }): ClientComment {
+export function toClientComment(
+  comment: Comment & { user: { id: string; name: string }; _count: { likes: number } },
+  likedByMe: boolean
+): ClientComment {
   return {
     id: comment.id,
-    fullName: comment.fullName,
-    phone: comment.phone,
     body: comment.body,
     createdAt: comment.createdAt.toISOString(),
     updatedAt: comment.updatedAt.toISOString(),
     authorId: comment.user.id,
     authorName: comment.user.name,
+    likeCount: comment._count.likes,
+    likedByMe,
   };
 }
