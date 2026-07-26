@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Sparkles } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode } from "@/lib/analysis-engine";
+import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, AnalysisProgressEvent } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
-import { formatCatastroParcelAddress } from "@/lib/utils";
+import { cn, formatCatastroParcelAddress } from "@/lib/utils";
 
 interface Field {
   key: keyof AnalysisEngineData;
@@ -56,16 +56,62 @@ const RESIDUAL_FIELDS: ResidualField[] = [
   { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
 ];
 
+interface ModeProgress {
+  status: string;
+  elapsedMs: number;
+  outputChars: number;
+  toolCalls: number;
+  result: AnalysisEngineResult | null;
+}
+
+function initialProgress(): ModeProgress {
+  return { status: "", elapsedMs: 0, outputChars: 0, toolCalls: 0, result: null };
+}
+
+// Rough expected wall-clock time per mode (web-grounded runs slower — each search/
+// fetch is its own model turn). Purely a heuristic for the progress bar's fill
+// percentage; it's capped short of 100% until the mode actually finishes so it
+// never looks "done" prematurely.
+const EXPECTED_MS: Record<AnalysisMode, number> = { knowledge: 45_000, web: 120_000 };
+
+function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModeProgress }) {
+  const { t } = useLocale();
+  const pct = Math.min(95, (progress.elapsedMs / EXPECTED_MS[mode]) * 100);
+  const seconds = Math.round(progress.elapsedMs / 1000);
+
+  return (
+    <div className="space-y-2 p-4">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-foreground">{progress.status || t("analysis.running")}</p>
+      <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+        <span>{t("analysis.elapsedSeconds", { n: seconds })}</span>
+        {progress.toolCalls > 0 && (
+          <span>{t("analysis.toolCallsCount", { n: progress.toolCalls, plural: progress.toolCalls === 1 ? "" : "s" })}</span>
+        )}
+        {progress.outputChars > 0 && <span>{t("analysis.charsGenerated", { n: progress.outputChars })}</span>}
+      </p>
+    </div>
+  );
+}
+
 function ResultColumn({
+  mode,
   modeLabelKey,
   modeHintKey,
-  result,
+  progress,
 }: {
+  mode: AnalysisMode;
   modeLabelKey: string;
   modeHintKey: string;
-  result: AnalysisEngineResult | null;
+  progress: ModeProgress | null;
 }) {
   const { t } = useLocale();
+  const result = progress?.result ?? null;
 
   return (
     <div className="flex-1 min-w-0 rounded-lg border border-border bg-surface">
@@ -74,7 +120,7 @@ function ResultColumn({
         <p className="mt-0.5 text-xs text-muted-foreground">{t(modeHintKey)}</p>
       </div>
 
-      {!result && <div className="p-4 text-xs text-muted-foreground">{t("analysis.running")}</div>}
+      {progress && !result && <ProgressBar mode={mode} progress={progress} />}
 
       {result?.error && (
         <div className="flex items-start gap-2 p-4 text-xs text-danger">
@@ -168,7 +214,7 @@ export function AnalysisEnginePanel() {
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<Record<AnalysisMode, AnalysisEngineResult | null> | null>(null);
+  const [progress, setProgress] = useState<Record<AnalysisMode, ModeProgress> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,23 +235,58 @@ export function AnalysisEnginePanel() {
     };
   }, []);
 
+  const applyEvent = (mode: AnalysisMode, event: AnalysisProgressEvent) => {
+    setProgress((prev) => {
+      const next = { ...(prev ?? { knowledge: initialProgress(), web: initialProgress() }) };
+      const current = next[mode];
+      if (event.type === "status") {
+        next[mode] = { ...current, status: event.status };
+      } else if (event.type === "stats") {
+        next[mode] = { ...current, elapsedMs: event.elapsedMs, outputChars: event.outputChars, toolCalls: event.toolCalls };
+      } else {
+        next[mode] = { ...current, result: event.result };
+      }
+      return next;
+    });
+  };
+
   const runAnalysis = async () => {
     if (!selectedId) return;
     setRunning(true);
     setRunError(null);
-    setResults(null);
+    setProgress({ knowledge: initialProgress(), web: initialProgress() });
+
     try {
       const res = await fetch("/api/analysis-engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parcelId: selectedId }),
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => null);
         setRunError(data?.error ?? "Analysis failed");
         return;
       }
-      setResults({ knowledge: data.knowledge ?? null, web: data.web ?? null });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const chunk of events) {
+          const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          const payload = JSON.parse(line.slice(6)) as AnalysisProgressEvent & { mode: AnalysisMode };
+          applyEvent(payload.mode, payload);
+        }
+      }
     } catch {
       setRunError("Analysis failed");
     } finally {
@@ -252,7 +333,10 @@ export function AnalysisEnginePanel() {
               type="button"
               onClick={runAnalysis}
               disabled={running || !selectedId}
-              className="rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              className={cn(
+                "rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground",
+                "disabled:opacity-50"
+              )}
             >
               {running ? t("analysis.running") : t("analysis.runButton")}
             </button>
@@ -267,7 +351,7 @@ export function AnalysisEnginePanel() {
           </div>
         )}
 
-        {(running || results) && (
+        {progress && (
           <>
             <div className="flex items-start gap-2 rounded-md border border-border bg-surface-muted p-3 text-xs text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -276,14 +360,16 @@ export function AnalysisEnginePanel() {
 
             <div className="flex flex-col gap-4 lg:flex-row">
               <ResultColumn
+                mode="knowledge"
                 modeLabelKey="analysis.knowledgeModeLabel"
                 modeHintKey="analysis.knowledgeModeHint"
-                result={results?.knowledge ?? null}
+                progress={progress.knowledge}
               />
               <ResultColumn
+                mode="web"
                 modeLabelKey="analysis.webModeLabel"
                 modeHintKey="analysis.webModeHint"
-                result={results?.web ?? null}
+                progress={progress.web}
               />
             </div>
           </>

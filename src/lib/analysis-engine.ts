@@ -187,13 +187,26 @@ function extractReport(text: string): string {
   return text.replace(/```json\s*[\s\S]*?```/gi, "").trim();
 }
 
-export async function runAnalysis(
+export type AnalysisProgressEvent =
+  | { type: "status"; status: string }
+  | { type: "stats"; elapsedMs: number; outputChars: number; toolCalls: number }
+  | { type: "result"; result: AnalysisEngineResult };
+
+// Leaves headroom under the API route's maxDuration (see src/app/api/analysis-engine/route.ts)
+// for the response to actually be returned rather than getting cut off mid-flight.
+const PER_MODE_TIMEOUT_MS = 200 * 1000;
+
+/** Runs one mode's analysis, calling `onEvent` with live progress (status text,
+ * elapsed/tool-call stats) as the model streams, and a final "result" event when
+ * done (success or failure — never throws). */
+export async function runAnalysisStreaming(
   parcel: ClientCatastroParcel,
-  mode: AnalysisMode
-): Promise<AnalysisEngineResult> {
+  mode: AnalysisMode,
+  onEvent: (event: AnalysisProgressEvent) => void
+): Promise<void> {
   // web mode's server-side tool loop (each search/fetch is its own model turn) is
   // the slow path — keep it bounded so a single mode can't eat the whole request's
-  // time budget and take the other (fast) mode's result down with it.
+  // time budget.
   const tools =
     mode === "web"
       ? [
@@ -202,54 +215,75 @@ export async function runAnalysis(
         ]
       : undefined;
 
+  const startedAt = Date.now();
+  let toolCalls = 0;
+  let outputChars = 0;
+  const emitStats = () =>
+    onEvent({ type: "stats", elapsedMs: Date.now() - startedAt, outputChars, toolCalls });
+  const statsInterval = setInterval(emitStats, 2000);
+
   try {
-    const response = await getClient().messages.create(
+    const stream = getClient().messages.stream(
       {
         model: "claude-opus-5",
         max_tokens: 8000,
         system: buildSystemPrompt(mode),
         thinking: { type: "adaptive" },
         // "medium" balances thoroughness against wall-clock time — this route runs
-        // inside a hard serverless duration cap (see PER_MODE_TIMEOUT_MS below).
+        // inside a hard serverless duration cap.
         output_config: { effort: "medium" },
         ...(tools ? { tools } : {}),
         messages: [{ role: "user", content: buildUserPrompt(parcel) }],
       },
-      // Fail this one mode on its own before the platform kills the whole request —
-      // leaves the other (usually faster) mode's result intact instead of losing both.
-      { timeout: PER_MODE_TIMEOUT_MS }
+      // No retries: a timed-out request should fail fast (and let the client see
+      // that failure) rather than silently retrying (default maxRetries=2) and
+      // blowing well past the route's own duration cap in the process.
+      { timeout: PER_MODE_TIMEOUT_MS, maxRetries: 0 }
     );
 
-    if (response.stop_reason === "refusal") {
-      return { mode, report: "", data: null, error: "The model declined to analyze this request." };
+    onEvent({ type: "status", status: "Starting…" });
+
+    stream.on("text", (_delta, snapshot) => {
+      outputChars = snapshot.length;
+    });
+
+    stream.on("contentBlock", (block) => {
+      if (block.type === "thinking") {
+        onEvent({ type: "status", status: "Reasoning about zoning and constraints…" });
+      } else if (block.type === "server_tool_use") {
+        toolCalls += 1;
+        onEvent({
+          type: "status",
+          status: block.name === "web_search" ? "Searching the web…" : "Reading a source…",
+        });
+      } else if (block.type === "text") {
+        onEvent({ type: "status", status: "Writing the report…" });
+      }
+      emitStats();
+    });
+
+    const finalMessage = await stream.finalMessage();
+
+    if (finalMessage.stop_reason === "refusal") {
+      onEvent({
+        type: "result",
+        result: { mode, report: "", data: null, error: "The model declined to analyze this request." },
+      });
+      return;
     }
 
-    const text = response.content
+    const text = finalMessage.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("\n");
 
-    return { mode, report: extractReport(text), data: extractJsonBlock(text) };
+    onEvent({ type: "result", result: { mode, report: extractReport(text), data: extractJsonBlock(text) } });
   } catch (err) {
-    return {
-      mode,
-      report: "",
-      data: null,
-      error: err instanceof Error ? err.message : "Analysis failed",
-    };
+    onEvent({
+      type: "result",
+      result: { mode, report: "", data: null, error: err instanceof Error ? err.message : "Analysis failed" },
+    });
+  } finally {
+    clearInterval(statsInterval);
   }
-}
-
-// Leaves headroom under the API route's maxDuration (see src/app/api/analysis-engine/route.ts)
-// for the response to actually be returned rather than getting cut off mid-flight.
-const PER_MODE_TIMEOUT_MS = 4 * 60 * 1000;
-
-export async function runFullAnalysis(
-  parcel: ClientCatastroParcel
-): Promise<{ knowledge: AnalysisEngineResult; web: AnalysisEngineResult }> {
-  const [knowledge, web] = await Promise.all([
-    runAnalysis(parcel, "knowledge"),
-    runAnalysis(parcel, "web"),
-  ]);
-  return { knowledge, web };
 }
