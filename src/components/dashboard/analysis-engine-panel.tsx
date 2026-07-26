@@ -40,6 +40,7 @@ interface ResidualField {
   labelKey: string;
 }
 
+// Full set shown in each mode's own results column.
 const RESIDUAL_FIELDS: ResidualField[] = [
   { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
   { key: "saleable_area", labelKey: "analysis.saleableArea" },
@@ -54,6 +55,27 @@ const RESIDUAL_FIELDS: ResidualField[] = [
   { key: "developer_margin", labelKey: "analysis.developerMargin" },
   { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
   { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
+];
+
+// The exact metric set requested for the end-of-analysis comparison table —
+// narrower than RESIDUAL_FIELDS (drops commercial area/parking/total construction
+// cost) so the table stays focused on the headline investment numbers.
+const COMPARISON_FIELDS: ResidualField[] = [
+  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
+  { key: "saleable_area", labelKey: "analysis.saleableArea" },
+  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
+  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
+  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
+  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
+  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
+  { key: "developer_margin", labelKey: "analysis.developerMargin" },
+  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
+  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
+];
+
+const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
+  { mode: "knowledge", labelKey: "analysis.knowledgeModeLabel", hintKey: "analysis.knowledgeModeHint" },
+  { mode: "web", labelKey: "analysis.webModeLabel", hintKey: "analysis.webModeHint" },
 ];
 
 interface ModeProgress {
@@ -208,13 +230,63 @@ function ResultColumn({
   );
 }
 
+/** End-of-analysis summary table: the headline residual land value numbers,
+ * side by side for whichever modes have a completed, non-error result — added
+ * alongside (not replacing) each column's own full Residual Land Value Engine
+ * section, so the two modes can be compared directly without cross-referencing. */
+function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, ModeProgress>> }) {
+  const { t } = useLocale();
+  const available = MODES.filter(({ mode }) => {
+    const result = progress[mode]?.result;
+    return result && !result.error && result.data?.residual_land_value;
+  });
+  if (available.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-surface">
+      <div className="border-b border-border px-4 py-3">
+        <h3 className="text-sm font-semibold text-foreground">{t("analysis.comparisonHeading")}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-surface-muted">
+              <th className="px-4 py-2 text-left font-semibold text-muted-foreground">
+                {t("analysis.comparisonMetric")}
+              </th>
+              {available.map(({ mode, labelKey }) => (
+                <th key={mode} className="px-4 py-2 text-left font-semibold text-muted-foreground">
+                  {t(labelKey)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {COMPARISON_FIELDS.map(({ key, labelKey }) => (
+              <tr key={key} className="border-b border-border last:border-0">
+                <td className="px-4 py-2 text-muted-foreground">{t(labelKey)}</td>
+                {available.map(({ mode }) => (
+                  <td key={mode} className="px-4 py-2 font-medium text-foreground">
+                    {progress[mode]?.result?.data?.residual_land_value?.[key] || "—"}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function AnalysisEnginePanel() {
   const { t } = useLocale();
   const [loadingFavorites, setLoadingFavorites] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<Record<AnalysisMode, ModeProgress> | null>(null);
+  const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -235,10 +307,28 @@ export function AnalysisEnginePanel() {
     };
   }, []);
 
+  const toggleMode = (mode: AnalysisMode) => {
+    setSelectedModes((prev) => {
+      const next = new Set(prev);
+      if (next.has(mode)) next.delete(mode);
+      else next.add(mode);
+      return next;
+    });
+  };
+
+  // Switching properties makes any results on screen stale (they're for a
+  // different parcel), so start fresh rather than leaving the old parcel's numbers
+  // up next to a newly-selected one.
+  const selectParcel = (id: string) => {
+    setSelectedId(id);
+    setProgress(null);
+    setRunError(null);
+  };
+
   const applyEvent = (mode: AnalysisMode, event: AnalysisProgressEvent) => {
     setProgress((prev) => {
-      const next = { ...(prev ?? { knowledge: initialProgress(), web: initialProgress() }) };
-      const current = next[mode];
+      const next = { ...(prev ?? {}) };
+      const current = next[mode] ?? initialProgress();
       if (event.type === "status") {
         next[mode] = { ...current, status: event.status };
       } else if (event.type === "stats") {
@@ -251,16 +341,25 @@ export function AnalysisEnginePanel() {
   };
 
   const runAnalysis = async () => {
-    if (!selectedId) return;
+    const modes = [...selectedModes];
+    if (!selectedId || modes.length === 0) return;
     setRunning(true);
     setRunError(null);
-    setProgress({ knowledge: initialProgress(), web: initialProgress() });
+    // Only reset the mode(s) actually being (re)run — a previously-completed
+    // result for a mode not included in this run is left exactly as it was, so
+    // e.g. re-running just "web" after "knowledge" already finished doesn't wipe
+    // out the knowledge-based result or the comparison table built from it.
+    setProgress((prev) => {
+      const next = { ...(prev ?? {}) };
+      for (const mode of modes) next[mode] = initialProgress();
+      return next;
+    });
 
     try {
       const res = await fetch("/api/analysis-engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelId: selectedId }),
+        body: JSON.stringify({ parcelId: selectedId, modes }),
       });
 
       if (!res.ok || !res.body) {
@@ -295,6 +394,7 @@ export function AnalysisEnginePanel() {
   };
 
   const isEmpty = !loadingFavorites && parcels.length === 0;
+  const visibleModes = MODES.filter(({ mode }) => progress?.[mode]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -311,7 +411,7 @@ export function AnalysisEnginePanel() {
         {isEmpty && <p className="text-sm text-muted-foreground">{t("analysis.noFavorites")}</p>}
 
         {!isEmpty && !loadingFavorites && (
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-surface p-4">
             <div className="flex-1 min-w-[220px]">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="analysis-parcel-picker">
                 {t("analysis.pickerLabel")}
@@ -319,7 +419,7 @@ export function AnalysisEnginePanel() {
               <select
                 id="analysis-parcel-picker"
                 value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
+                onChange={(e) => selectParcel(e.target.value)}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
               >
                 {parcels.map((parcel) => (
@@ -329,10 +429,28 @@ export function AnalysisEnginePanel() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <span className="text-xs font-medium text-muted-foreground">{t("analysis.modeSelectionLabel")}</span>
+              <div className="mt-1 flex flex-wrap gap-3">
+                {MODES.map(({ mode, labelKey }) => (
+                  <label key={mode} className="flex items-center gap-1.5 text-xs text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={selectedModes.has(mode)}
+                      onChange={() => toggleMode(mode)}
+                      className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
+                    />
+                    {t(labelKey)}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={runAnalysis}
-              disabled={running || !selectedId}
+              disabled={running || !selectedId || selectedModes.size === 0}
               className={cn(
                 "rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground",
                 "disabled:opacity-50"
@@ -359,19 +477,18 @@ export function AnalysisEnginePanel() {
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row">
-              <ResultColumn
-                mode="knowledge"
-                modeLabelKey="analysis.knowledgeModeLabel"
-                modeHintKey="analysis.knowledgeModeHint"
-                progress={progress.knowledge}
-              />
-              <ResultColumn
-                mode="web"
-                modeLabelKey="analysis.webModeLabel"
-                modeHintKey="analysis.webModeHint"
-                progress={progress.web}
-              />
+              {visibleModes.map(({ mode, labelKey, hintKey }) => (
+                <ResultColumn
+                  key={mode}
+                  mode={mode}
+                  modeLabelKey={labelKey}
+                  modeHintKey={hintKey}
+                  progress={progress[mode] ?? null}
+                />
+              ))}
             </div>
+
+            <ComparisonTable progress={progress} />
           </>
         )}
       </div>

@@ -10,9 +10,8 @@ export const maxDuration = 300;
 
 const requestSchema = z.object({
   parcelId: z.string().min(1),
+  modes: z.array(z.enum(["knowledge", "web"])).min(1).max(2),
 });
-
-const MODES: AnalysisMode[] = ["knowledge", "web"];
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -41,12 +40,13 @@ export async function POST(request: Request) {
   }
 
   const clientParcel = toClientCatastroParcel(parcel);
+  const modes = parsed.data.modes as AnalysisMode[];
   const encoder = new TextEncoder();
 
-  // Runs both modes concurrently and multiplexes their progress events into a
-  // single server-sent-events stream, each line tagged with which mode it's for —
-  // this is what lets the client show live per-mode progress instead of a single
-  // blocking request that only resolves once everything is completely done.
+  // Runs the requested mode(s) concurrently and multiplexes their progress events
+  // into a single server-sent-events stream, each line tagged with which mode it's
+  // for — this is what lets the client show live per-mode progress instead of a
+  // single blocking request that only resolves once everything is completely done.
   const stream = new ReadableStream({
     async start(controller) {
       const send = (mode: AnalysisMode, event: AnalysisProgressEvent) => {
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       };
 
       await Promise.allSettled(
-        MODES.map((mode) => runAnalysisStreaming(clientParcel, mode, (event) => send(mode, event)))
+        modes.map((mode) => runAnalysisStreaming(clientParcel, mode, (event) => send(mode, event)))
       );
 
       controller.close();
