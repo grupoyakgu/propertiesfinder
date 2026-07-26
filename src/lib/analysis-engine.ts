@@ -219,11 +219,21 @@ export async function translateAnalysisResult(
   ].join("\n");
 
   try {
-    const response = await getClient().messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 8000,
-      messages: [{ role: "user", content: prompt }],
-    });
+    // Non-streaming call, so (unlike the streaming per-mode analysis) the SDK's
+    // own `timeout` option correctly bounds the whole request — fetch() only
+    // resolves once the full body arrives. Without it, the default 2 retries
+    // plus a generous default timeout could run past the translate route's
+    // maxDuration (60s), letting Vercel kill the function before this try/catch
+    // ever gets a chance to fall back to the untranslated result, surfacing a
+    // raw 504 to the client instead.
+    const response = await getClient().messages.create(
+      {
+        model: "claude-haiku-4-5",
+        max_tokens: 8000,
+        messages: [{ role: "user", content: prompt }],
+      },
+      { maxRetries: 0, timeout: 45 * 1000 }
+    );
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
