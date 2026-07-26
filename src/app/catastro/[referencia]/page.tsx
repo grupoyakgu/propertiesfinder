@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MapPinned } from "lucide-react";
+import { ArrowLeft, Earth, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
-import { formatArea, formatCatastroParcelAddress, resolveBackHref } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, googleEarthUrl, resolveBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
@@ -65,6 +65,15 @@ export default async function CatastroParcelPage({
               {parcel.referenciaCatastral}
               <CopyButton value={parcel.referenciaCatastral} />
               <LikeButton propertyId={parcel.id} initialLiked={initialLiked} />
+              <a
+                href={googleEarthUrl(parcel.latitude, parcel.longitude)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("card.openInGoogleEarth")}
+                className="rounded p-1 text-muted-foreground hover:text-primary"
+              >
+                <Earth className="h-5 w-5" />
+              </a>
             </h1>
             {parcel.streetName && (
               <p className="mt-1 text-sm font-medium text-foreground">

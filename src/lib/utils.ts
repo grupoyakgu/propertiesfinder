@@ -55,3 +55,10 @@ export function withBackHref(href: string, backHref?: string): string {
 export function resolveBackHref(from: string | undefined): string {
   return from && from.startsWith("/dashboard") ? from : "/dashboard";
 }
+
+/** A Google Earth Web deep link centered on a coordinate — eye altitude 0 (ground
+ * level target), 1000m camera distance, a slight tilt so terrain/buildings read as
+ * 3D rather than a flat top-down view. */
+export function googleEarthUrl(latitude: number, longitude: number): string {
+  return `https://earth.google.com/web/@${latitude},${longitude},0a,1000d,35y,0h,0t,0r`;
+}

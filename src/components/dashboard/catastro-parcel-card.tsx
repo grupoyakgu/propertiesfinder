@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
+import { Earth, MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
+import { formatArea, formatCatastroParcelAddress, cn, googleEarthUrl, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 import { LikeButton } from "@/components/dashboard/like-button";
@@ -88,6 +88,15 @@ export function CatastroParcelCard({
 
       <div className="mt-1 flex shrink-0 flex-col items-center gap-1">
         <LikeButton propertyId={parcel.id} initialLiked={liked ?? false} onToggle={onToggleLike} />
+        <a
+          href={googleEarthUrl(parcel.latitude, parcel.longitude)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("card.openInGoogleEarth")}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
+        >
+          <Earth className="h-4 w-4" />
+        </a>
         {selectable && (
           <button
             type="button"

@@ -253,6 +253,7 @@ const en = {
     floors: "floors",
     like: "Like",
     unlike: "Unlike",
+    openInGoogleEarth: "Open in Google Earth",
   },
   detail: {
     officialCatastroRecord: "Official Catastro Record",
@@ -547,6 +548,7 @@ const es: typeof en = {
     floors: "plantas",
     like: "Me gusta",
     unlike: "Ya no me gusta",
+    openInGoogleEarth: "Abrir en Google Earth",
   },
   detail: {
     officialCatastroRecord: "Registro Oficial del Catastro",
