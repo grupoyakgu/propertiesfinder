@@ -191,24 +191,34 @@ export async function runAnalysis(
   parcel: ClientCatastroParcel,
   mode: AnalysisMode
 ): Promise<AnalysisEngineResult> {
+  // web mode's server-side tool loop (each search/fetch is its own model turn) is
+  // the slow path — keep it bounded so a single mode can't eat the whole request's
+  // time budget and take the other (fast) mode's result down with it.
   const tools =
     mode === "web"
       ? [
-          { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 8 },
-          { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: 8 },
+          { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 4 },
+          { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: 4 },
         ]
       : undefined;
 
   try {
-    const response = await getClient().messages.create({
-      model: "claude-opus-5",
-      max_tokens: 8000,
-      system: buildSystemPrompt(mode),
-      thinking: { type: "adaptive" },
-      output_config: { effort: "high" },
-      ...(tools ? { tools } : {}),
-      messages: [{ role: "user", content: buildUserPrompt(parcel) }],
-    });
+    const response = await getClient().messages.create(
+      {
+        model: "claude-opus-5",
+        max_tokens: 8000,
+        system: buildSystemPrompt(mode),
+        thinking: { type: "adaptive" },
+        // "medium" balances thoroughness against wall-clock time — this route runs
+        // inside a hard serverless duration cap (see PER_MODE_TIMEOUT_MS below).
+        output_config: { effort: "medium" },
+        ...(tools ? { tools } : {}),
+        messages: [{ role: "user", content: buildUserPrompt(parcel) }],
+      },
+      // Fail this one mode on its own before the platform kills the whole request —
+      // leaves the other (usually faster) mode's result intact instead of losing both.
+      { timeout: PER_MODE_TIMEOUT_MS }
+    );
 
     if (response.stop_reason === "refusal") {
       return { mode, report: "", data: null, error: "The model declined to analyze this request." };
@@ -229,6 +239,10 @@ export async function runAnalysis(
     };
   }
 }
+
+// Leaves headroom under the API route's maxDuration (see src/app/api/analysis-engine/route.ts)
+// for the response to actually be returned rather than getting cut off mid-flight.
+const PER_MODE_TIMEOUT_MS = 4 * 60 * 1000;
 
 export async function runFullAnalysis(
   parcel: ClientCatastroParcel
