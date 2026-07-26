@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
+import { MapPinned, Search, SlidersHorizontal, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -393,8 +393,10 @@ export function DashboardApp({
   };
 
   // Reveal a single property on the map: add it to the selection (so it actually
-  // renders when "show all on map" is off) and switch to map view if the user is
-  // currently on the table. A card can only be clicked from the list that's already
+  // renders when "show all on map" is off) and pan/zoom to it if needed. Does not
+  // switch to map view itself — whether the map pane is shown at all is controlled
+  // solely from the Settings tab (see MapDisplaySettings), never as a side effect
+  // of another action. A card can only be clicked from the list that's already
   // scoped to the current map view (or, before any pan/preset, the unscoped full
   // list) — so re-centering/zooming on it here would either do nothing useful or,
   // worse, collapse the viewport (and therefore the table/card scope, and every
@@ -404,7 +406,6 @@ export function DashboardApp({
     const marker = markers.find((m) => m.id === id);
     if (!marker) return;
     setSelectedIds((prev) => new Set(prev).add(id));
-    setMapVisible(true);
 
     const alreadyInView =
       mapBounds != null &&
@@ -457,15 +458,6 @@ export function DashboardApp({
           className="flex items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground lg:hidden"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" /> {t("dashboard.filters")}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMapVisible((v) => !v)}
-          className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground sm:flex"
-        >
-          {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
-          {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
 
         <PresetQuickSwitch
@@ -551,7 +543,12 @@ export function DashboardApp({
       <div className="flex flex-1 overflow-hidden">
         {settingsOpen ? (
           <div className="flex-1 overflow-y-auto">
-            <MapDisplaySettings showAllOnMap={showAllOnMap} onChange={setShowAllOnMap} />
+            <MapDisplaySettings
+              mapVisible={mapVisible}
+              onMapVisibleChange={setMapVisible}
+              showAllOnMap={showAllOnMap}
+              onChange={setShowAllOnMap}
+            />
             <PresetSettingsPanel
               presets={presets}
               canSave={mapBounds != null}

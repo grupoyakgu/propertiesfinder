@@ -47,8 +47,6 @@ const en = {
   dashboard: {
     searchPlaceholder: "Search by city, province, or referencia catastral...",
     filters: "Filters",
-    hideMap: "Hide Map",
-    showMap: "Show Map",
     tabCatastro: "Official Catastro Records",
     tabFavorites: "Favorites",
     tabAnalysis: "Analysis Engine",
@@ -65,6 +63,7 @@ const en = {
     mapDisplayTitle: "Map display",
     mapDisplayDescription:
       "Choose whether matching properties appear on the map automatically, or only the ones you pick from the list.",
+    mapViewToggle: "Show map view instead of the list",
     showOnMapToggle: "Show properties on map automatically",
     selectAll: "Select all",
     clearSelection: "Clear selection",
@@ -332,8 +331,6 @@ const es: typeof en = {
   dashboard: {
     searchPlaceholder: "Busca por ciudad, provincia o referencia catastral...",
     filters: "Filtros",
-    hideMap: "Ocultar mapa",
-    showMap: "Mostrar mapa",
     tabCatastro: "Registros Oficiales del Catastro",
     tabFavorites: "Favoritos",
     tabAnalysis: "Motor de Análisis",
@@ -352,6 +349,7 @@ const es: typeof en = {
     mapDisplayTitle: "Visualización del mapa",
     mapDisplayDescription:
       "Elige si las propiedades que coinciden aparecen automáticamente en el mapa, o solo las que selecciones de la lista.",
+    mapViewToggle: "Mostrar la vista de mapa en lugar de la lista",
     showOnMapToggle: "Mostrar propiedades en el mapa automáticamente",
     selectAll: "Seleccionar todo",
     clearSelection: "Borrar selección",
