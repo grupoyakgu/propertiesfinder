@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Earth, MapPinned } from "lucide-react";
+import { ArrowLeft, Compass, Earth, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
-import { formatArea, formatCatastroParcelAddress, googleEarthUrl, resolveBackHref } from "@/lib/utils";
+import {
+  formatArea,
+  formatCatastroParcelAddress,
+  googleEarthUrl,
+  googleEarthAddressUrl,
+  resolveBackHref,
+} from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
@@ -73,6 +79,15 @@ export default async function CatastroParcelPage({
                 className="rounded p-1 text-muted-foreground hover:text-primary"
               >
                 <Earth className="h-5 w-5" />
+              </a>
+              <a
+                href={googleEarthAddressUrl(formatCatastroParcelAddress(parcel))}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("card.openInGoogleEarthByAddress")}
+                className="rounded p-1 text-muted-foreground hover:text-primary"
+              >
+                <Compass className="h-5 w-5" />
               </a>
             </h1>
             {parcel.streetName && (

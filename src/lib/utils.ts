@@ -56,11 +56,20 @@ export function resolveBackHref(from: string | undefined): string {
   return from && from.startsWith("/dashboard") ? from : "/dashboard";
 }
 
-/** A Google Earth Web deep link that drops the traditional red placemark pin at a
- * coordinate (the /search/ path, same as searching an address in Earth's UI — the
- * plain /@lat,lng.../ camera path alone shows no pin) and frames the camera on it:
- * eye altitude 0 (ground-level target), 1000m distance, a slight tilt so
- * terrain/buildings read as 3D rather than a flat top-down view. */
+/** A Google Earth Web deep link that frames the camera on a coordinate: eye altitude
+ * 0 (ground-level target), 1000m distance, a slight tilt so terrain/buildings read
+ * as 3D rather than a flat top-down view. Note: raw lat/lng through the /search/
+ * path does NOT reliably drop Earth's red placemark pin — Earth's geocoder wants a
+ * real address, not decimal coordinates as free text. Use googleEarthAddressUrl for
+ * that; this one is kept for a coordinate-only fallback when no address is known. */
 export function googleEarthUrl(latitude: number, longitude: number): string {
   return `https://earth.google.com/web/search/${latitude},${longitude}/@${latitude},${longitude},0a,1000d,35y,0h,0t,0r`;
+}
+
+/** A Google Earth Web deep link built from a human address (street, municipality,
+ * province) instead of coordinates — the same /web/search/ path Earth's own search
+ * box uses, but fed a geocodable string so its search actually resolves to a place
+ * and drops the traditional red placemark pin there. */
+export function googleEarthAddressUrl(address: string): string {
+  return `https://earth.google.com/web/search/${encodeURIComponent(address)}`;
 }

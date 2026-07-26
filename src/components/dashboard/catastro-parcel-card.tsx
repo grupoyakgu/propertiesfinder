@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Earth, MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
+import { Compass, Earth, MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress, cn, googleEarthUrl, withBackHref } from "@/lib/utils";
+import {
+  formatArea,
+  formatCatastroParcelAddress,
+  cn,
+  googleEarthUrl,
+  googleEarthAddressUrl,
+  withBackHref,
+} from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 import { LikeButton } from "@/components/dashboard/like-button";
@@ -96,6 +103,15 @@ export function CatastroParcelCard({
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
         >
           <Earth className="h-4 w-4" />
+        </a>
+        <a
+          href={googleEarthAddressUrl(formatCatastroParcelAddress(parcel))}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("card.openInGoogleEarthByAddress")}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
+        >
+          <Compass className="h-4 w-4" />
         </a>
         {selectable && (
           <button

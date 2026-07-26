@@ -254,6 +254,7 @@ const en = {
     like: "Like",
     unlike: "Unlike",
     openInGoogleEarth: "Open in Google Earth",
+    openInGoogleEarthByAddress: "Open in Google Earth (test: by address)",
   },
   detail: {
     officialCatastroRecord: "Official Catastro Record",
@@ -549,6 +550,7 @@ const es: typeof en = {
     like: "Me gusta",
     unlike: "Ya no me gusta",
     openInGoogleEarth: "Abrir en Google Earth",
+    openInGoogleEarthByAddress: "Abrir en Google Earth (prueba: por dirección)",
   },
   detail: {
     officialCatastroRecord: "Registro Oficial del Catastro",
