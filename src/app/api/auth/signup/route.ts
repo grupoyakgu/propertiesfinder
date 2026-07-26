@@ -9,6 +9,14 @@ const signupSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+// The designated first admin. Normally promoted via the migration's one-time
+// data fix (see prisma/migrations/*_add_user_admin_permissions), but this
+// covers signing up fresh in an environment where that migration already ran
+// before this account existed. There is no UI to grant admin beyond this —
+// any further admins are promoted the same way the migration did, via a
+// direct database update.
+const INITIAL_ADMIN_EMAIL = "koby.ram1@gmail.com";
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = signupSchema.safeParse(body);
@@ -28,7 +36,7 @@ export async function POST(request: Request) {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { name, email, passwordHash },
+    data: { name, email, passwordHash, isAdmin: email === INITIAL_ADMIN_EMAIL },
     select: { id: true, name: true, email: true },
   });
 

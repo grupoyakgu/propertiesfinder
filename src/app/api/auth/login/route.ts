@@ -21,6 +21,12 @@ export async function POST(request: Request) {
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
+  if (!user.isActive) {
+    return NextResponse.json(
+      { error: "This account has been disabled. Contact an administrator." },
+      { status: 403 }
+    );
+  }
 
   await setSessionCookie(user.id);
 

@@ -46,10 +46,29 @@ export async function getCurrentUser() {
   const userId = await verifySessionToken(token);
   if (!userId) return null;
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+      isAdmin: true,
+      isActive: true,
+      permissions: true,
+    },
   });
+
+  // A disabled user is treated as logged out everywhere this is called — every
+  // route/page already gates on `if (!user) ...`, so this alone is enough to
+  // deny them without a separate revocation check at each call site. We can't
+  // also clear their session cookie here since this runs from Server Component
+  // render paths too, where Next.js forbids writing cookies; they'll simply
+  // fail auth on every subsequent request and can't log back in (see the login
+  // route's isActive check) until re-enabled.
+  if (!user || !user.isActive) return null;
+
+  return user;
 }
 
 export async function setSessionCookie(userId: string) {

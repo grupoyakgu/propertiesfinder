@@ -60,6 +60,9 @@ export default async function DashboardPage({
       initialMapBounds={initialMapBounds}
       initialPresets={initialPresets}
       initialLikedIds={initialLikedIds}
+      currentUserId={user?.id ?? ""}
+      isAdmin={user?.isAdmin ?? false}
+      canUseAnalysisEngine={user?.permissions.includes("analysis_engine") ?? false}
     />
   );
 }

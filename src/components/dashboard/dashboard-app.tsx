@@ -18,6 +18,7 @@ import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-pane
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
 import { FavoritesPanel } from "@/components/dashboard/favorites-panel";
 import { AnalysisEnginePanel } from "@/components/dashboard/analysis-engine-panel";
+import { AdminPanel } from "@/components/dashboard/admin-panel";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
@@ -82,12 +83,18 @@ export function DashboardApp({
   initialMapBounds = null,
   initialPresets = [],
   initialLikedIds = [],
+  currentUserId = "",
+  isAdmin = false,
+  canUseAnalysisEngine = false,
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
   initialMapBounds?: BoundsBox | null;
   initialPresets?: ClientMapPreset[];
   initialLikedIds?: string[];
+  currentUserId?: string;
+  isAdmin?: boolean;
+  canUseAnalysisEngine?: boolean;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -132,6 +139,19 @@ export function DashboardApp({
   // Another separate tab: the AI-powered urban-planning feasibility engine, run
   // against one of the user's liked properties — mutually exclusive with the rest.
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  // Admin-only tab (button isn't even rendered for a non-admin, so this can
+  // only become true for one) for managing all users — mutually exclusive with
+  // the rest.
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  // Switches which of the mutually-exclusive tabs above is open; null means
+  // the default Catastro results view.
+  const openTab = (tab: "favorites" | "analysis" | "settings" | "admin" | null) => {
+    setFavoritesOpen(tab === "favorites");
+    setAnalysisOpen(tab === "analysis");
+    setSettingsOpen(tab === "settings");
+    setAdminOpen(tab === "admin");
+  };
   // Seeds every card/table row/map popup's "is this liked" state. Kept centrally so
   // switching between card list, table, and map views (which remount their rows)
   // always renders the current like state instead of resetting to "not liked."
@@ -460,14 +480,10 @@ export function DashboardApp({
       <div className="flex items-center gap-1 border-b border-border bg-surface px-4 py-2">
         <button
           type="button"
-          onClick={() => {
-            setFavoritesOpen(false);
-            setAnalysisOpen(false);
-            setSettingsOpen(false);
-          }}
+          onClick={() => openTab(null)}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            !settingsOpen && !favoritesOpen && !analysisOpen
+            !settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-surface-muted"
           )}
@@ -476,11 +492,7 @@ export function DashboardApp({
         </button>
         <button
           type="button"
-          onClick={() => {
-            setFavoritesOpen(true);
-            setAnalysisOpen(false);
-            setSettingsOpen(false);
-          }}
+          onClick={() => openTab("favorites")}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
             favoritesOpen
@@ -490,29 +502,23 @@ export function DashboardApp({
         >
           {t("dashboard.tabFavorites")}
         </button>
+        {canUseAnalysisEngine && (
+          <button
+            type="button"
+            onClick={() => openTab("analysis")}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              analysisOpen
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-surface-muted"
+            )}
+          >
+            {t("dashboard.tabAnalysis")}
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => {
-            setAnalysisOpen(true);
-            setFavoritesOpen(false);
-            setSettingsOpen(false);
-          }}
-          className={cn(
-            "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            analysisOpen
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-surface-muted"
-          )}
-        >
-          {t("dashboard.tabAnalysis")}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setSettingsOpen(true);
-            setFavoritesOpen(false);
-            setAnalysisOpen(false);
-          }}
+          onClick={() => openTab("settings")}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
             settingsOpen
@@ -522,6 +528,20 @@ export function DashboardApp({
         >
           {t("dashboard.tabSettings")}
         </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => openTab("admin")}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              adminOpen
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-surface-muted"
+            )}
+          >
+            {t("dashboard.tabAdmin")}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -541,13 +561,15 @@ export function DashboardApp({
           <FavoritesPanel />
         ) : analysisOpen ? (
           <AnalysisEnginePanel />
+        ) : adminOpen ? (
+          <AdminPanel currentUserId={currentUserId} />
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
             <FiltersSidebar filters={filters} onChange={setFilters} />
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && !analysisOpen && mapVisible && (
+        {!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -583,7 +605,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && !analysisOpen && !mapVisible && (
+        {!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && !mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -621,14 +643,14 @@ export function DashboardApp({
           <div
             className={cn(
               "relative",
-              !settingsOpen && !favoritesOpen && !analysisOpen && mapVisible ? "flex-1" : "hidden"
+              !settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible ? "flex-1" : "hidden"
             )}
           >
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
-              visible={!settingsOpen && !favoritesOpen && !analysisOpen && mapVisible}
+              visible={!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
               likedIds={likedIds}

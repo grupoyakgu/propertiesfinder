@@ -37,6 +37,19 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
+  // Admins get a dashboard-only "Admin" tab for managing all users. There is no
+  // UI to grant/revoke this — the only admin promotion path is a direct DB
+  // update (see the add_user_admin_permissions migration's data fix for the
+  // one-time bootstrap of the first admin).
+  isAdmin      Boolean  @default(false)
+  // A disabled user is treated as logged out everywhere getCurrentUser() is
+  // used (every route/page already gates on that), and is blocked from
+  // logging back in at all.
+  isActive     Boolean  @default(true)
+  // Feature flags an admin can grant/revoke per user — see src/lib/permissions.ts
+  // for the known set. Defaults to granting every current permission so existing
+  // users keep working unchanged; an admin can then selectively revoke.
+  permissions  String[] @default(["analysis_engine"])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

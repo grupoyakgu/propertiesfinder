@@ -100,6 +100,12 @@ export async function GET(request: Request) {
       headers: { "Content-Type": "application/json" },
     });
   }
+  if (!user.permissions.includes("analysis_engine")) {
+    return new Response(JSON.stringify({ error: "Analysis Engine access is disabled for your account" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   const parcelId = new URL(request.url).searchParams.get("parcelId");
   if (!parcelId) {
@@ -127,6 +133,12 @@ export async function POST(request: Request) {
   if (!user) {
     return new Response(JSON.stringify({ error: "Not signed in" }), {
       status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!user.permissions.includes("analysis_engine")) {
+    return new Response(JSON.stringify({ error: "Analysis Engine access is disabled for your account" }), {
+      status: 403,
       headers: { "Content-Type": "application/json" },
     });
   }
