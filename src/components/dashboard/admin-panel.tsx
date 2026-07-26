@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
+import { type Permission } from "@/lib/permissions";
+
+// One row per togglable permission column, in display order.
+const PERMISSION_COLUMNS: { permission: Permission; labelKey: string }[] = [
+  { permission: "analysis_engine", labelKey: "admin.colAnalysisEngine" },
+  { permission: "delete_preset", labelKey: "admin.colDeletePreset" },
+];
 
 interface AdminUser {
   id: string;
@@ -16,7 +23,7 @@ interface AdminUser {
 }
 
 /** The Admin tab: lists every user and lets an admin enable/disable an account
- * or toggle its per-feature permissions (currently just Analysis Engine).
+ * or toggle its per-feature permissions (see PERMISSION_COLUMNS above).
  * Fetches its own data on mount — only ever rendered for an admin (the tab
  * itself is hidden from everyone else in dashboard-app.tsx), but every
  * mutation is re-checked admin-only server-side regardless. */
@@ -76,11 +83,9 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
 
   const toggleActive = (u: AdminUser) => patchUser(u.id, { isActive: !u.isActive });
 
-  const toggleAnalysisEngine = (u: AdminUser) => {
-    const has = u.permissions.includes("analysis_engine");
-    const permissions = has
-      ? u.permissions.filter((p) => p !== "analysis_engine")
-      : [...u.permissions, "analysis_engine"];
+  const togglePermission = (u: AdminUser, permission: Permission) => {
+    const has = u.permissions.includes(permission);
+    const permissions = has ? u.permissions.filter((p) => p !== permission) : [...u.permissions, permission];
     patchUser(u.id, { permissions });
   };
 
@@ -112,9 +117,11 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
                   <th className="px-4 py-2 text-left font-semibold text-muted-foreground">{t("admin.colName")}</th>
                   <th className="px-4 py-2 text-left font-semibold text-muted-foreground">{t("admin.colEmail")}</th>
                   <th className="px-4 py-2 text-left font-semibold text-muted-foreground">{t("admin.colStatus")}</th>
-                  <th className="px-4 py-2 text-left font-semibold text-muted-foreground">
-                    {t("admin.colAnalysisEngine")}
-                  </th>
+                  {PERMISSION_COLUMNS.map(({ permission, labelKey }) => (
+                    <th key={permission} className="px-4 py-2 text-left font-semibold text-muted-foreground">
+                      {t(labelKey)}
+                    </th>
+                  ))}
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
@@ -122,7 +129,6 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
                 {users.map((u) => {
                   const isSelf = u.id === currentUserId;
                   const isPending = pending.has(u.id);
-                  const hasAnalysisEngine = u.permissions.includes("analysis_engine");
                   return (
                     <tr key={u.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 font-medium text-foreground">
@@ -147,18 +153,17 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
                           {u.isActive ? t("admin.statusEnabled") : t("admin.statusDisabled")}
                         </span>
                       </td>
-                      <td className="px-4 py-2">
-                        <label className="flex items-center gap-1.5">
+                      {PERMISSION_COLUMNS.map(({ permission }) => (
+                        <td key={permission} className="px-4 py-2">
                           <input
                             type="checkbox"
-                            checked={hasAnalysisEngine}
+                            checked={u.permissions.includes(permission)}
                             disabled={isPending}
-                            onChange={() => toggleAnalysisEngine(u)}
+                            onChange={() => togglePermission(u, permission)}
                             className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
                           />
-                          <span className="text-muted-foreground">{t("admin.colAnalysisEngine")}</span>
-                        </label>
-                      </td>
+                        </td>
+                      ))}
                       <td className="px-4 py-2 text-right">
                         <button
                           type="button"

@@ -68,6 +68,9 @@ export async function DELETE(_request: Request, ctx: RouteContext<"/api/map-pres
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  if (!user.permissions.includes("delete_preset")) {
+    return NextResponse.json({ error: "Deleting presets is disabled for your account" }, { status: 403 });
+  }
 
   const { id } = await ctx.params;
   const existing = await prisma.mapPreset.findUnique({ where: { id } });

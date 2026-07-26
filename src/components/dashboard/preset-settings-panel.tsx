@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 export function PresetSettingsPanel({
   presets,
   canSave,
+  canDelete,
   onSave,
   onDelete,
   onSetDefault,
@@ -16,6 +17,7 @@ export function PresetSettingsPanel({
 }: {
   presets: ClientMapPreset[];
   canSave: boolean;
+  canDelete: boolean;
   onSave: (name: string) => void | Promise<void>;
   onDelete: (id: string) => void | Promise<void>;
   onSetDefault: (id: string, isDefault: boolean) => void | Promise<void>;
@@ -152,14 +154,16 @@ export function PresetSettingsPanel({
                       >
                         <Star className="h-4 w-4" fill={preset.isDefault ? "currentColor" : "none"} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(preset)}
-                        title={t("presets.delete")}
-                        className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-danger"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(preset)}
+                          title={t("presets.delete")}
+                          className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

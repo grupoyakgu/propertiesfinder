@@ -63,6 +63,7 @@ export default async function DashboardPage({
       currentUserId={user?.id ?? ""}
       isAdmin={user?.isAdmin ?? false}
       canUseAnalysisEngine={user?.permissions.includes("analysis_engine") ?? false}
+      canDeletePreset={user?.permissions.includes("delete_preset") ?? false}
     />
   );
 }

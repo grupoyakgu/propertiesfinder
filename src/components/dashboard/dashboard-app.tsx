@@ -86,6 +86,7 @@ export function DashboardApp({
   currentUserId = "",
   isAdmin = false,
   canUseAnalysisEngine = false,
+  canDeletePreset = false,
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
@@ -95,6 +96,7 @@ export function DashboardApp({
   currentUserId?: string;
   isAdmin?: boolean;
   canUseAnalysisEngine?: boolean;
+  canDeletePreset?: boolean;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -551,6 +553,7 @@ export function DashboardApp({
             <PresetSettingsPanel
               presets={presets}
               canSave={mapBounds != null}
+              canDelete={canDeletePreset}
               onSave={savePreset}
               onDelete={deletePreset}
               onSetDefault={setDefaultPreset}
