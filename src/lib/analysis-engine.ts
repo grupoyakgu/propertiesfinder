@@ -187,6 +187,61 @@ function extractReport(text: string): string {
   return text.replace(/```json\s*[\s\S]*?```/gi, "").trim();
 }
 
+export type OutputLanguage = "en" | "es" | "he";
+
+const LANGUAGE_NAMES: Record<OutputLanguage, string> = {
+  en: "English",
+  es: "Spanish (Español)",
+  he: "Hebrew (עברית)",
+};
+
+/** Translates an already-generated result's report and JSON summary values into
+ * another language, keeping the JSON's keys/shape untouched — a separate, cheap
+ * pass over existing text rather than re-running the (much more expensive)
+ * feasibility analysis itself in a different language. */
+export async function translateAnalysisResult(
+  result: AnalysisEngineResult,
+  targetLanguage: OutputLanguage
+): Promise<AnalysisEngineResult> {
+  if (result.error || (!result.report && !result.data)) return result;
+
+  const prompt = [
+    `Translate the following real-estate feasibility report and its JSON summary into ${LANGUAGE_NAMES[targetLanguage]}.`,
+    `Translate all prose and free-text field values. Do NOT translate JSON key names, numbers, units, or currency symbols — keep the exact same JSON structure and keys.`,
+    `Preserve the report's markdown headings and structure.`,
+    `Output the translated report first, then a single fenced \`\`\`json code block containing the translated JSON object with the exact same keys/shape as the input JSON below (omit the JSON block entirely if the input JSON is "(none)").`,
+    ``,
+    `--- REPORT ---`,
+    result.report || "(no report text)",
+    ``,
+    `--- JSON ---`,
+    result.data ? JSON.stringify(result.data, null, 2) : "(none)",
+  ].join("\n");
+
+  try {
+    const response = await getClient().messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 8000,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
+
+    return {
+      ...result,
+      report: extractReport(text) || result.report,
+      data: extractJsonBlock(text) ?? result.data,
+    };
+  } catch {
+    // Translation is a nice-to-have on top of an already-successful analysis —
+    // fall back to the original rather than surfacing a translation failure.
+    return result;
+  }
+}
+
 export type AnalysisProgressEvent =
   | { type: "status"; status: string }
   | { type: "stats"; elapsedMs: number; outputChars: number; toolCalls: number }
@@ -194,6 +249,15 @@ export type AnalysisProgressEvent =
 
 // Leaves headroom under the API route's maxDuration (see src/app/api/analysis-engine/route.ts)
 // for the response to actually be returned rather than getting cut off mid-flight.
+//
+// NOTE: the SDK's own `timeout` request option does NOT bound this for a streaming
+// request — `fetch()` resolves as soon as response headers arrive (i.e. once the
+// stream opens), so the SDK's per-fetch timer is cleared right away and never
+// covers the time spent reading the streamed body afterward. A slow-but-steadily-
+// streaming response (thinking/tool-use deltas trickling in for minutes) can run
+// well past this "timeout" with no error — which is exactly what let a request
+// through to Vercel's own hard 300s function-duration kill in production. We
+// enforce it ourselves below via `stream.abort()` on a plain wall-clock setTimeout.
 const PER_MODE_TIMEOUT_MS = 200 * 1000;
 
 /** Runs one mode's analysis, calling `onEvent` with live progress (status text,
@@ -221,6 +285,7 @@ export async function runAnalysisStreaming(
   const emitStats = () =>
     onEvent({ type: "stats", elapsedMs: Date.now() - startedAt, outputChars, toolCalls });
   const statsInterval = setInterval(emitStats, 2000);
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
 
   try {
     const stream = getClient().messages.stream(
@@ -238,8 +303,13 @@ export async function runAnalysisStreaming(
       // No retries: a timed-out request should fail fast (and let the client see
       // that failure) rather than silently retrying (default maxRetries=2) and
       // blowing well past the route's own duration cap in the process.
-      { timeout: PER_MODE_TIMEOUT_MS, maxRetries: 0 }
+      { maxRetries: 0 }
     );
+
+    // The actual wall-clock enforcement (see the note on PER_MODE_TIMEOUT_MS
+    // above) — the SDK's own `timeout` option doesn't cover a streaming response's
+    // full body-read duration, so we abort it ourselves after the deadline.
+    watchdog = setTimeout(() => stream.abort(), PER_MODE_TIMEOUT_MS);
 
     onEvent({ type: "status", status: "Starting…" });
 
@@ -285,5 +355,6 @@ export async function runAnalysisStreaming(
     });
   } finally {
     clearInterval(statsInterval);
+    clearTimeout(watchdog);
   }
 }

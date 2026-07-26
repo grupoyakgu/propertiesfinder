@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, Copy, Sparkles } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, AnalysisProgressEvent } from "@/lib/analysis-engine";
+import type {
+  AnalysisEngineData,
+  AnalysisEngineResult,
+  AnalysisMode,
+  AnalysisProgressEvent,
+  OutputLanguage,
+} from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelAddress } from "@/lib/utils";
+
+const OUTPUT_LANGUAGES: { value: OutputLanguage; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Español" },
+  { value: "he", label: "עברית" },
+];
 
 interface Field {
   key: keyof AnalysisEngineData;
@@ -84,6 +96,10 @@ interface ModeProgress {
   outputChars: number;
   toolCalls: number;
   result: AnalysisEngineResult | null;
+  // True when this entry exists only because the mode wasn't selected for the
+  // most recent run and has no earlier saved result — a placeholder telling the
+  // user why the column is empty, not an actual run.
+  notice?: boolean;
 }
 
 function initialProgress(): ModeProgress {
@@ -121,16 +137,75 @@ function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModePro
   );
 }
 
+/** Plain-text rendition of one mode's result, for the copy-to-clipboard button —
+ * mirrors what's on screen (summary fields, residual land value, full report). */
+function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  const lines: string[] = [];
+  if (result.data) {
+    for (const { key, labelKey } of SUMMARY_FIELDS) {
+      const value = result.data[key];
+      if (typeof value === "string" && value) lines.push(`${t(labelKey)}: ${value}`);
+    }
+    for (const { key, labelKey } of LIST_FIELDS) {
+      const value = result.data[key];
+      if (Array.isArray(value) && value.length > 0) lines.push(`${t(labelKey)}: ${value.join(", ")}`);
+    }
+    if (result.data.residual_land_value) {
+      lines.push("", t("analysis.residualLandValueHeading"));
+      for (const { key, labelKey } of RESIDUAL_FIELDS) {
+        const value = result.data.residual_land_value[key];
+        if (value) lines.push(`${t(labelKey)}: ${value}`);
+      }
+    }
+  }
+  if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
+  return lines.join("\n");
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const { t } = useLocale();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access can be denied by the browser — silently ignore, the
+      // button just won't show the "copied" confirmation.
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={label}
+      className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-surface-muted"
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? t("analysis.copied") : null}
+    </button>
+  );
+}
+
 function ResultColumn({
   mode,
   modeLabelKey,
   modeHintKey,
   progress,
+  outputLanguage,
+  onLanguageChange,
+  translating,
 }: {
   mode: AnalysisMode;
   modeLabelKey: string;
   modeHintKey: string;
   progress: ModeProgress | null;
+  outputLanguage: OutputLanguage;
+  onLanguageChange: (mode: AnalysisMode, language: OutputLanguage) => void;
+  translating: boolean;
 }) {
   const { t } = useLocale();
   const result = progress?.result ?? null;
@@ -138,11 +213,43 @@ function ResultColumn({
   return (
     <div className="flex-1 min-w-0 rounded-lg border border-border bg-surface">
       <div className="border-b border-border px-4 py-3">
-        <h3 className="text-sm font-semibold text-foreground">{t(modeLabelKey)}</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t(modeHintKey)}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">{t(modeLabelKey)}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t(modeHintKey)}</p>
+          </div>
+          {result && !result.error && (
+            <div className="flex shrink-0 items-center gap-2">
+              <label className="sr-only" htmlFor={`analysis-output-language-${mode}`}>
+                {t("analysis.outputLanguageLabel")}
+              </label>
+              <select
+                id={`analysis-output-language-${mode}`}
+                value={outputLanguage}
+                onChange={(e) => onLanguageChange(mode, e.target.value as OutputLanguage)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+              >
+                {OUTPUT_LANGUAGES.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <CopyButton text={buildCopyText(result, t)} label={t("analysis.copyResult")} />
+            </div>
+          )}
+        </div>
+        {translating && <p className="mt-1 text-xs text-muted-foreground">{t("analysis.translating")}</p>}
       </div>
 
-      {progress && !result && <ProgressBar mode={mode} progress={progress} />}
+      {progress?.notice && !result && (
+        <div className="flex items-start gap-2 p-4 text-xs text-muted-foreground">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{t("analysis.notSelectedNotice")}</span>
+        </div>
+      )}
+
+      {progress && !progress.notice && !result && <ProgressBar mode={mode} progress={progress} />}
 
       {result?.error && (
         <div className="flex items-start gap-2 p-4 text-xs text-danger">
@@ -154,7 +261,7 @@ function ResultColumn({
       )}
 
       {result && !result.error && (
-        <div className="space-y-6 p-4">
+        <div className="space-y-6 p-4" dir={outputLanguage === "he" ? "rtl" : undefined}>
           {result.data && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -242,10 +349,22 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
   });
   if (available.length === 0) return null;
 
+  const copyText = [
+    t("analysis.comparisonHeading"),
+    "",
+    [t("analysis.comparisonMetric"), ...available.map(({ labelKey }) => t(labelKey))].join("\t"),
+    ...COMPARISON_FIELDS.map(({ key, labelKey }) =>
+      [t(labelKey), ...available.map(({ mode }) => progress[mode]?.result?.data?.residual_land_value?.[key] || "—")].join(
+        "\t"
+      )
+    ),
+  ].join("\n");
+
   return (
     <div className="rounded-lg border border-border bg-surface">
-      <div className="border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold text-foreground">{t("analysis.comparisonHeading")}</h3>
+        <CopyButton text={copyText} label={t("analysis.copyResult")} />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -288,6 +407,14 @@ export function AnalysisEnginePanel() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [outputLanguage, setOutputLanguage] = useState<Record<AnalysisMode, OutputLanguage>>({
+    knowledge: "en",
+    web: "en",
+  });
+  // Translated copies of each mode's original result, cached per language so
+  // switching back and forth doesn't re-request a translation already fetched.
+  const [translations, setTranslations] = useState<Partial<Record<AnalysisMode, Partial<Record<OutputLanguage, AnalysisEngineResult>>>>>({});
+  const [translating, setTranslating] = useState<Partial<Record<AnalysisMode, boolean>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -323,6 +450,32 @@ export function AnalysisEnginePanel() {
     setSelectedId(id);
     setProgress(null);
     setRunError(null);
+    setOutputLanguage({ knowledge: "en", web: "en" });
+    setTranslations({});
+  };
+
+  const changeLanguage = async (mode: AnalysisMode, language: OutputLanguage) => {
+    setOutputLanguage((prev) => ({ ...prev, [mode]: language }));
+    // "en" is always the original, untranslated result — nothing to fetch.
+    if (language === "en" || translations[mode]?.[language]) return;
+
+    const original = progress?.[mode]?.result;
+    if (!original || original.error) return;
+
+    setTranslating((prev) => ({ ...prev, [mode]: true }));
+    try {
+      const res = await fetch("/api/analysis-engine/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, report: original.report, data: original.data, targetLanguage: language }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.result) {
+        setTranslations((prev) => ({ ...prev, [mode]: { ...(prev[mode] ?? {}), [language]: json.result } }));
+      }
+    } finally {
+      setTranslating((prev) => ({ ...prev, [mode]: false }));
+    }
   };
 
   const applyEvent = (mode: AnalysisMode, event: AnalysisProgressEvent) => {
@@ -348,10 +501,28 @@ export function AnalysisEnginePanel() {
     // Only reset the mode(s) actually being (re)run — a previously-completed
     // result for a mode not included in this run is left exactly as it was, so
     // e.g. re-running just "web" after "knowledge" already finished doesn't wipe
-    // out the knowledge-based result or the comparison table built from it.
+    // out the knowledge-based result or the comparison table built from it. A
+    // mode that's neither selected now nor has an earlier saved result gets a
+    // notice explaining why it's empty, instead of just silently not appearing.
     setProgress((prev) => {
       const next = { ...(prev ?? {}) };
       for (const mode of modes) next[mode] = initialProgress();
+      for (const { mode } of MODES) {
+        if (modes.includes(mode)) continue;
+        if (!next[mode]?.result) next[mode] = { ...initialProgress(), notice: true };
+      }
+      return next;
+    });
+    // A fresh run invalidates any cached translations of the old result for that
+    // mode, and resets its language selector back to the original.
+    setOutputLanguage((prev) => {
+      const next = { ...prev };
+      for (const mode of modes) next[mode] = "en";
+      return next;
+    });
+    setTranslations((prev) => {
+      const next = { ...prev };
+      for (const mode of modes) delete next[mode];
       return next;
     });
 
@@ -477,15 +648,27 @@ export function AnalysisEnginePanel() {
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row">
-              {visibleModes.map(({ mode, labelKey, hintKey }) => (
-                <ResultColumn
-                  key={mode}
-                  mode={mode}
-                  modeLabelKey={labelKey}
-                  modeHintKey={hintKey}
-                  progress={progress[mode] ?? null}
-                />
-              ))}
+              {visibleModes.map(({ mode, labelKey, hintKey }) => {
+                const modeProgress = progress[mode] ?? null;
+                const lang = outputLanguage[mode];
+                const displayedResult =
+                  lang === "en" ? modeProgress?.result : translations[mode]?.[lang] ?? modeProgress?.result;
+                const displayProgress: ModeProgress | null = modeProgress
+                  ? { ...modeProgress, result: displayedResult ?? null }
+                  : null;
+                return (
+                  <ResultColumn
+                    key={mode}
+                    mode={mode}
+                    modeLabelKey={labelKey}
+                    modeHintKey={hintKey}
+                    progress={displayProgress}
+                    outputLanguage={lang}
+                    onLanguageChange={changeLanguage}
+                    translating={translating[mode] ?? false}
+                  />
+                );
+              })}
             </div>
 
             <ComparisonTable progress={progress} />
