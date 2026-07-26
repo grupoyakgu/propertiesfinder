@@ -80,6 +80,7 @@ function SelectionToolbar({
 export function DashboardApp({
   initialFilters,
   initialMapVisible = false,
+  initialShowAllOnMap = false,
   initialMapBounds = null,
   initialPresets = [],
   initialLikedIds = [],
@@ -91,6 +92,7 @@ export function DashboardApp({
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
+  initialShowAllOnMap?: boolean;
   initialMapBounds?: BoundsBox | null;
   initialPresets?: ClientMapPreset[];
   initialLikedIds?: string[];
@@ -135,7 +137,10 @@ export function DashboardApp({
   // full (potentially large) matching set — avoids ever rendering more markers/
   // boundary polygons than the user actually wants to see, and lets them curate the
   // map from the list via checkboxes or a per-row "show on map" jump-to action.
-  const [showAllOnMap, setShowAllOnMap] = useState(false);
+  // Carried in the URL (see viewQueryString below) like mapVisible/mapBounds so it
+  // survives a round trip through a property detail page's "Back to search" link —
+  // otherwise this setting would silently reset to off every time.
+  const [showAllOnMap, setShowAllOnMap] = useState(initialShowAllOnMap);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A separate tab (before Settings) that shows every liked property at once —
   // mutually exclusive with normal browsing and Settings.
@@ -299,12 +304,13 @@ export function DashboardApp({
   const viewQueryString = useMemo(() => {
     const params = filtersToSearchParams(filters);
     if (mapVisible) params.set("map", "1");
+    if (showAllOnMap) params.set("showAll", "1");
     if (mapBounds) {
       const { south, west, north, east } = mapBounds;
       params.set("bbox", [south, west, north, east].map((v) => v.toFixed(6)).join(","));
     }
     return params.toString();
-  }, [filters, mapVisible, mapBounds]);
+  }, [filters, mapVisible, showAllOnMap, mapBounds]);
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {

@@ -18,6 +18,7 @@ export default async function DashboardPage({
 
   const initialFilters = filtersFromSearchParams(params);
   const initialMapVisible = params.get("map") === "1";
+  const initialShowAllOnMap = params.get("showAll") === "1";
 
   const bboxParam = params.get("bbox");
   const bboxParts = bboxParam?.split(",").map(Number);
@@ -57,6 +58,7 @@ export default async function DashboardPage({
     <DashboardApp
       initialFilters={initialFilters}
       initialMapVisible={initialMapVisible}
+      initialShowAllOnMap={initialShowAllOnMap}
       initialMapBounds={initialMapBounds}
       initialPresets={initialPresets}
       initialLikedIds={initialLikedIds}
