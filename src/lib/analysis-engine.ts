@@ -13,6 +13,8 @@ function getClient(): Anthropic {
 export type AnalysisMode = "knowledge" | "web";
 
 export interface ResidualLandValue {
+  commercial_use_allowed: string;
+  tourist_use_allowed: string;
   gross_buildable_area: string;
   saleable_area: string;
   estimated_residential_units: string;
@@ -87,7 +89,7 @@ Step 8 - Risk Analysis: classify planning risk, legal risk, heritage risk, techn
 
 Step 9 - Opportunity Score: calculate a development score (0-100) based on remaining buildability, planning flexibility, location, allowed uses, height, parcel geometry, protection level, ease of permitting, hotel potential, residential potential, and commercial potential.
 
-Step 10 - Residual Land Value Engine: using the buildability and scenario figures above, estimate the maximum Gross Buildable Area (GBA), Saleable/Net Sellable Area (NSA), estimated number of residential units, estimated number of hotel rooms, estimated number of tourist apartments, commercial area, parking spaces, a construction cost assumption in EUR/m2 (state the assumption and how it was chosen — a reasonable current Sevilla market range unless the user has specified otherwise), total construction cost, Gross Development Value (GDV), a reasonable developer margin, the resulting Residual Land Value, and the Highest and Best Use (HBU) among the scenarios in Step 7.
+Step 10 - Residual Land Value Engine: using the buildability and scenario figures above, state plainly whether commercial use is legally allowed on this parcel and whether tourist use (tourist apartments/hotel) is legally allowed, then estimate the maximum Gross Buildable Area (GBA), Saleable/Net Sellable Area (NSA), estimated number of residential units, estimated number of hotel rooms, estimated number of tourist apartments, commercial area, parking spaces, a construction cost assumption in EUR/m2 (state the assumption and how it was chosen — a reasonable current Sevilla market range unless the user has specified otherwise), total construction cost, Gross Development Value (GDV), a reasonable developer margin, the resulting Residual Land Value, and the Highest and Best Use (HBU) among the scenarios in Step 7.
 
 Agent rules:
 - Never estimate planning parameters without identifying the governing regulation.
@@ -125,6 +127,8 @@ After the full written report, output a single fenced code block, starting with 
   "planning_risk": "",
   "overall_score": "",
   "residual_land_value": {
+    "commercial_use_allowed": "",
+    "tourist_use_allowed": "",
     "gross_buildable_area": "",
     "saleable_area": "",
     "estimated_residential_units": "",

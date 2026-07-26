@@ -45,6 +45,44 @@ async function persistResult(
   }
 }
 
+// Writes just the Residual Land Value Engine's headline numbers into their own
+// normalized table (AnalysisSummary), separate from AnalysisResult's report/JSON
+// blob — see the schema comment for why. Skipped if the model didn't produce a
+// residual_land_value block at all (e.g. a degenerate/very short response).
+async function persistSummary(
+  userId: string,
+  parcelId: string,
+  mode: AnalysisMode,
+  result: AnalysisEngineResult
+) {
+  if (result.error) return;
+  const rlv = result.data?.residual_land_value;
+  if (!rlv) return;
+  try {
+    const fields = {
+      commercialUseAllowed: rlv.commercial_use_allowed,
+      touristUseAllowed: rlv.tourist_use_allowed,
+      grossBuildableArea: rlv.gross_buildable_area,
+      saleableArea: rlv.saleable_area,
+      estimatedResidentialUnits: rlv.estimated_residential_units,
+      estimatedHotelRooms: rlv.estimated_hotel_rooms,
+      estimatedTouristApartments: rlv.estimated_tourist_apartments,
+      constructionCostPerSqm: rlv.construction_cost_assumption_eur_m2,
+      grossDevelopmentValue: rlv.gross_development_value,
+      developerMargin: rlv.developer_margin,
+      residualLandValue: rlv.residual_land_value,
+      highestAndBestUse: rlv.highest_and_best_use,
+    };
+    await prisma.analysisSummary.upsert({
+      where: { userId_parcelId_mode: { userId, parcelId, mode } },
+      update: fields,
+      create: { userId, parcelId, mode, ...fields },
+    });
+  } catch (err) {
+    console.error("Failed to persist analysis summary", err);
+  }
+}
+
 // Returns the current user's saved (most recently successful) result for each
 // mode of the given parcel, so the client can show them without a fresh run.
 export async function GET(request: Request) {
@@ -120,7 +158,10 @@ export async function POST(request: Request) {
       await Promise.allSettled(
         modes.map((mode) =>
           runAnalysisStreaming(clientParcel, mode, (event) => {
-            if (event.type === "result") persistResult(user.id, parcel.id, mode, event.result);
+            if (event.type === "result") {
+              persistResult(user.id, parcel.id, mode, event.result);
+              persistSummary(user.id, parcel.id, mode, event.result);
+            }
             send(mode, event);
           })
         )

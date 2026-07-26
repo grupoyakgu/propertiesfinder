@@ -40,10 +40,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  favorites       Favorite[]
-  mapPresets      MapPreset[]
-  comments        Comment[]
-  analysisResults AnalysisResult[]
+  favorites         Favorite[]
+  mapPresets        MapPreset[]
+  comments          Comment[]
+  analysisResults   AnalysisResult[]
+  analysisSummaries AnalysisSummary[]
 
   @@map("users")
 }
@@ -52,8 +53,8 @@ model User {
 // services (Cadastral Parcels + Buildings themes) — real government registry
 // records with no price/ROI/zoning judgment, physical and legal facts only.
 model CatastroParcel {
-  id                  String   @id @default(cuid())
-  referenciaCatastral String   @unique
+  id                  String  @id @default(cuid())
+  referenciaCatastral String  @unique
   municipality        String
   province            String
   autonomousCommunity String
@@ -73,7 +74,8 @@ model CatastroParcel {
   sourceDataset String // e.g. "INSPIRE-CP-BU", for traceability
   importedAt    DateTime @default(now())
 
-  analysisResults AnalysisResult[]
+  analysisResults   AnalysisResult[]
+  analysisSummaries AnalysisSummary[]
 
   @@index([municipality, province])
   @@index([latitude, longitude])
@@ -163,4 +165,39 @@ model AnalysisResult {
 
   @@unique([userId, parcelId, mode])
   @@map("analysis_results")
+}
+
+// A normalized, queryable copy of just the Residual Land Value Engine's headline
+// numbers (the ones shown in the summary table under each mode's report) —
+// deliberately a separate table from AnalysisResult's report/full-JSON blob, so
+// this specific figure set has its own durable, independently-readable home
+// rather than living only inside a JSON column. Written alongside AnalysisResult
+// on every successful run, same one-per-user/parcel/mode upsert semantics.
+model AnalysisSummary {
+  id       String @id @default(cuid())
+  userId   String
+  parcelId String
+  mode     String // "knowledge" | "web"
+
+  commercialUseAllowed       String
+  touristUseAllowed          String
+  grossBuildableArea         String
+  saleableArea               String
+  estimatedResidentialUnits  String
+  estimatedHotelRooms        String
+  estimatedTouristApartments String
+  constructionCostPerSqm     String
+  grossDevelopmentValue      String
+  developerMargin            String
+  residualLandValue          String
+  highestAndBestUse          String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcel CatastroParcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, parcelId, mode])
+  @@map("analysis_summaries")
 }

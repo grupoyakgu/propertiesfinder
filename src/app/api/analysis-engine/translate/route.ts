@@ -6,6 +6,8 @@ import { translateAnalysisResult, type AnalysisEngineData, type AnalysisEngineRe
 export const maxDuration = 60;
 
 const residualSchema = z.object({
+  commercial_use_allowed: z.string(),
+  tourist_use_allowed: z.string(),
   gross_buildable_area: z.string(),
   saleable_area: z.string(),
   estimated_residential_units: z.string(),

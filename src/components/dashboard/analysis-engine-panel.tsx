@@ -85,6 +85,25 @@ const COMPARISON_FIELDS: ResidualField[] = [
   { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
 ];
 
+// Rendered as an actual <table>, right below each mode's own full report text —
+// a compact numeric summary of that report (permitted-use flags plus the same
+// headline residual-land-value figures used in the comparison table), so the
+// reader doesn't have to scan the prose above to find these numbers.
+const SUMMARY_TABLE_FIELDS: ResidualField[] = [
+  { key: "commercial_use_allowed", labelKey: "analysis.commercialUseAllowed" },
+  { key: "tourist_use_allowed", labelKey: "analysis.touristUseAllowed" },
+  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
+  { key: "saleable_area", labelKey: "analysis.saleableArea" },
+  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
+  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
+  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
+  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
+  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
+  { key: "developer_margin", labelKey: "analysis.developerMargin" },
+  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
+  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
+];
+
 const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
   { mode: "knowledge", labelKey: "analysis.knowledgeModeLabel", hintKey: "analysis.knowledgeModeHint" },
   { mode: "web", labelKey: "analysis.webModeLabel", hintKey: "analysis.webModeHint" },
@@ -163,6 +182,13 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     }
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
+  if (result.data?.residual_land_value) {
+    lines.push("", t("analysis.summaryTableHeading"));
+    for (const { key, labelKey } of SUMMARY_TABLE_FIELDS) {
+      const value = result.data.residual_land_value[key];
+      if (value) lines.push(`${t(labelKey)}: ${value}`);
+    }
+  }
   return lines.join("\n");
 }
 
@@ -332,6 +358,29 @@ function ResultColumn({
               </h4>
               <div className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md bg-surface-muted p-3 text-xs leading-relaxed text-foreground">
                 {result.report}
+              </div>
+            </div>
+          )}
+
+          {result.data?.residual_land_value && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("analysis.summaryTableHeading")}
+              </h4>
+              <div className="mt-2 overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {SUMMARY_TABLE_FIELDS.map(({ key, labelKey }) => {
+                      const value = result.data?.residual_land_value?.[key];
+                      return (
+                        <tr key={key} className="border-b border-border last:border-0">
+                          <td className="w-1/2 bg-surface-muted px-3 py-2 text-muted-foreground">{t(labelKey)}</td>
+                          <td className="px-3 py-2 font-medium text-foreground">{value || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
