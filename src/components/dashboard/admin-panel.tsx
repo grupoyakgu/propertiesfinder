@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Pencil, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 import { type Permission } from "@/lib/permissions";
@@ -114,6 +114,29 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
     await patchUser(id, { name: trimmed });
     setEditingId(null);
     setEditValue("");
+  };
+
+  const deleteUser = async (u: AdminUser) => {
+    if (!window.confirm(t("admin.confirmDeleteUser", { name: u.name }))) return;
+    setPending((prev) => new Set(prev).add(u.id));
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(json?.error ?? t("admin.deleteError"));
+        return;
+      }
+      setUsers((prev) => prev.filter((existing) => existing.id !== u.id));
+    } catch {
+      setError(t("admin.deleteError"));
+    } finally {
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(u.id);
+        return next;
+      });
+    }
   };
 
   return (
@@ -235,21 +258,32 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
                           />
                         </td>
                       ))}
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(u)}
-                          disabled={isPending || (isSelf && u.isActive)}
-                          title={isSelf && u.isActive ? t("admin.cannotDisableSelf") : undefined}
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
-                            u.isActive
-                              ? "border-danger/30 text-danger hover:bg-danger/10"
-                              : "border-primary/30 text-primary hover:bg-primary/10"
-                          )}
-                        >
-                          {u.isActive ? t("admin.disableAction") : t("admin.enableAction")}
-                        </button>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleActive(u)}
+                            disabled={isPending || (isSelf && u.isActive)}
+                            title={isSelf && u.isActive ? t("admin.cannotDisableSelf") : undefined}
+                            className={cn(
+                              "rounded-full border px-3 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
+                              u.isActive
+                                ? "border-danger/30 text-danger hover:bg-danger/10"
+                                : "border-primary/30 text-primary hover:bg-primary/10"
+                            )}
+                          >
+                            {u.isActive ? t("admin.disableAction") : t("admin.enableAction")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteUser(u)}
+                            disabled={isPending || isSelf}
+                            title={isSelf ? t("admin.cannotDeleteSelf") : t("admin.deleteAction")}
+                            className="rounded-full border border-danger/30 p-1.5 text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

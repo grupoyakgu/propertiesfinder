@@ -73,3 +73,34 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/admin/user
 
   return NextResponse.json({ user: updated });
 }
+
+// Admin-only. Permanently deletes a user and everything owned by them
+// (favorites, comments, map presets, analysis results/summaries — all
+// `onDelete: Cascade` in schema.prisma). Irreversible, so the client
+// confirms with the admin before calling this.
+export async function DELETE(_request: Request, ctx: RouteContext<"/api/admin/users/[id]">) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  if (!user.isAdmin) {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+
+  // An admin deleting their own account would lock them out with no other
+  // admin necessarily able to take over — block it outright.
+  if (id === user.id) {
+    return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
+  }
+
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  await prisma.user.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true });
+}
