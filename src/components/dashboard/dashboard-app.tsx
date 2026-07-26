@@ -87,6 +87,7 @@ export function DashboardApp({
   isAdmin = false,
   canUseAnalysisEngine = false,
   canDeletePreset = false,
+  canExportPdf = false,
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
@@ -97,6 +98,7 @@ export function DashboardApp({
   isAdmin?: boolean;
   canUseAnalysisEngine?: boolean;
   canDeletePreset?: boolean;
+  canExportPdf?: boolean;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -563,7 +565,7 @@ export function DashboardApp({
         ) : favoritesOpen ? (
           <FavoritesPanel />
         ) : analysisOpen ? (
-          <AnalysisEnginePanel />
+          <AnalysisEnginePanel canExportPdf={canExportPdf} />
         ) : adminOpen ? (
           <AdminPanel currentUserId={currentUserId} />
         ) : (

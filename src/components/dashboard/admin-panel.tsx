@@ -10,6 +10,7 @@ import { type Permission } from "@/lib/permissions";
 const PERMISSION_COLUMNS: { permission: Permission; labelKey: string }[] = [
   { permission: "analysis_engine", labelKey: "admin.colAnalysisEngine" },
   { permission: "delete_preset", labelKey: "admin.colDeletePreset" },
+  { permission: "export_pdf", labelKey: "admin.colExportPdf" },
 ];
 
 interface AdminUser {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Copy, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, Copy, FileDown, Sparkles } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
 import type {
   AnalysisEngineData,
@@ -446,7 +446,77 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
   );
 }
 
-export function AnalysisEnginePanel() {
+/** Downloads the current on-screen results as a PDF via the export-pdf route.
+ * Only rendered once `progress` has at least one non-error result (checked by
+ * the caller) — this component just handles the fetch/blob-download plumbing. */
+function ExportPdfButton({
+  parcelId,
+  progress,
+}: {
+  parcelId: string;
+  progress: Partial<Record<AnalysisMode, ModeProgress>>;
+}) {
+  const { t } = useLocale();
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleExport = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const results: Partial<Record<AnalysisMode, AnalysisEngineResult>> = {};
+      for (const { mode } of MODES) {
+        const result = progress[mode]?.result;
+        if (result) results[mode] = result;
+      }
+      const res = await fetch("/api/analysis-engine/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parcelId, results }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? t("pdf.exportError"));
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filenameMatch?.[1] ?? "grupo-yakgu-report.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(t("pdf.exportError"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={handleExport}
+        disabled={exporting}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 rounded-full border border-primary px-3 py-1.5 text-xs font-medium text-primary",
+          "hover:bg-primary/10 disabled:opacity-50"
+        )}
+      >
+        <FileDown className="h-3.5 w-3.5" />
+        {exporting ? t("pdf.exporting") : t("pdf.exportButton")}
+      </button>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </div>
+  );
+}
+
+export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: boolean }) {
   const { t } = useLocale();
   const [loadingFavorites, setLoadingFavorites] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
@@ -678,9 +748,14 @@ export function AnalysisEnginePanel() {
 
         {progress && (
           <>
-            <div className="flex items-start gap-2 rounded-md border border-border bg-surface-muted p-3 text-xs text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{t("analysis.disclaimer")}</span>
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border bg-surface-muted p-3 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{t("analysis.disclaimer")}</span>
+              </div>
+              {canExportPdf && visibleModes.some(({ mode }) => progress[mode]?.result && !progress[mode]?.result?.error) && (
+                <ExportPdfButton parcelId={selectedId} progress={progress} />
+              )}
             </div>
 
             <div className="flex flex-col gap-4 lg:flex-row">
