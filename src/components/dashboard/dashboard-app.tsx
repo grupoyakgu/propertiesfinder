@@ -505,7 +505,6 @@ export function DashboardApp({
 
         <PresetQuickSwitch
           presets={presets}
-          currentUserId={currentUserId}
           activePresetId={activePresetId}
           onApply={applyPreset}
           onRefocus={refocusPreset}

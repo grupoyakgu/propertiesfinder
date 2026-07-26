@@ -56,9 +56,11 @@ export function resolveBackHref(from: string | undefined): string {
   return from && from.startsWith("/dashboard") ? from : "/dashboard";
 }
 
-/** A Google Earth Web deep link centered on a coordinate — eye altitude 0 (ground
- * level target), 1000m camera distance, a slight tilt so terrain/buildings read as
- * 3D rather than a flat top-down view. */
+/** A Google Earth Web deep link that drops the traditional red placemark pin at a
+ * coordinate (the /search/ path, same as searching an address in Earth's UI — the
+ * plain /@lat,lng.../ camera path alone shows no pin) and frames the camera on it:
+ * eye altitude 0 (ground-level target), 1000m distance, a slight tilt so
+ * terrain/buildings read as 3D rather than a flat top-down view. */
 export function googleEarthUrl(latitude: number, longitude: number): string {
-  return `https://earth.google.com/web/@${latitude},${longitude},0a,1000d,35y,0h,0t,0r`;
+  return `https://earth.google.com/web/search/${latitude},${longitude}/@${latitude},${longitude},0a,1000d,35y,0h,0t,0r`;
 }
