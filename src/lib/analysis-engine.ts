@@ -233,7 +233,11 @@ export async function translateAnalysisResult(
     const response = await getClient().messages.create(
       {
         model: "claude-haiku-4-5",
-        max_tokens: 8000,
+        // Now that the analysis itself isn't truncated (see the max_tokens note
+        // in runAnalysisStreaming), the report being translated can be much
+        // longer than 8000 tokens' worth of text — give the translation the same
+        // headroom so it doesn't hit the same cutoff on a longer input.
+        max_tokens: 16000,
         messages: [{ role: "user", content: prompt }],
       },
       { maxRetries: 0, timeout: 45 * 1000 }
@@ -315,7 +319,14 @@ export async function runAnalysisStreaming(
     const stream = getClient().messages.stream(
       {
         model: "claude-opus-5",
-        max_tokens: 8000,
+        // On Claude Opus 5, thinking is on by default (adaptive) and its output
+        // counts against this same budget, not a separate one — 8000 was letting
+        // the model's own reasoning consume the entire budget before it finished
+        // writing the report, let alone reached the trailing JSON block, so
+        // responses were truncating mid-sentence partway through the prose.
+        // Raised well clear of that: comfortably below Opus 5's 128K output cap,
+        // enough headroom for the full 10-step report plus the JSON summary.
+        max_tokens: 64000,
         system: buildSystemPrompt(mode),
         thinking: { type: "adaptive" },
         // "medium" balances thoroughness against wall-clock time — this route runs
