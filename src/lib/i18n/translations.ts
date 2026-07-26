@@ -156,6 +156,10 @@ const en = {
     enableAction: "Enable",
     disableAction: "Disable",
     cannotDisableSelf: "You cannot disable your own account",
+    editNameAction: "Edit name",
+    saveAction: "Save",
+    cancelAction: "Cancel",
+    nameRequiredError: "Name cannot be empty.",
   },
   pdf: {
     exportButton: "Export PDF Report",
@@ -441,6 +445,10 @@ const es: typeof en = {
     enableAction: "Habilitar",
     disableAction: "Deshabilitar",
     cannotDisableSelf: "No puedes deshabilitar tu propia cuenta",
+    editNameAction: "Editar nombre",
+    saveAction: "Guardar",
+    cancelAction: "Cancelar",
+    nameRequiredError: "El nombre no puede estar vacío.",
   },
   pdf: {
     exportButton: "Exportar informe PDF",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, Pencil, ShieldCheck, X } from "lucide-react";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 import { type Permission } from "@/lib/permissions";
@@ -36,6 +36,10 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
   // Tracks which user row has a PATCH in flight, so its toggles disable rather
   // than letting a second click race the first.
   const [pending, setPending] = useState<Set<string>>(new Set());
+  // The single row (if any) currently showing a name-edit input, plus its
+  // in-progress value — only one row can be edited at a time.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +60,7 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
     };
   }, [t]);
 
-  const patchUser = async (id: string, body: { isActive?: boolean; permissions?: string[] }) => {
+  const patchUser = async (id: string, body: { name?: string; isActive?: boolean; permissions?: string[] }) => {
     setPending((prev) => new Set(prev).add(id));
     setError(null);
     try {
@@ -88,6 +92,28 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
     const has = u.permissions.includes(permission);
     const permissions = has ? u.permissions.filter((p) => p !== permission) : [...u.permissions, permission];
     patchUser(u.id, { permissions });
+  };
+
+  const startEditName = (u: AdminUser) => {
+    setError(null);
+    setEditingId(u.id);
+    setEditValue(u.name);
+  };
+
+  const cancelEditName = () => {
+    setEditingId(null);
+    setEditValue("");
+  };
+
+  const saveEditName = async (id: string) => {
+    const trimmed = editValue.trim();
+    if (!trimmed) {
+      setError(t("admin.nameRequiredError"));
+      return;
+    }
+    await patchUser(id, { name: trimmed });
+    setEditingId(null);
+    setEditValue("");
   };
 
   return (
@@ -133,15 +159,59 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
                   return (
                     <tr key={u.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 font-medium text-foreground">
-                        <div className="flex items-center gap-1.5">
-                          {u.name}
-                          {u.isAdmin && (
-                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                              {t("admin.adminBadge")}
-                            </span>
-                          )}
-                          {isSelf && <span className="text-[10px] text-muted-foreground">({t("admin.you")})</span>}
-                        </div>
+                        {editingId === u.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveEditName(u.id);
+                                if (e.key === "Escape") cancelEditName();
+                              }}
+                              autoFocus
+                              disabled={isPending}
+                              className="w-32 rounded-md border border-border bg-background px-1.5 py-1 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveEditName(u.id)}
+                              disabled={isPending}
+                              title={t("admin.saveAction")}
+                              className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditName}
+                              disabled={isPending}
+                              title={t("admin.cancelAction")}
+                              className="rounded p-1 text-muted-foreground hover:bg-surface-muted disabled:opacity-50"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            {u.name}
+                            {u.isAdmin && (
+                              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                {t("admin.adminBadge")}
+                              </span>
+                            )}
+                            {isSelf && <span className="text-[10px] text-muted-foreground">({t("admin.you")})</span>}
+                            <button
+                              type="button"
+                              onClick={() => startEditName(u)}
+                              disabled={isPending}
+                              title={t("admin.editNameAction")}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-surface-muted hover:text-foreground disabled:opacity-50"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-muted-foreground">{u.email}</td>
                       <td className="px-4 py-2">

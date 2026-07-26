@@ -6,10 +6,11 @@ import { isKnownPermission } from "@/lib/permissions";
 
 const patchSchema = z
   .object({
+    name: z.string().trim().min(1).max(200).optional(),
     isActive: z.boolean().optional(),
     permissions: z.array(z.string()).optional(),
   })
-  .refine((data) => data.isActive !== undefined || data.permissions !== undefined, {
+  .refine((data) => data.name !== undefined || data.isActive !== undefined || data.permissions !== undefined, {
     message: "Nothing to update",
   })
   .refine((data) => !data.permissions || data.permissions.every(isKnownPermission), {
@@ -38,7 +39,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/admin/user
     );
   }
 
-  const { isActive, permissions } = parsed.data;
+  const { name, isActive, permissions } = parsed.data;
 
   // An admin disabling their own account would lock them out with no other
   // admin necessarily able to re-enable them — block it outright rather than
@@ -55,6 +56,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/admin/user
   const updated = await prisma.user.update({
     where: { id },
     data: {
+      ...(name !== undefined ? { name } : {}),
       ...(isActive !== undefined ? { isActive } : {}),
       ...(permissions !== undefined ? { permissions } : {}),
     },
