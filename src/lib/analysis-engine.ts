@@ -259,6 +259,8 @@ export type AnalysisProgressEvent =
 
 // Leaves headroom under the API route's maxDuration (see src/app/api/analysis-engine/route.ts)
 // for the response to actually be returned rather than getting cut off mid-flight.
+// Modes run concurrently (see route.ts's Promise.allSettled), so this is the actual
+// per-request ceiling, not something that stacks across modes.
 //
 // NOTE: the SDK's own `timeout` request option does NOT bound this for a streaming
 // request — `fetch()` resolves as soon as response headers arrive (i.e. once the
@@ -268,7 +270,15 @@ export type AnalysisProgressEvent =
 // well past this "timeout" with no error — which is exactly what let a request
 // through to Vercel's own hard 300s function-duration kill in production. We
 // enforce it ourselves below via `stream.abort()` on a plain wall-clock setTimeout.
-const PER_MODE_TIMEOUT_MS = 200 * 1000;
+//
+// Was 200s, which turned out too conservative in practice: a web-grounded run's
+// tool loop (up to 4 web_search + 4 web_fetch calls, each its own model turn) can
+// legitimately take longer than that, and self-aborting at 200s was cutting off
+// runs that would have finished well within the route's real 300s budget. Raised
+// to 270s — still a 30s margin for the stream to flush and the function to return
+// cleanly before Vercel's own hard kill, but no longer leaving 100s of unused
+// headroom on the table.
+const PER_MODE_TIMEOUT_MS = 270 * 1000;
 
 /** Runs one mode's analysis, calling `onEvent` with live progress (status text,
  * elapsed/tool-call stats) as the model streams, and a final "result" event when
