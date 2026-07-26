@@ -125,8 +125,11 @@ function initialProgress(): ModeProgress {
 // Rough expected wall-clock time per mode (web-grounded runs slower — each search/
 // fetch is its own model turn). Purely a heuristic for the progress bar's fill
 // percentage; it's capped short of 100% until the mode actually finishes so it
-// never looks "done" prematurely.
-const EXPECTED_MS: Record<AnalysisMode, number> = { knowledge: 45_000, web: 120_000 };
+// never looks "done" prematurely. Raised from 45s/120s once max_tokens went from
+// 8000 to 64000 (see analysis-engine.ts) — a full, uncapped, heavily-cited
+// 10-step report genuinely takes a few minutes, and the old values had the bar
+// sitting at 95% for most of a run, reading as stalled.
+const EXPECTED_MS: Record<AnalysisMode, number> = { knowledge: 180_000, web: 300_000 };
 
 function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModeProgress }) {
   const { t } = useLocale();

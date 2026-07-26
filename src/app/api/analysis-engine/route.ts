@@ -12,8 +12,15 @@ import {
 } from "@/lib/analysis-engine";
 
 // Raise the allowed function duration on platforms that respect it (e.g. Vercel) —
-// running two Claude Opus 5 analyses (one of them tool-using) can take a few minutes.
-export const maxDuration = 300;
+// running two Claude Opus 5 analyses (one of them tool-using) can take several
+// minutes. 300s turned out too tight once max_tokens was raised to stop reports
+// truncating mid-sentence (see analysis-engine.ts): a genuinely thorough,
+// heavily-cited 10-step report can legitimately take longer than 300s to finish
+// streaming, and our own internal watchdog was aborting in-progress runs that
+// would have completed fine given more room. 800s is the ceiling Vercel allows
+// via this export on plans with Fluid Compute; if the account's actual plan caps
+// lower, Vercel enforces its real limit regardless of this value.
+export const maxDuration = 800;
 
 const requestSchema = z.object({
   parcelId: z.string().min(1),

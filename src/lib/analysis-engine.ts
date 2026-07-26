@@ -210,14 +210,18 @@ export type AnalysisProgressEvent =
 // through to Vercel's own hard 300s function-duration kill in production. We
 // enforce it ourselves below via `stream.abort()` on a plain wall-clock setTimeout.
 //
-// Was 200s, which turned out too conservative in practice: a web-grounded run's
-// tool loop (up to 4 web_search + 4 web_fetch calls, each its own model turn) can
-// legitimately take longer than that, and self-aborting at 200s was cutting off
-// runs that would have finished well within the route's real 300s budget. Raised
-// to 270s — still a 30s margin for the stream to flush and the function to return
-// cleanly before Vercel's own hard kill, but no longer leaving 100s of unused
-// headroom on the table.
-const PER_MODE_TIMEOUT_MS = 270 * 1000;
+// Was 200s, then 270s — both turned out too conservative in practice. 200s was
+// cutting off web-grounded runs whose tool loop (up to 4 web_search + 4 web_fetch
+// calls, each its own model turn) legitimately needs longer. 270s was cutting off
+// *knowledge-based* runs too, once max_tokens was raised from 8000 to 64000 to
+// stop reports truncating mid-sentence (see the max_tokens comment below): freed
+// from that artificially low ceiling, a genuinely thorough, heavily-cited 10-step
+// report can take several minutes to finish streaming, and this watchdog was
+// aborting in-progress runs that would have completed fine given more room.
+// Raised to 750s to match the route's maxDuration having gone to 800s — still a
+// 50s margin for the stream to flush and the function to return cleanly before
+// Vercel's own hard kill.
+const PER_MODE_TIMEOUT_MS = 750 * 1000;
 
 /** Runs one mode's analysis, calling `onEvent` with live progress (status text,
  * elapsed/tool-call stats) as the model streams, and a final "result" event when
