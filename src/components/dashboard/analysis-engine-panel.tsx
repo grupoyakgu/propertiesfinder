@@ -438,6 +438,29 @@ export function AnalysisEnginePanel() {
   const [translations, setTranslations] = useState<Partial<Record<AnalysisMode, Partial<Record<OutputLanguage, AnalysisEngineResult>>>>>({});
   const [translating, setTranslating] = useState<Partial<Record<AnalysisMode, boolean>>>({});
 
+  // Loads whichever modes already have a saved (previously successful) result for
+  // this parcel, so the report and comparison table are there immediately — no
+  // need to click "Run analysis" again just to see a result that already exists.
+  const loadSavedResults = async (parcelId: string) => {
+    try {
+      const res = await fetch(`/api/analysis-engine?parcelId=${encodeURIComponent(parcelId)}`);
+      if (!res.ok) return;
+      const json = await res.json().catch(() => null);
+      const results = json?.results as Partial<Record<AnalysisMode, AnalysisEngineResult>> | undefined;
+      if (!results || Object.keys(results).length === 0) return;
+      setProgress((prev) => {
+        const next = { ...(prev ?? {}) };
+        for (const { mode } of MODES) {
+          const saved = results[mode];
+          if (saved) next[mode] = { ...initialProgress(), result: saved, source: "saved" };
+        }
+        return next;
+      });
+    } catch {
+      // No saved results, or the fetch failed — fine, just start from a clean slate.
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     fetch("/api/favorites")
@@ -446,7 +469,10 @@ export function AnalysisEnginePanel() {
         if (cancelled) return;
         const fetched: ClientCatastroParcel[] = data.parcels ?? [];
         setParcels(fetched);
-        if (fetched.length > 0) setSelectedId(fetched[0].id);
+        if (fetched.length > 0) {
+          setSelectedId(fetched[0].id);
+          loadSavedResults(fetched[0].id);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingFavorites(false);
@@ -467,13 +493,15 @@ export function AnalysisEnginePanel() {
 
   // Switching properties makes any results on screen stale (they're for a
   // different parcel), so start fresh rather than leaving the old parcel's numbers
-  // up next to a newly-selected one.
+  // up next to a newly-selected one — then load whatever's already saved for the
+  // newly-selected parcel.
   const selectParcel = (id: string) => {
     setSelectedId(id);
     setProgress(null);
     setRunError(null);
     setOutputLanguage({ knowledge: "en", web: "en" });
     setTranslations({});
+    loadSavedResults(id);
   };
 
   const changeLanguage = async (mode: AnalysisMode, language: OutputLanguage) => {

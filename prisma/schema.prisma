@@ -40,9 +40,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  favorites  Favorite[]
-  mapPresets MapPreset[]
-  comments   Comment[]
+  favorites       Favorite[]
+  mapPresets      MapPreset[]
+  comments        Comment[]
+  analysisResults AnalysisResult[]
 
   @@map("users")
 }
@@ -71,6 +72,8 @@ model CatastroParcel {
 
   sourceDataset String // e.g. "INSPIRE-CP-BU", for traceability
   importedAt    DateTime @default(now())
+
+  analysisResults AnalysisResult[]
 
   @@index([municipality, province])
   @@index([latitude, longitude])
@@ -136,4 +139,28 @@ model MapPreset {
 
   @@unique([userId, name])
   @@map("map_presets")
+}
+
+// The most recent successful Analysis Engine result for a given user/parcel/mode,
+// so the full report and residual-land-value summary table are still there when
+// the user comes back — no need to re-run the (slow, costly) AI analysis just to
+// look at a result they already generated. Only successful runs are persisted
+// (see the API route): a failed re-run doesn't clobber a previously saved good
+// result for that mode.
+model AnalysisResult {
+  id       String @id @default(cuid())
+  userId   String
+  parcelId String
+  mode     String // "knowledge" | "web"
+  report   String
+  data     Json? // AnalysisEngineData shape — see src/lib/analysis-engine.ts
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcel CatastroParcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, parcelId, mode])
+  @@map("analysis_results")
 }
