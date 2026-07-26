@@ -20,6 +20,7 @@ export interface ResidualLandValue {
   estimated_residential_units: string;
   estimated_hotel_rooms: string;
   estimated_tourist_apartments: string;
+  estimated_studio_apartments: string;
   commercial_area: string;
   parking_spaces: string;
   construction_cost_assumption_eur_m2: string;
@@ -89,7 +90,9 @@ Step 8 - Risk Analysis: classify planning risk, legal risk, heritage risk, techn
 
 Step 9 - Opportunity Score: calculate a development score (0-100) based on remaining buildability, planning flexibility, location, allowed uses, height, parcel geometry, protection level, ease of permitting, hotel potential, residential potential, and commercial potential.
 
-Step 10 - Residual Land Value Engine: using the buildability and scenario figures above, state plainly whether commercial use is legally allowed on this parcel and whether tourist use (tourist apartments/hotel) is legally allowed, then estimate the maximum Gross Buildable Area (GBA), Saleable/Net Sellable Area (NSA), estimated number of residential units, estimated number of hotel rooms, estimated number of tourist apartments, commercial area, parking spaces, a construction cost assumption in EUR/m2 (state the assumption and how it was chosen — a reasonable current Sevilla market range unless the user has specified otherwise), total construction cost, Gross Development Value (GDV), a reasonable developer margin, the resulting Residual Land Value, and the Highest and Best Use (HBU) among the scenarios in Step 7.
+Step 10 - Residual Land Value Engine: using the buildability and scenario figures above, state plainly whether commercial use is legally allowed on this parcel and whether tourist use (tourist apartments/hotel) is legally allowed, then estimate the maximum Gross Buildable Area (GBA), Saleable/Net Sellable Area (NSA), estimated number of residential units, estimated number of hotel rooms, estimated number of tourist apartments, an estimated studio apartment range, commercial area, parking spaces, a construction cost assumption in EUR/m2 (state the assumption and how it was chosen — a reasonable current Sevilla market range unless the user has specified otherwise), total construction cost, Gross Development Value (GDV), a reasonable developer margin, the resulting Residual Land Value, and the Highest and Best Use (HBU) among the scenarios in Step 7.
+
+For the estimated studio apartment range specifically: this is how many studio ("estudio") units the estimated NSA could be subdivided into if operated as a classified apartamento turístico establishment under Andalucía's tourist-apartment regulation (Decreto regulating Apartamentos Turísticos de la Comunidad Autónoma de Andalucía and its later modifications). That regulation sets a minimum useful floor area (superficie útil) per unit that varies by the establishment's "llave" (key) classification tier (e.g. 1-key through 4-key/Superior) — the higher the classification, the larger the required minimum unit size. State the minimum floor-area figures per tier that you are relying on, cite the decree/article, and derive a low-to-high unit-count range (NSA divided by the largest relevant minimum for the low end, by the smallest for the high end), noting which tier corresponds to each end of the range. If you are not certain of the exact current minimum floor-area figures per tier, say so explicitly and flag the range as a Professional Assumption to be verified against the current Junta de Andalucía regulation rather than inventing precise figures.
 
 Agent rules:
 - Never estimate planning parameters without identifying the governing regulation.
@@ -134,6 +137,7 @@ After the full written report, output a single fenced code block, starting with 
     "estimated_residential_units": "",
     "estimated_hotel_rooms": "",
     "estimated_tourist_apartments": "",
+    "estimated_studio_apartments": "",
     "commercial_area": "",
     "parking_spaces": "",
     "construction_cost_assumption_eur_m2": "",
