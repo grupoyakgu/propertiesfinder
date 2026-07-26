@@ -8,16 +8,19 @@ import { cn } from "@/lib/utils";
 
 export function PresetSettingsPanel({
   presets,
+  currentUserId,
   canSave,
-  canDelete,
   onSave,
   onDelete,
   onSetDefault,
   onRename,
 }: {
   presets: ClientMapPreset[];
+  /** Presets are shared (everyone sees everyone's), but only a preset's own
+   * creator can rename, delete, or set it as their default — matched against
+   * each preset's ownerId below. */
+  currentUserId: string;
   canSave: boolean;
-  canDelete: boolean;
   onSave: (name: string) => void | Promise<void>;
   onDelete: (id: string) => void | Promise<void>;
   onSetDefault: (id: string, isDefault: boolean) => void | Promise<void>;
@@ -100,6 +103,7 @@ export function PresetSettingsPanel({
           )}
           {presets.map((preset) => {
             const isEditing = editingId === preset.id;
+            const isOwn = preset.ownerId === currentUserId;
             return (
               <li key={preset.id} className="px-3 py-2.5">
                 <div className="flex items-center gap-2">
@@ -134,35 +138,44 @@ export function PresetSettingsPanel({
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 truncate text-sm text-foreground">{preset.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => startRename(preset)}
-                        title={t("presets.rename")}
-                        className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSetDefault(preset.id, !preset.isDefault)}
-                        title={preset.isDefault ? t("presets.unsetDefault") : t("presets.setDefault")}
-                        className={cn(
-                          "shrink-0 rounded p-1.5",
-                          preset.isDefault ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                      <span className="flex-1 truncate text-sm text-foreground">
+                        {preset.name}
+                        {!isOwn && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">
+                            {t("presets.byOwner", { name: preset.ownerName })}
+                          </span>
                         )}
-                      >
-                        <Star className="h-4 w-4" fill={preset.isDefault ? "currentColor" : "none"} />
-                      </button>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(preset)}
-                          title={t("presets.delete")}
-                          className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-danger"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                      </span>
+                      {isOwn && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startRename(preset)}
+                            title={t("presets.rename")}
+                            className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onSetDefault(preset.id, !preset.isDefault)}
+                            title={preset.isDefault ? t("presets.unsetDefault") : t("presets.setDefault")}
+                            className={cn(
+                              "shrink-0 rounded p-1.5",
+                              preset.isDefault ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <Star className="h-4 w-4" fill={preset.isDefault ? "currentColor" : "none"} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(preset)}
+                            title={t("presets.delete")}
+                            className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-danger"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </>
                   )}

@@ -16,6 +16,10 @@ const presetSchema = z.object({
   filters: z.record(z.string(), z.unknown()).optional(),
 });
 
+// Presets are shared: every signed-in user sees everyone's saved viewports (not
+// just their own), so the list is a common set of jumping-off points for the
+// whole team rather than a personal bookmark list. Mutation (rename/delete/set
+// default) stays restricted to each preset's own creator — see the [id] route.
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
@@ -23,8 +27,8 @@ export async function GET() {
   }
 
   const presets = await prisma.mapPreset.findMany({
-    where: { userId: user.id },
     orderBy: { createdAt: "asc" },
+    include: { user: { select: { name: true } } },
   });
 
   return NextResponse.json({ presets });
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
         filters: filtersJson,
         isDefault: isDefault ?? false,
       },
+      include: { user: { select: { name: true } } },
     });
   });
 

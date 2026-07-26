@@ -44,11 +44,27 @@ export interface ClientMapPreset {
   /** The full search filter state (location, land characteristics, etc.) captured
    * when the preset was saved — null for presets saved before this field existed. */
   filters: DashboardFilters | null;
+  ownerId: string;
+  /** The creator's display name — presets are shared (every signed-in user sees
+   * everyone's), so the UI needs this to label presets that aren't the current
+   * viewer's own and to know whose "default" a given preset actually is. */
+  ownerName: string;
 }
 
-export function toClientMapPreset(preset: MapPreset): ClientMapPreset {
-  const { id, name, south, west, north, east, isDefault, filters } = preset;
-  return { id, name, south, west, north, east, isDefault, filters: filters as DashboardFilters | null };
+export function toClientMapPreset(preset: MapPreset & { user: { name: string } }): ClientMapPreset {
+  const { id, name, south, west, north, east, isDefault, filters, userId, user } = preset;
+  return {
+    id,
+    name,
+    south,
+    west,
+    north,
+    east,
+    isDefault,
+    filters: filters as DashboardFilters | null,
+    ownerId: userId,
+    ownerName: user.name,
+  };
 }
 
 export interface ClientComment {

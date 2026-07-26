@@ -49,6 +49,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/map-preset
       return tx.mapPreset.update({
         where: { id },
         data: { ...(name !== undefined ? { name } : {}), ...(isDefault !== undefined ? { isDefault } : {}) },
+        include: { user: { select: { name: true } } },
       });
     });
     return NextResponse.json({ preset });
@@ -63,13 +64,13 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/map-preset
   }
 }
 
+// Any signed-in user can delete a preset — but only their own; the ownership
+// check below (existing.userId !== user.id) is what actually enforces that,
+// same as PATCH above. There is no separate permission gate for this anymore.
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/map-presets/[id]">) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  if (!user.permissions.includes("delete_preset")) {
-    return NextResponse.json({ error: "Deleting presets is disabled for your account" }, { status: 403 });
   }
 
   const { id } = await ctx.params;

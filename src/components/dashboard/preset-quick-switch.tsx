@@ -11,11 +11,15 @@ import { useLocale } from "@/lib/i18n/context";
  * (saving, deleting, setting a default) lives in the Settings tab instead. */
 export function PresetQuickSwitch({
   presets,
+  currentUserId,
   activePresetId,
   onApply,
   onRefocus,
 }: {
   presets: ClientMapPreset[];
+  /** Used only to label presets someone else saved (e.g. "City Center — by Maria")
+   * so the shared list stays legible — every preset here is applicable to anyone. */
+  currentUserId: string;
   activePresetId: string | null;
   onApply: (preset: ClientMapPreset) => void;
   /** Re-center the map on the currently active preset without touching filters —
@@ -42,11 +46,14 @@ export function PresetQuickSwitch({
         <option value="" disabled>
           {t("presets.trigger")}
         </option>
-        {presets.map((preset) => (
-          <option key={preset.id} value={preset.id}>
-            {preset.isDefault ? `★ ${preset.name}` : preset.name}
-          </option>
-        ))}
+        {presets.map((preset) => {
+          const label = preset.isDefault ? `★ ${preset.name}` : preset.name;
+          return (
+            <option key={preset.id} value={preset.id}>
+              {preset.ownerId === currentUserId ? label : `${label} (${t("presets.byOwner", { name: preset.ownerName })})`}
+            </option>
+          );
+        })}
       </Select>
       {activePreset && (
         <button

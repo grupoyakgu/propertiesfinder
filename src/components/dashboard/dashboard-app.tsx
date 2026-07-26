@@ -87,7 +87,6 @@ export function DashboardApp({
   currentUserId = "",
   isAdmin = false,
   canUseAnalysisEngine = false,
-  canDeletePreset = false,
   canExportPdf = false,
 }: {
   initialFilters: DashboardFilters;
@@ -99,7 +98,6 @@ export function DashboardApp({
   currentUserId?: string;
   isAdmin?: boolean;
   canUseAnalysisEngine?: boolean;
-  canDeletePreset?: boolean;
   canExportPdf?: boolean;
 }) {
   const router = useRouter();
@@ -214,6 +212,35 @@ export function DashboardApp({
     setViewCommand({ bounds, nonce: nextNonce() });
   };
 
+  // The API returns the raw Prisma row (userId + the joined user.name) rather
+  // than the client-facing shape — remap it the same way toClientMapPreset
+  // does server-side, so a freshly saved/renamed preset immediately shows up
+  // as "own" (rename/delete/star visible) instead of looking unowned until
+  // the next full page load.
+  const toClientPreset = (raw: {
+    id: string;
+    name: string;
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+    isDefault: boolean;
+    filters: unknown;
+    userId: string;
+    user: { name: string };
+  }): ClientMapPreset => ({
+    id: raw.id,
+    name: raw.name,
+    south: raw.south,
+    west: raw.west,
+    north: raw.north,
+    east: raw.east,
+    isDefault: raw.isDefault,
+    filters: raw.filters as ClientMapPreset["filters"],
+    ownerId: raw.userId,
+    ownerName: raw.user.name,
+  });
+
   const savePreset = async (name: string) => {
     if (!mapBounds) return;
     const res = await fetch("/api/map-presets", {
@@ -223,12 +250,13 @@ export function DashboardApp({
     });
     if (!res.ok) return;
     const { preset } = await res.json();
+    const clientPreset = toClientPreset(preset);
     setPresets((prev) => {
-      const next = prev.filter((p) => p.id !== preset.id);
-      next.push(preset);
+      const next = prev.filter((p) => p.id !== clientPreset.id);
+      next.push(clientPreset);
       return next;
     });
-    setActivePresetId(preset.id);
+    setActivePresetId(clientPreset.id);
   };
 
   const deletePreset = async (id: string) => {
@@ -258,7 +286,8 @@ export function DashboardApp({
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: data.error ?? "Failed to rename preset" };
-    setPresets((prev) => prev.map((p) => (p.id === id ? data.preset : p)));
+    const clientPreset = toClientPreset(data.preset);
+    setPresets((prev) => prev.map((p) => (p.id === id ? clientPreset : p)));
     return { ok: true };
   };
 
@@ -476,6 +505,7 @@ export function DashboardApp({
 
         <PresetQuickSwitch
           presets={presets}
+          currentUserId={currentUserId}
           activePresetId={activePresetId}
           onApply={applyPreset}
           onRefocus={refocusPreset}
@@ -560,8 +590,8 @@ export function DashboardApp({
             <MapDisplaySettings showAllOnMap={showAllOnMap} onChange={setShowAllOnMap} />
             <PresetSettingsPanel
               presets={presets}
+              currentUserId={currentUserId}
               canSave={mapBounds != null}
-              canDelete={canDeletePreset}
               onSave={savePreset}
               onDelete={deletePreset}
               onSetDefault={setDefaultPreset}

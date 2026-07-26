@@ -49,7 +49,7 @@ model User {
   // Feature flags an admin can grant/revoke per user — see src/lib/permissions.ts
   // for the known set. Defaults to granting every current permission so existing
   // users keep working unchanged; an admin can then selectively revoke.
-  permissions  String[] @default(["analysis_engine", "delete_preset"])
+  permissions  String[] @default(["analysis_engine"])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

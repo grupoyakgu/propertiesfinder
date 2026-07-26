@@ -28,9 +28,14 @@ export default async function DashboardPage({
       : null;
 
   const user = await getCurrentUser();
+  // Presets are shared — every signed-in user sees everyone's saved viewports,
+  // not just their own (see /api/map-presets).
   const [presets, favorites] = user
     ? await Promise.all([
-        prisma.mapPreset.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
+        prisma.mapPreset.findMany({
+          orderBy: { createdAt: "asc" },
+          include: { user: { select: { name: true } } },
+        }),
         prisma.favorite.findMany({
           where: { userId: user.id, source: "catastro" },
           select: { propertyId: true },
@@ -42,8 +47,10 @@ export default async function DashboardPage({
 
   // A "Back to search" bbox always wins; only fall back to the default preset when
   // no explicit viewport was requested (e.g. a fresh visit to a bare /dashboard URL).
+  // Only ever the current user's own default — another user's default preset
+  // shouldn't hijack everyone else's landing view now that the list is shared.
   if (!initialMapBounds) {
-    const defaultPreset = initialPresets.find((p) => p.isDefault);
+    const defaultPreset = initialPresets.find((p) => p.isDefault && p.ownerId === user?.id);
     if (defaultPreset) {
       initialMapBounds = {
         south: defaultPreset.south,
@@ -65,7 +72,6 @@ export default async function DashboardPage({
       currentUserId={user?.id ?? ""}
       isAdmin={user?.isAdmin ?? false}
       canUseAnalysisEngine={user?.permissions.includes("analysis_engine") ?? false}
-      canDeletePreset={user?.permissions.includes("delete_preset") ?? false}
       canExportPdf={user?.permissions.includes("export_pdf") ?? false}
     />
   );

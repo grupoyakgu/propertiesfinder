@@ -148,7 +148,6 @@ const en = {
     colEmail: "Email",
     colStatus: "Status",
     colAnalysisEngine: "Analysis Engine",
-    colDeletePreset: "Delete Preset",
     colExportPdf: "Export PDF",
     adminBadge: "Admin",
     you: "you",
@@ -211,8 +210,9 @@ const en = {
     refocus: 'Re-center the map on "{name}"',
     settingsTitle: "Map presets",
     settingsDescription:
-      "Save the map's current pan/zoom position and search filters under a name, mark one as default to load it automatically, or delete presets you no longer need. Use the presets dropdown in the header to quickly jump between saved views.",
+      "Presets are shared — everyone can see and jump to any saved view, but only its creator can rename, delete, or set it as their default. Save the map's current pan/zoom position and search filters under a name, then use the presets dropdown in the header to quickly jump between saved views.",
     needViewToSave: "Pan or zoom the map first to save its current view.",
+    byOwner: "by {name}",
   },
   filters: {
     title: "Filters",
@@ -441,7 +441,6 @@ const es: typeof en = {
     colEmail: "Correo electrónico",
     colStatus: "Estado",
     colAnalysisEngine: "Motor de Análisis",
-    colDeletePreset: "Eliminar ajuste guardado",
     colExportPdf: "Exportar PDF",
     adminBadge: "Admin",
     you: "tú",
@@ -505,8 +504,9 @@ const es: typeof en = {
     refocus: 'Volver a centrar el mapa en "{name}"',
     settingsTitle: "Ajustes guardados del mapa",
     settingsDescription:
-      "Guarda la posición actual de desplazamiento/zoom del mapa y los filtros de búsqueda con un nombre, marca uno como predeterminado para cargarlo automáticamente, o elimina los ajustes que ya no necesites. Usa el menú desplegable de ajustes en la cabecera para saltar rápidamente entre vistas guardadas.",
+      "Los ajustes son compartidos: todos pueden ver y saltar a cualquier vista guardada, pero solo quien la creó puede renombrarla, eliminarla o marcarla como su predeterminada. Guarda la posición actual de desplazamiento/zoom del mapa y los filtros de búsqueda con un nombre, y usa el menú desplegable de la cabecera para saltar rápidamente entre vistas guardadas.",
     needViewToSave: "Desplaza o haz zoom en el mapa primero para guardar la vista actual.",
+    byOwner: "de {name}",
   },
   filters: {
     title: "Filtros",
