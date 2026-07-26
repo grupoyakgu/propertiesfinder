@@ -100,6 +100,10 @@ interface ModeProgress {
   // most recent run and has no earlier saved result — a placeholder telling the
   // user why the column is empty, not an actual run.
   notice?: boolean;
+  // "live" the moment a result finishes streaming in from the run that produced
+  // it; flips to "saved" the next time Run analysis fires without this mode
+  // selected, so a carried-over result is clearly marked as not from this run.
+  source?: "live" | "saved";
 }
 
 function initialProgress(): ModeProgress {
@@ -349,10 +353,16 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
   });
   if (available.length === 0) return null;
 
+  const sourceLabel = (mode: AnalysisMode) =>
+    progress[mode]?.source === "saved" ? t("analysis.savedResultBadge") : t("analysis.liveResultBadge");
+
   const copyText = [
     t("analysis.comparisonHeading"),
     "",
-    [t("analysis.comparisonMetric"), ...available.map(({ labelKey }) => t(labelKey))].join("\t"),
+    [
+      t("analysis.comparisonMetric"),
+      ...available.map(({ mode, labelKey }) => `${t(labelKey)} (${sourceLabel(mode)})`),
+    ].join("\t"),
     ...COMPARISON_FIELDS.map(({ key, labelKey }) =>
       [t(labelKey), ...available.map(({ mode }) => progress[mode]?.result?.data?.residual_land_value?.[key] || "—")].join(
         "\t"
@@ -375,7 +385,19 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
               </th>
               {available.map(({ mode, labelKey }) => (
                 <th key={mode} className="px-4 py-2 text-left font-semibold text-muted-foreground">
-                  {t(labelKey)}
+                  <div className="flex items-center gap-1.5">
+                    {t(labelKey)}
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-medium normal-case",
+                        progress[mode]?.source === "saved"
+                          ? "bg-surface-muted text-muted-foreground"
+                          : "bg-primary/10 text-primary"
+                      )}
+                    >
+                      {sourceLabel(mode)}
+                    </span>
+                  </div>
                 </th>
               ))}
             </tr>
@@ -487,7 +509,7 @@ export function AnalysisEnginePanel() {
       } else if (event.type === "stats") {
         next[mode] = { ...current, elapsedMs: event.elapsedMs, outputChars: event.outputChars, toolCalls: event.toolCalls };
       } else {
-        next[mode] = { ...current, result: event.result };
+        next[mode] = { ...current, result: event.result, source: "live" };
       }
       return next;
     });
@@ -509,7 +531,13 @@ export function AnalysisEnginePanel() {
       for (const mode of modes) next[mode] = initialProgress();
       for (const { mode } of MODES) {
         if (modes.includes(mode)) continue;
-        if (!next[mode]?.result) next[mode] = { ...initialProgress(), notice: true };
+        if (next[mode]?.result) {
+          // Carried over from an earlier run — no longer "live" now that a new
+          // run has started without it, so mark it as a saved result instead.
+          next[mode] = { ...next[mode]!, source: "saved" };
+        } else {
+          next[mode] = { ...initialProgress(), notice: true };
+        }
       }
       return next;
     });
