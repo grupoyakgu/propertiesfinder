@@ -16,7 +16,7 @@ import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
 import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
-import { FavoritesPanel } from "@/components/dashboard/favorites-panel";
+import { OpportunitiesPanel } from "@/components/dashboard/opportunities-panel";
 import { AnalysisEnginePanel } from "@/components/dashboard/analysis-engine-panel";
 import { AdminPanel } from "@/components/dashboard/admin-panel";
 import { cn } from "@/lib/utils";
@@ -88,6 +88,7 @@ export function DashboardApp({
   isAdmin = false,
   canUseAnalysisEngine = false,
   canExportPdf = false,
+  canExportXls = false,
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
@@ -99,6 +100,7 @@ export function DashboardApp({
   isAdmin?: boolean;
   canUseAnalysisEngine?: boolean;
   canExportPdf?: boolean;
+  canExportXls?: boolean;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -140,9 +142,9 @@ export function DashboardApp({
   // otherwise this setting would silently reset to off every time.
   const [showAllOnMap, setShowAllOnMap] = useState(initialShowAllOnMap);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // A separate tab (before Settings) that shows every liked property at once —
+  // A separate tab (before Settings) showing the shared Opportunities list —
   // mutually exclusive with normal browsing and Settings.
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [opportunitiesOpen, setOpportunitiesOpen] = useState(false);
   // Another separate tab: the AI-powered urban-planning feasibility engine, run
   // against one of the user's liked properties — mutually exclusive with the rest.
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -153,8 +155,8 @@ export function DashboardApp({
 
   // Switches which of the mutually-exclusive tabs above is open; null means
   // the default Catastro results view.
-  const openTab = (tab: "favorites" | "analysis" | "settings" | "admin" | null) => {
-    setFavoritesOpen(tab === "favorites");
+  const openTab = (tab: "opportunities" | "analysis" | "settings" | "admin" | null) => {
+    setOpportunitiesOpen(tab === "opportunities");
     setAnalysisOpen(tab === "analysis");
     setSettingsOpen(tab === "settings");
     setAdminOpen(tab === "admin");
@@ -522,7 +524,7 @@ export function DashboardApp({
           onClick={() => openTab(null)}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            !settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen
+            !settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-surface-muted"
           )}
@@ -531,15 +533,15 @@ export function DashboardApp({
         </button>
         <button
           type="button"
-          onClick={() => openTab("favorites")}
+          onClick={() => openTab("opportunities")}
           className={cn(
             "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-            favoritesOpen
+            opportunitiesOpen
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-surface-muted"
           )}
         >
-          {t("dashboard.tabFavorites")}
+          {t("dashboard.tabOpportunities")}
         </button>
         {canUseAnalysisEngine && (
           <button
@@ -597,8 +599,8 @@ export function DashboardApp({
               onRename={renamePreset}
             />
           </div>
-        ) : favoritesOpen ? (
-          <FavoritesPanel />
+        ) : opportunitiesOpen ? (
+          <OpportunitiesPanel currentUserId={currentUserId} canExportXls={canExportXls} />
         ) : analysisOpen ? (
           <AnalysisEnginePanel canExportPdf={canExportPdf} />
         ) : adminOpen ? (
@@ -609,7 +611,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible && (
+        {!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible && (
           <div className="flex w-full max-w-md shrink-0 flex-col border-r border-border lg:w-96">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -645,7 +647,7 @@ export function DashboardApp({
           </div>
         )}
 
-        {!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && !mapVisible && (
+        {!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && !mapVisible && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
               {loading ? t("dashboard.searching") : mapPaneLabel}
@@ -683,14 +685,14 @@ export function DashboardApp({
           <div
             className={cn(
               "relative",
-              !settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible ? "flex-1" : "hidden"
+              !settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible ? "flex-1" : "hidden"
             )}
           >
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
               onBoundsChange={setMapBounds}
-              visible={!settingsOpen && !favoritesOpen && !analysisOpen && !adminOpen && mapVisible}
+              visible={!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
               likedIds={likedIds}

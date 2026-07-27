@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import type { ClientCatastroParcel } from "@/lib/types";
 import type { AnalysisEngineResult } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
-import { formatCatastroParcelAddress } from "@/lib/utils";
+import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
 import { colors, typography, layout, toc as tocStyles } from "@/lib/pdf/styles";
 import {
   buildCatastroSection,
@@ -66,7 +66,7 @@ function Cover({
 
       <View style={{ marginTop: 30, marginBottom: 24 }}>
         <Text style={{ fontSize: 15, fontFamily: "Helvetica-Bold", color: colors.ink, marginBottom: 3 }}>
-          {formatCatastroParcelAddress(parcel) || parcel.referenciaCatastral}
+          {formatCatastroParcelDisplayAddress(parcel) || parcel.referenciaCatastral}
         </Text>
         <Text style={{ fontSize: 9.5, color: colors.muted }}>
           {t(locale, "pdf.referenceLabel")} {parcel.referenciaCatastral}

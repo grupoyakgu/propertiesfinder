@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Copy, FileDown, Sparkles } from "lucide-react";
-import type { ClientCatastroParcel } from "@/lib/types";
+import type { ClientCatastroParcel, ClientOpportunity } from "@/lib/types";
 import type {
   AnalysisEngineData,
   AnalysisEngineResult,
@@ -10,7 +10,7 @@ import type {
   AnalysisProgressEvent,
 } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
-import { cn, formatCatastroParcelAddress } from "@/lib/utils";
+import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
 interface Field {
   key: keyof AnalysisEngineData;
@@ -555,7 +555,12 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        const fetched: ClientCatastroParcel[] = data.parcels ?? [];
+        const opportunities: ClientOpportunity[] = data.opportunities ?? [];
+        // The engine only runs against opportunities still worth exploring —
+        // enforced again server-side in the POST route regardless of this filter.
+        const fetched = opportunities
+          .filter((o) => o.status !== "NOT_RELEVANT")
+          .map((o) => o.parcel);
         setParcels(fetched);
         if (fetched.length > 0) {
           setSelectedId(fetched[0].id);
@@ -701,7 +706,7 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
               >
                 {parcels.map((parcel) => (
                   <option key={parcel.id} value={parcel.id}>
-                    {parcel.referenciaCatastral} — {formatCatastroParcelAddress(parcel)}
+                    {parcel.referenciaCatastral} — {formatCatastroParcelDisplayAddress(parcel)}
                   </option>
                 ))}
               </select>

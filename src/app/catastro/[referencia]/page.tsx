@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Earth, MapPinned } from "lucide-react";
+import { ArrowLeft, Building2, Earth, MapPinned } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
-import { formatArea, formatCatastroParcelAddress, googleEarthUrl, resolveBackHref } from "@/lib/utils";
+import {
+  formatArea,
+  formatCatastroParcelAddress,
+  formatCatastroParcelDisplayAddress,
+  googleEarthUrl,
+  idealistaUrl,
+  resolveBackHref,
+} from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { DetailSection, DetailRow } from "@/components/property/detail-section";
 import { PropertyMapLoader } from "@/components/property/property-map-loader";
@@ -34,13 +41,13 @@ export default async function CatastroParcelPage({
   const backHref = resolveBackHref(from);
 
   const user = await getCurrentUser();
-  const initialLiked = user
-    ? Boolean(
-        await prisma.favorite.findUnique({
-          where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId: parcel.id } },
-        })
-      )
-    : false;
+  // Opportunities are shared, so "liked" is a global fact about the property,
+  // not something scoped to the viewing user.
+  const initialLiked = Boolean(
+    await prisma.favorite.findUnique({
+      where: { source_propertyId: { source: "catastro", propertyId: parcel.id } },
+    })
+  );
   const initialComments = await getClientComments(parcel.id);
 
   return (
@@ -74,6 +81,15 @@ export default async function CatastroParcelPage({
               >
                 <Earth className="h-5 w-5" />
               </a>
+              <a
+                href={idealistaUrl(parcel.municipality, parcel.province)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("card.openInIdealista")}
+                className="rounded p-1 text-muted-foreground hover:text-primary"
+              >
+                <Building2 className="h-5 w-5" />
+              </a>
             </h1>
             {parcel.streetName && (
               <p className="mt-1 text-sm font-medium text-foreground">
@@ -81,9 +97,7 @@ export default async function CatastroParcelPage({
                 {parcel.streetNumber ? `, ${parcel.streetNumber}` : ""}
               </p>
             )}
-            <p className="mt-1 text-sm text-muted-foreground">
-              {parcel.municipality}, {parcel.province}, {parcel.autonomousCommunity}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{parcel.autonomousCommunity}</p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-semibold text-foreground">{formatArea(parcel.plotSize)}</p>
@@ -94,9 +108,7 @@ export default async function CatastroParcelPage({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <DetailSection title={t("detail.generalInformation")}>
-              <DetailRow label={t("detail.address")} value={formatCatastroParcelAddress(parcel)} />
-              <DetailRow label={t("detail.municipality")} value={parcel.municipality} />
-              <DetailRow label={t("detail.province")} value={parcel.province} />
+              <DetailRow label={t("detail.address")} value={formatCatastroParcelDisplayAddress(parcel)} />
               <DetailRow label={t("detail.autonomousCommunity")} value={parcel.autonomousCommunity} />
               <DetailRow
                 label={t("detail.coordinates")}

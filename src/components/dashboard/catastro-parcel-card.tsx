@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Earth, MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
+import { Building2, Earth, MapPin, MapPinned, Ruler, Calendar, Layers } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress, cn, googleEarthUrl, withBackHref } from "@/lib/utils";
+import {
+  formatArea,
+  formatCatastroParcelAddress,
+  formatCatastroParcelDisplayAddress,
+  cn,
+  googleEarthUrl,
+  idealistaUrl,
+  withBackHref,
+} from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 import { LikeButton } from "@/components/dashboard/like-button";
@@ -63,7 +71,7 @@ export function CatastroParcelCard({
 
         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
           <MapPin className="h-3.5 w-3.5 shrink-0" />
-          {formatCatastroParcelAddress(parcel)}
+          {formatCatastroParcelDisplayAddress(parcel)}
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -96,6 +104,15 @@ export function CatastroParcelCard({
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
         >
           <Earth className="h-4 w-4" />
+        </a>
+        <a
+          href={idealistaUrl(parcel.municipality, parcel.province)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("card.openInIdealista")}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-primary"
+        >
+          <Building2 className="h-4 w-4" />
         </a>
         {selectable && (
           <button

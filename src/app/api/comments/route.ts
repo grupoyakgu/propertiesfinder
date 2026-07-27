@@ -57,11 +57,14 @@ export async function POST(request: Request) {
       include: { user: { select: { id: true, name: true } } },
     }),
     // Commenting on a property is treated as expressing interest in it — like it
-    // too, the same way the property's own Like button would. Upsert (rather than
-    // create) since re-commenting on an already-liked property shouldn't error.
+    // too, the same way the property's own Like button would, adding it to the
+    // shared Opportunities list with the commenter as owner. Upsert (rather than
+    // create) since re-commenting on one that's already an opportunity shouldn't
+    // error — and shouldn't reassign it away from whoever already owns it either
+    // (the empty `update` is deliberate).
     prisma.favorite.upsert({
-      where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId } },
-      create: { userId: user.id, source: "catastro", propertyId },
+      where: { source_propertyId: { source: "catastro", propertyId } },
+      create: { assignedUserId: user.id, source: "catastro", propertyId },
       update: {},
     }),
   ]);

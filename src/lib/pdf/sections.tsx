@@ -3,7 +3,7 @@ import type { ClientCatastroParcel } from "@/lib/types";
 import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, ResidualLandValue } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
-import { formatCatastroParcelAddress } from "@/lib/utils";
+import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
 import { typography, layout, dataTable, compareTable, callout } from "@/lib/pdf/styles";
 import { MarkdownBlock } from "@/lib/pdf/markdown";
 
@@ -70,7 +70,7 @@ function Callout({
 export function buildCatastroSection(parcel: ClientCatastroParcel, locale: Locale): PdfSection {
   const rows = [
     { label: t(locale, "detail.referenciaCatastral"), value: parcel.referenciaCatastral },
-    { label: t(locale, "detail.address"), value: formatCatastroParcelAddress(parcel) || "—" },
+    { label: t(locale, "detail.address"), value: formatCatastroParcelDisplayAddress(parcel) || "—" },
     { label: t(locale, "detail.municipality"), value: parcel.municipality },
     { label: t(locale, "detail.province"), value: parcel.province },
     { label: t(locale, "detail.autonomousCommunity"), value: parcel.autonomousCommunity },

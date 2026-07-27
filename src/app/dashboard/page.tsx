@@ -28,8 +28,8 @@ export default async function DashboardPage({
       : null;
 
   const user = await getCurrentUser();
-  // Presets are shared — every signed-in user sees everyone's saved viewports,
-  // not just their own (see /api/map-presets).
+  // Presets and Opportunities are both shared — every signed-in user sees
+  // everyone's, not just their own (see /api/map-presets and /api/favorites).
   const [presets, favorites] = user
     ? await Promise.all([
         prisma.mapPreset.findMany({
@@ -37,7 +37,7 @@ export default async function DashboardPage({
           include: { user: { select: { name: true } } },
         }),
         prisma.favorite.findMany({
-          where: { userId: user.id, source: "catastro" },
+          where: { source: "catastro" },
           select: { propertyId: true },
         }),
       ])
@@ -73,6 +73,7 @@ export default async function DashboardPage({
       isAdmin={user?.isAdmin ?? false}
       canUseAnalysisEngine={user?.permissions.includes("analysis_engine") ?? false}
       canExportPdf={user?.permissions.includes("export_pdf") ?? false}
+      canExportXls={user?.permissions.includes("export_xls") ?? false}
     />
   );
 }

@@ -49,16 +49,6 @@ export function FiltersSidebar({
 
       <div className="flex-1 overflow-y-auto px-4 pb-8">
         <FilterSection title={t("filters.location")} defaultOpen>
-          <Input
-            placeholder={t("filters.cityMunicipality")}
-            value={filters.municipality}
-            onChange={(e) => set("municipality", e.target.value)}
-          />
-          <Input
-            placeholder={t("filters.province")}
-            value={filters.province}
-            onChange={(e) => set("province", e.target.value)}
-          />
           <Select
             value={filters.autonomousCommunity}
             onChange={(e) => set("autonomousCommunity", e.target.value)}

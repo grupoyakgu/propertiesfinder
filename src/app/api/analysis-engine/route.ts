@@ -152,6 +152,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // The Analysis Engine only ever runs against a shared Opportunity, and only
+  // while it's still worth exploring — enforced here regardless of what the
+  // picker UI already filters out, since that's just client-side convenience.
+  const opportunity = await prisma.favorite.findUnique({
+    where: { source_propertyId: { source: "catastro", propertyId: parsed.data.parcelId } },
+  });
+  if (!opportunity || opportunity.status === "NOT_RELEVANT") {
+    return new Response(
+      JSON.stringify({ error: "This property isn't an active opportunity to analyze" }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   const parcel = await prisma.catastroParcel.findUnique({ where: { id: parsed.data.parcelId } });
   if (!parcel) {
     return new Response(JSON.stringify({ error: "Parcel not found" }), {

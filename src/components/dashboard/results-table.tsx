@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress, cn, withBackHref } from "@/lib/utils";
+import { formatArea, formatCatastroParcelDisplayAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 import { LikeButton } from "@/components/dashboard/like-button";
@@ -244,16 +244,9 @@ export function CatastroResultsTable({
     {
       key: "address",
       label: t("table.address"),
-      accessor: (p) => formatCatastroParcelAddress(p),
-      render: (p) => formatCatastroParcelAddress(p),
+      accessor: (p) => formatCatastroParcelDisplayAddress(p),
+      render: (p) => formatCatastroParcelDisplayAddress(p),
     },
-    {
-      key: "municipality",
-      label: t("table.municipality"),
-      accessor: (p) => p.municipality,
-      render: (p) => p.municipality,
-    },
-    { key: "province", label: t("table.province"), accessor: (p) => p.province, render: (p) => p.province },
     {
       key: "plotSize",
       label: t("table.plotSize"),

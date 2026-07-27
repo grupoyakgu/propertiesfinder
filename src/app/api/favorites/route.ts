@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { toClientCatastroParcel } from "@/lib/types";
+import { toClientCatastroParcel, toClientOpportunity, type ClientOpportunity } from "@/lib/types";
 
 const toggleSchema = z.object({
   propertyId: z.string().min(1),
 });
 
+// Opportunities are shared: every signed-in user sees the same list (not just
+// their own), enriched with each one's status and current assignee — see the
+// Favorite model's comment in schema.prisma.
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
@@ -15,18 +18,31 @@ export async function GET() {
   }
 
   const favorites = await prisma.favorite.findMany({
-    where: { userId: user.id, source: "catastro" },
+    where: { source: "catastro" },
     orderBy: { createdAt: "desc" },
+    include: { assignedUser: { select: { name: true } } },
   });
   const parcelIds = favorites.map((f) => f.propertyId);
 
   const parcels = parcelIds.length
     ? await prisma.catastroParcel.findMany({ where: { id: { in: parcelIds } } })
     : [];
+  const parcelById = new Map(parcels.map((p) => [p.id, toClientCatastroParcel(p)]));
 
-  return NextResponse.json({ parcels: parcels.map(toClientCatastroParcel) });
+  const opportunities = favorites
+    .map((favorite) => {
+      const parcel = parcelById.get(favorite.propertyId);
+      return parcel ? toClientOpportunity(favorite, parcel) : null;
+    })
+    .filter((o): o is ClientOpportunity => o !== null);
+
+  return NextResponse.json({ opportunities });
 }
 
+// Full toggle: liking a property not yet on the shared list adds it (the
+// liker becomes its owner); liking one already on the list removes it
+// outright — anyone can remove any opportunity this way, regardless of who
+// it's currently assigned to.
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -44,7 +60,7 @@ export async function POST(request: Request) {
   const { propertyId } = parsed.data;
 
   const existing = await prisma.favorite.findUnique({
-    where: { userId_source_propertyId: { userId: user.id, source: "catastro", propertyId } },
+    where: { source_propertyId: { source: "catastro", propertyId } },
   });
 
   if (existing) {
@@ -52,6 +68,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ liked: false });
   }
 
-  await prisma.favorite.create({ data: { userId: user.id, source: "catastro", propertyId } });
+  await prisma.favorite.create({ data: { assignedUserId: user.id, source: "catastro", propertyId } });
   return NextResponse.json({ liked: true });
 }

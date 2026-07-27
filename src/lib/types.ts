@@ -1,5 +1,5 @@
-import type { CadastralClass, LandUse } from "@/generated/prisma/enums";
-import type { CatastroParcel, Comment, MapPreset } from "@/generated/prisma/client";
+import type { CadastralClass, LandUse, OpportunityStatus } from "@/generated/prisma/enums";
+import type { CatastroParcel, Comment, Favorite, MapPreset } from "@/generated/prisma/client";
 import type { DashboardFilters } from "@/lib/filter-types";
 
 export interface ClientCatastroParcel {
@@ -64,6 +64,30 @@ export function toClientMapPreset(preset: MapPreset & { user: { name: string } }
     filters: filters as DashboardFilters | null,
     ownerId: userId,
     ownerName: user.name,
+  };
+}
+
+// A shared "Opportunity" — see the Favorite model's comment in schema.prisma.
+export interface ClientOpportunity {
+  id: string;
+  parcel: ClientCatastroParcel;
+  status: OpportunityStatus;
+  assignedUserId: string;
+  assignedUserName: string;
+  createdAt: string;
+}
+
+export function toClientOpportunity(
+  favorite: Favorite & { assignedUser: { name: string } },
+  parcel: ClientCatastroParcel
+): ClientOpportunity {
+  return {
+    id: favorite.id,
+    parcel,
+    status: favorite.status,
+    assignedUserId: favorite.assignedUserId,
+    assignedUserName: favorite.assignedUser.name,
+    createdAt: favorite.createdAt.toISOString(),
   };
 }
 

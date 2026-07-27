@@ -1,5 +1,5 @@
 import type { ClientCatastroParcel } from "@/lib/types";
-import { formatArea, formatCatastroParcelAddress } from "@/lib/utils";
+import { formatArea, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 import { cadastralClassLabels } from "@/lib/labels";
 import type { Locale } from "@/lib/i18n/translations";
 
@@ -23,7 +23,7 @@ export function catastroParcelToMarker(parcel: ClientCatastroParcel, locale: Loc
     lng: parcel.longitude,
     boundary: parcel.boundary,
     title: parcel.referenciaCatastral,
-    subtitle: formatCatastroParcelAddress(parcel),
+    subtitle: formatCatastroParcelDisplayAddress(parcel),
     badge: cadastralClassLabels[locale][parcel.cadastralUse],
     areaLabel: formatArea(parcel.plotSize),
   };
