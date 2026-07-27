@@ -83,18 +83,30 @@ export function googleEarthUrl(address: string): string {
   return `https://earth.google.com/web/search/${encodeURIComponent(address)}`;
 }
 
-/** Idealista's own free-text search endpoint — confirmed from real listing
- * URLs (e.g. idealista.com/buscar/venta-viviendas/calle_bami,_sevilla/ for a
- * search on "Calle Bami, Sevilla"): lowercase, accents stripped, whitespace
- * turned into underscores, commas kept as-is. Takes the full address
- * (street, municipality, province) the same way googleEarthUrl does. */
-export function idealistaUrl(address: string): string {
-  const slug = address
+function hyphenSlug(value: string): string {
+  return value
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // strip accents
     .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_,]/g, "");
-  return `https://www.idealista.com/buscar/venta-viviendas/${slug}/`;
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Idealista's /maps street-level page — confirmed from a real example URL
+ * (idealista.com/maps/sevilla-sevilla/calle-beatriz-de-suabia/32/ for "Calle
+ * Beatriz de Suabia 32" in Sevilla): /maps/{municipality}-{province}/{street
+ * name, hyphenated}/{street number}/. Falls back to just the municipality
+ * segment when there's no street name/number to build the rest from. */
+export function idealistaUrl(parcel: {
+  streetName: string | null;
+  streetNumber: string | null;
+  municipality: string;
+  province: string;
+}): string {
+  const segments = [`${hyphenSlug(parcel.municipality)}-${hyphenSlug(parcel.province)}`];
+  if (parcel.streetName) {
+    segments.push(hyphenSlug(parcel.streetName));
+    if (parcel.streetNumber) segments.push(hyphenSlug(parcel.streetNumber));
+  }
+  return `https://www.idealista.com/maps/${segments.join("/")}/`;
 }

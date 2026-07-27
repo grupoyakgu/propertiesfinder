@@ -263,7 +263,7 @@ export function OpportunitiesPanel({
                               <Earth className="h-4 w-4" />
                             </a>
                             <a
-                              href={idealistaUrl(formatCatastroParcelAddress(o.parcel))}
+                              href={idealistaUrl(o.parcel)}
                               target="_blank"
                               rel="noopener noreferrer"
                               title={t("card.openInIdealista")}

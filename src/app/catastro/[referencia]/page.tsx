@@ -82,7 +82,7 @@ export default async function CatastroParcelPage({
                 <Earth className="h-5 w-5" />
               </a>
               <a
-                href={idealistaUrl(formatCatastroParcelAddress(parcel))}
+                href={idealistaUrl(parcel)}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("card.openInIdealista")}
