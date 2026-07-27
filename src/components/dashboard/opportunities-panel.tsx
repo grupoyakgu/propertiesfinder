@@ -5,7 +5,13 @@ import Link from "next/link";
 import { AlertTriangle, Building2, Download, Earth, Search } from "lucide-react";
 import type { ClientOpportunity } from "@/lib/types";
 import { OpportunityStatus } from "@/generated/prisma/enums";
-import { formatCatastroParcelAddress, formatCatastroParcelDisplayAddress, googleEarthUrl, idealistaUrl } from "@/lib/utils";
+import {
+  cn,
+  formatCatastroParcelAddress,
+  formatCatastroParcelDisplayAddress,
+  googleEarthUrl,
+  idealistaUrl,
+} from "@/lib/utils";
 import { useLocale } from "@/lib/i18n/context";
 
 interface DirectoryUser {
@@ -43,6 +49,7 @@ export function OpportunitiesPanel({
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OpportunityStatus | "">("");
+  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -70,6 +77,7 @@ export function OpportunitiesPanel({
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return opportunities.filter((o) => {
+      if (assignedToMeOnly && o.assignedUserId !== currentUserId) return false;
       if (statusFilter && o.status !== statusFilter) return false;
       if (!query) return true;
       return (
@@ -78,7 +86,7 @@ export function OpportunitiesPanel({
         o.assignedUserName.toLowerCase().includes(query)
       );
     });
-  }, [opportunities, search, statusFilter]);
+  }, [opportunities, search, statusFilter, assignedToMeOnly, currentUserId]);
 
   const patch = async (id: string, body: { status?: OpportunityStatus; assignedUserId?: string }) => {
     setPending((prev) => new Set(prev).add(id));
@@ -187,6 +195,15 @@ export function OpportunitiesPanel({
                   </option>
                 ))}
               </select>
+              <label className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={assignedToMeOnly}
+                  onChange={(e) => setAssignedToMeOnly(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
+                />
+                {t("opportunities.assignedToMeOnly")}
+              </label>
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-border bg-surface">
@@ -219,7 +236,14 @@ export function OpportunitiesPanel({
                         <td className="px-4 py-2">
                           <Link
                             href={`/catastro/${o.parcel.referenciaCatastral}`}
-                            className="font-medium text-primary hover:underline"
+                            className={cn(
+                              "font-medium hover:underline",
+                              o.status === "NOT_RELEVANT"
+                                ? "text-danger"
+                                : o.status === "VALIDATED"
+                                  ? "text-success"
+                                  : "text-primary"
+                            )}
                           >
                             {o.parcel.referenciaCatastral}
                           </Link>
@@ -239,7 +263,7 @@ export function OpportunitiesPanel({
                               <Earth className="h-4 w-4" />
                             </a>
                             <a
-                              href={idealistaUrl(o.parcel.municipality, o.parcel.province)}
+                              href={idealistaUrl(formatCatastroParcelAddress(o.parcel))}
                               target="_blank"
                               rel="noopener noreferrer"
                               title={t("card.openInIdealista")}

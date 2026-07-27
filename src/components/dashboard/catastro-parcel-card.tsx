@@ -106,7 +106,7 @@ export function CatastroParcelCard({
           <Earth className="h-4 w-4" />
         </a>
         <a
-          href={idealistaUrl(parcel.municipality, parcel.province)}
+          href={idealistaUrl(formatCatastroParcelAddress(parcel))}
           target="_blank"
           rel="noopener noreferrer"
           title={t("card.openInIdealista")}

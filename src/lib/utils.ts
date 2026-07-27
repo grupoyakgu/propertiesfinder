@@ -83,21 +83,18 @@ export function googleEarthUrl(address: string): string {
   return `https://earth.google.com/web/search/${encodeURIComponent(address)}`;
 }
 
-function slugify(value: string): string {
-  return value
+/** Idealista's own free-text search endpoint — confirmed from real listing
+ * URLs (e.g. idealista.com/buscar/venta-viviendas/calle_bami,_sevilla/ for a
+ * search on "Calle Bami, Sevilla"): lowercase, accents stripped, whitespace
+ * turned into underscores, commas kept as-is. Takes the full address
+ * (street, municipality, province) the same way googleEarthUrl does. */
+export function idealistaUrl(address: string): string {
+  const slug = address
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // strip accents
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/** An Idealista "for sale" search link scoped to a municipality — Idealista has
- * no documented free-text address search (unlike Google Earth's geocoder), so
- * this is the closest available equivalent: its location slugs follow a
- * `{municipality}-{province}` pattern (e.g. "madrid-madrid", the observed
- * convention for a municipality that's also a provincial capital). Lands on
- * that municipality's listings, not a pin on the exact parcel. */
-export function idealistaUrl(municipality: string, province: string): string {
-  return `https://www.idealista.com/venta-viviendas/${slugify(municipality)}-${slugify(province)}/`;
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_,]/g, "");
+  return `https://www.idealista.com/buscar/venta-viviendas/${slug}/`;
 }
