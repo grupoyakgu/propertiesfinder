@@ -92,6 +92,46 @@ function hyphenSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// Catastro's INSPIRE address data stores thoroughfare names with the street
+// type abbreviated ("CL BEATRIZ DE SUABIA", not "Calle Beatriz de Suabia"),
+// but Idealista's /maps/ URLs spell it out in full — so the raw abbreviation
+// has to be expanded before slugifying, or the URL 404s. Covers the common
+// INE/Catastro thoroughfare-type codes; an unrecognized one is left as-is.
+const STREET_TYPE_EXPANSIONS: Record<string, string> = {
+  cl: "calle",
+  "c/": "calle",
+  av: "avenida",
+  avda: "avenida",
+  cj: "callejon",
+  cjon: "callejon",
+  cm: "camino",
+  cno: "camino",
+  cr: "carretera",
+  ctra: "carretera",
+  gv: "gran via",
+  pj: "pasaje",
+  psj: "pasaje",
+  pz: "plaza",
+  plz: "plaza",
+  ps: "paseo",
+  pso: "paseo",
+  rd: "ronda",
+  tr: "travesia",
+  trva: "travesia",
+  ur: "urbanizacion",
+  urb: "urbanizacion",
+  bo: "barrio",
+  pg: "poligono",
+  pol: "poligono",
+  lg: "lugar",
+};
+
+function expandStreetType(streetName: string): string {
+  const [first, ...rest] = streetName.trim().split(/\s+/);
+  const expansion = STREET_TYPE_EXPANSIONS[first.toLowerCase().replace(/\.$/, "")];
+  return expansion ? [expansion, ...rest].join(" ") : streetName;
+}
+
 /** Idealista's /maps street-level page — confirmed from a real example URL
  * (idealista.com/maps/sevilla-sevilla/calle-beatriz-de-suabia/32/ for "Calle
  * Beatriz de Suabia 32" in Sevilla): /maps/{municipality}-{province}/{street
@@ -105,7 +145,7 @@ export function idealistaUrl(parcel: {
 }): string {
   const segments = [`${hyphenSlug(parcel.municipality)}-${hyphenSlug(parcel.province)}`];
   if (parcel.streetName) {
-    segments.push(hyphenSlug(parcel.streetName));
+    segments.push(hyphenSlug(expandStreetType(parcel.streetName)));
     if (parcel.streetNumber) segments.push(hyphenSlug(parcel.streetNumber));
   }
   return `https://www.idealista.com/maps/${segments.join("/")}/`;
