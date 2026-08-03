@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
+import { Check, LassoSelect, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -29,11 +29,20 @@ import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dash
 // Shared by the fetch effect and applyPreset so both build the exact same query
 // string from the same inputs — the API scopes results to `bounds` server-side
 // (large real Catastro datasets can't rely on client-side "in view" filtering over
-// whatever page happened to get fetched).
-function buildFetchQueryString(filters: DashboardFilters, bounds: BoundsBox | null): string {
+// whatever page happened to get fetched). `polygon` (a hand-drawn area's GeoJSON
+// [lng, lat] ring) further narrows to an exact point-in-polygon match on top of
+// `bounds`, which is always still sent too (see /api/catastro-parcels).
+function buildFetchQueryString(
+  filters: DashboardFilters,
+  bounds: BoundsBox | null,
+  polygon: number[][] | null
+): string {
   const params = filtersToSearchParams(filters);
   if (bounds) {
     params.set("bbox", [bounds.south, bounds.west, bounds.north, bounds.east].join(","));
+  }
+  if (polygon) {
+    params.set("polygon", JSON.stringify(polygon));
   }
   return params.toString();
 }
@@ -149,6 +158,16 @@ export function DashboardApp({
   // persistSetting below) so it survives both a "Back to search" round trip
   // and the user's next visit entirely.
   const [mapLocked, setMapLocked] = useState(initialMapLocked);
+  // A hand-drawn area (GeoJSON [lng, lat] ring) currently narrowing results to an
+  // exact point-in-polygon match, on top of mapBounds — set by finishing a draw or
+  // applying/refocusing a polygon preset, cleared by panning away (see the wrapped
+  // bounds-change handler below) or the explicit "Clear" affordance in the header.
+  const [activePolygon, setActivePolygon] = useState<number[][] | null>(null);
+  // Whether the map is currently in "click to add a vertex" mode, and the vertices
+  // collected so far (Leaflet [lat, lng] order — converted to GeoJSON order only
+  // once finished, see finishDrawing).
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawnPoints, setDrawnPoints] = useState<[number, number][]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A separate tab (before Settings) showing the shared Opportunities list —
   // mutually exclusive with normal browsing and Settings.
@@ -200,6 +219,10 @@ export function DashboardApp({
     setMapBounds(bounds);
     setViewCommand({ bounds, nonce: nextNonce() });
     setActivePresetId(preset.id);
+    // A polygon preset restricts results to its exact drawn area, not just its
+    // bounding box; a plain preset has no polygon, so this also clears whatever
+    // polygon filter (drawn or from a previous preset) was active before.
+    setActivePolygon(preset.polygon);
     // Presets are saved searches, not just saved viewports — restore the location
     // and land-characteristic filters that were active when it was saved too.
     // Older presets saved before this existed have no filters; leave the current
@@ -220,6 +243,7 @@ export function DashboardApp({
     const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
     setMapBounds(bounds);
     setViewCommand({ bounds, nonce: nextNonce() });
+    setActivePolygon(preset.polygon);
   };
 
   // The API returns the raw Prisma row (userId + the joined user.name) rather
@@ -236,6 +260,7 @@ export function DashboardApp({
     east: number;
     isDefault: boolean;
     filters: unknown;
+    polygon: unknown;
     userId: string;
     user: { name: string };
   }): ClientMapPreset => ({
@@ -247,6 +272,7 @@ export function DashboardApp({
     east: raw.east,
     isDefault: raw.isDefault,
     filters: raw.filters as ClientMapPreset["filters"],
+    polygon: raw.polygon as ClientMapPreset["polygon"],
     ownerId: raw.userId,
     ownerName: raw.user.name,
   });
@@ -256,7 +282,7 @@ export function DashboardApp({
     const res = await fetch("/api/map-presets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, ...mapBounds, filters }),
+      body: JSON.stringify({ name, ...mapBounds, filters, ...(activePolygon ? { polygon: activePolygon } : {}) }),
     });
     if (!res.ok) return;
     const { preset } = await res.json();
@@ -355,7 +381,10 @@ export function DashboardApp({
   // interacted with the map) in addition to the search filters — see
   // buildFetchQueryString for why this has to happen server-side rather than by
   // filtering whatever page of results happened to get fetched.
-  const fetchQueryString = useMemo(() => buildFetchQueryString(filters, mapBounds), [filters, mapBounds]);
+  const fetchQueryString = useMemo(
+    () => buildFetchQueryString(filters, mapBounds, activePolygon),
+    [filters, mapBounds, activePolygon]
+  );
 
   // The dashboard's own URL (map visibility + filters), kept in sync below so
   // "Back to search" from a detail page can restore this exact view instead of resetting
@@ -492,6 +521,56 @@ export function DashboardApp({
     });
   };
 
+  // A manual pan/zoom means the user is deliberately looking at a different area
+  // than whatever polygon was active — keep showing plain bbox results for the
+  // new viewport instead of continuing to exact-filter by a now-stale shape.
+  // (Never fires while Map Lock is on — see the MapView prop below — so locking
+  // the map also freezes the polygon filter along with everything else.)
+  const handleBoundsChange = (bounds: BoundsBox) => {
+    setMapBounds(bounds);
+    setActivePolygon(null);
+  };
+
+  // Adds one vertex (Leaflet [lat, lng] order) to the in-progress hand-drawn area.
+  const addDrawPoint = (latlng: [number, number]) => {
+    setDrawnPoints((prev) => [...prev, latlng]);
+  };
+
+  // Closes the polygon (min 3 vertices), applies it as the active filter right
+  // away — "create a preset out of it" is a separate, optional follow-up via the
+  // header's normal Save-preset control, which becomes available the moment
+  // mapBounds is set below — and fits the map to it.
+  const finishDrawing = () => {
+    if (drawnPoints.length < 3) return;
+    const ring: number[][] = drawnPoints.map(([lat, lng]) => [lng, lat]);
+    ring.push(ring[0]);
+
+    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+    for (const [lat, lng] of drawnPoints) {
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+    }
+    const bounds: BoundsBox = { south, west, north, east };
+
+    setActivePolygon(ring);
+    setMapBounds(bounds);
+    setViewCommand({ bounds, nonce: nextNonce() });
+    setActivePresetId(null);
+    setDrawMode(false);
+    setDrawnPoints([]);
+  };
+
+  const cancelDrawing = () => {
+    setDrawMode(false);
+    setDrawnPoints([]);
+  };
+
+  const clearActivePolygon = () => {
+    setActivePolygon(null);
+  };
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-4 border-b border-border bg-surface px-4 py-3">
@@ -533,6 +612,38 @@ export function DashboardApp({
           {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
+
+        {mapVisible && (
+          <button
+            type="button"
+            onClick={() => {
+              if (drawMode) cancelDrawing();
+              else setDrawMode(true);
+            }}
+            title={t("dashboard.drawAreaHint")}
+            className={cn(
+              "hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium sm:flex",
+              drawMode
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-foreground"
+            )}
+          >
+            <LassoSelect className="h-3.5 w-3.5" />
+            {t("dashboard.drawArea")}
+          </button>
+        )}
+
+        {activePolygon && !drawMode && (
+          <button
+            type="button"
+            onClick={clearActivePolygon}
+            title={t("dashboard.clearAreaFilter")}
+            className="hidden shrink-0 items-center gap-1.5 rounded-full border border-accent bg-accent/10 px-3 py-2 text-xs font-medium text-accent-foreground sm:flex"
+          >
+            {t("dashboard.areaFilterActive")}
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         <PresetQuickSwitch
           presets={presets}
@@ -730,13 +841,41 @@ export function DashboardApp({
               // which markers show) stays exactly as it was. Deliberate viewport
               // changes (presets, "show on map", etc.) still go through setMapBounds
               // directly elsewhere, bypassing this gate entirely.
-              onBoundsChange={mapLocked ? undefined : setMapBounds}
+              onBoundsChange={mapLocked ? undefined : handleBoundsChange}
               visible={!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}
               likedIds={likedIds}
               onToggleLike={(id, liked) => toggleLike(id, liked)}
+              drawMode={drawMode}
+              drawnPoints={drawnPoints}
+              onAddDrawPoint={addDrawPoint}
             />
+
+            {drawMode && (
+              <div className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-surface px-4 py-2 text-xs shadow-md">
+                <span className="font-medium text-foreground">
+                  {drawnPoints.length < 3
+                    ? t("dashboard.drawAreaHintPoints", { n: drawnPoints.length })
+                    : t("dashboard.drawAreaReadyPoints", { n: drawnPoints.length })}
+                </span>
+                <button
+                  type="button"
+                  onClick={finishDrawing}
+                  disabled={drawnPoints.length < 3}
+                  className="flex items-center gap-1 font-medium text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Check className="h-3.5 w-3.5" /> {t("dashboard.drawAreaFinish")}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelDrawing}
+                  className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" /> {t("dashboard.drawAreaCancel")}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

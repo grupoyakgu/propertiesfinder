@@ -8,6 +8,8 @@ import {
   Marker,
   Popup,
   Polygon,
+  Polyline,
+  CircleMarker,
   LayersControl,
   useMap,
   useMapEvents,
@@ -17,7 +19,7 @@ import L from "leaflet";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MapMarker } from "@/lib/map-marker";
-import { withBackHref } from "@/lib/utils";
+import { cn, withBackHref } from "@/lib/utils";
 import { LikeButton } from "@/components/dashboard/like-button";
 
 // Real cadastral boundary/planning polygons have genuine, often many-vertex
@@ -61,6 +63,7 @@ function FitBounds({
   markers,
   visible,
   viewCommand,
+  suppressBoundsChangeRef,
 }: {
   markers: MapMarker[];
   visible: boolean;
@@ -68,6 +71,10 @@ function FitBounds({
    * state, or applying a saved preset) — consumed once per distinct nonce. Takes
    * precedence over the fit-to-all-markers fallback whenever it's present. */
   viewCommand?: ViewCommand | null;
+  /** Set right before any programmatic map.fitBounds() call, so BoundsTracker can
+   * tell "the map just moved because we told it to" apart from a genuine user
+   * drag/scroll — both fire the same moveend/zoomend events otherwise. */
+  suppressBoundsChangeRef: { current: boolean };
 }) {
   const map = useMap();
   const key = markers.map((m) => m.id).join(",");
@@ -77,12 +84,24 @@ function FitBounds({
   const firedForKey = useRef<string | null>(null);
   const lastAppliedNonce = useRef<number | null>(null);
 
+  // fitBounds's own moveend/zoomend should never look like the user panned away
+  // (e.g. clearing a just-applied polygon filter — see dashboard-app.tsx's
+  // handleBoundsChange) — held long enough to cover fitBounds's pan/zoom
+  // animation, then released so a genuine subsequent drag reports normally.
+  const suppressFor = () => {
+    suppressBoundsChangeRef.current = true;
+    setTimeout(() => {
+      suppressBoundsChangeRef.current = false;
+    }, 400);
+  };
+
   useEffect(() => {
     if (!visible) return;
 
     if (viewCommand) {
       if (viewCommand.nonce === lastAppliedNonce.current) return;
       lastAppliedNonce.current = viewCommand.nonce;
+      suppressFor();
       map.invalidateSize();
       map.fitBounds([
         [viewCommand.bounds.south, viewCommand.bounds.west],
@@ -93,9 +112,11 @@ function FitBounds({
 
     if (markers.length === 0 || firedForKey.current === key) return;
     firedForKey.current = key;
+    suppressFor();
     map.invalidateSize();
     const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, visible, map, markers, viewCommand]);
   return null;
 }
@@ -119,12 +140,66 @@ function toBoundsBox(bounds: L.LatLngBounds): BoundsBox {
   };
 }
 
-function BoundsTracker({ onBoundsChange }: { onBoundsChange: (bounds: BoundsBox) => void }) {
+function BoundsTracker({
+  onBoundsChange,
+  suppressBoundsChangeRef,
+}: {
+  onBoundsChange: (bounds: BoundsBox) => void;
+  /** Set by FitBounds while a programmatic fitBounds() is in flight — skip
+   * reporting those moves as if the user had genuinely panned/zoomed. */
+  suppressBoundsChangeRef: { current: boolean };
+}) {
   const map = useMapEvents({
-    moveend: () => onBoundsChange(toBoundsBox(map.getBounds())),
-    zoomend: () => onBoundsChange(toBoundsBox(map.getBounds())),
+    moveend: () => report(),
+    zoomend: () => report(),
   });
+  const report = () => {
+    if (suppressBoundsChangeRef.current) return;
+    onBoundsChange(toBoundsBox(map.getBounds()));
+  };
   return null;
+}
+
+/** Renders the in-progress hand-drawn polygon (dashed outline + a dot per vertex)
+ * and adds a vertex on every map click while `active` — fully controlled from the
+ * parent (dashboard-app.tsx owns `points`), matching how the rest of this map's
+ * state already works, so "Finish"/"Cancel" controls can live in the app's own
+ * header/toolbar instead of fighting Leaflet's control positioning. */
+function DrawPolygonOverlay({
+  active,
+  points,
+  onAddPoint,
+}: {
+  active: boolean;
+  /** [lat, lng] pairs, Leaflet order — converted to GeoJSON [lng, lat] only once
+   * the polygon is finished (see dashboard-app.tsx's finishDrawing). */
+  points: [number, number][];
+  onAddPoint: (latlng: [number, number]) => void;
+}) {
+  useMapEvents({
+    click: (e) => {
+      if (active) onAddPoint([e.latlng.lat, e.latlng.lng]);
+    },
+  });
+
+  if (points.length === 0) return null;
+
+  return (
+    <>
+      <Polyline
+        positions={points.length > 2 ? [...points, points[0]] : points}
+        pathOptions={{ color: "#b08d57", weight: 2, dashArray: "6 5" }}
+      />
+      {points.map((p, i) => (
+        <CircleMarker
+          key={i}
+          center={p}
+          radius={4}
+          pathOptions={{ color: "#b08d57", fillColor: "#b08d57", fillOpacity: 1 }}
+        />
+      ))}
+    </>
+  );
 }
 
 export function MapView({
@@ -136,6 +211,9 @@ export function MapView({
   backHref,
   likedIds,
   onToggleLike,
+  drawMode = false,
+  drawnPoints = [],
+  onAddDrawPoint,
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
@@ -151,8 +229,14 @@ export function MapView({
   backHref?: string;
   likedIds?: Set<string>;
   onToggleLike?: (id: string, liked: boolean) => void;
+  /** While true, clicking the map adds a vertex (via onAddDrawPoint) instead of
+   * its normal behavior — see dashboard-app.tsx's drawMode/drawnPoints state. */
+  drawMode?: boolean;
+  drawnPoints?: [number, number][];
+  onAddDrawPoint?: (latlng: [number, number]) => void;
 }) {
   const router = useRouter();
+  const suppressBoundsChangeRef = useRef(false);
   const restoreBounds = viewCommand?.bounds;
   const center: [number, number] = restoreBounds
     ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
@@ -179,7 +263,13 @@ export function MapView({
     [markers]
   );
   return (
-    <MapContainer center={center} zoom={6} scrollWheelZoom preferCanvas className="h-full w-full">
+    <MapContainer
+      center={center}
+      zoom={6}
+      scrollWheelZoom
+      preferCanvas
+      className={cn("h-full w-full", drawMode && "cursor-crosshair")}
+    >
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Street">
           <TileLayer
@@ -211,9 +301,19 @@ export function MapView({
         </LayersControl.Overlay>
       </LayersControl>
 
-      <FitBounds markers={markers} visible={visible} viewCommand={viewCommand} />
+      <FitBounds
+        markers={markers}
+        visible={visible}
+        viewCommand={viewCommand}
+        suppressBoundsChangeRef={suppressBoundsChangeRef}
+      />
       <InvalidateSizeOnShow visible={visible} />
-      {onBoundsChange && <BoundsTracker onBoundsChange={onBoundsChange} />}
+      {onBoundsChange && (
+        <BoundsTracker onBoundsChange={onBoundsChange} suppressBoundsChangeRef={suppressBoundsChangeRef} />
+      )}
+      {onAddDrawPoint && (
+        <DrawPolygonOverlay active={drawMode} points={drawnPoints} onAddPoint={onAddDrawPoint} />
+      )}
 
       {/* Clustering keeps large marker counts (e.g. a wide, unzoomed "show all on
           map" view) from mounting hundreds of individual pins at once — nearby

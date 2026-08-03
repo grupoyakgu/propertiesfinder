@@ -44,6 +44,11 @@ export interface ClientMapPreset {
   /** The full search filter state (location, land characteristics, etc.) captured
    * when the preset was saved — null for presets saved before this field existed. */
   filters: DashboardFilters | null;
+  /** A hand-drawn area (GeoJSON [lng, lat] ring) — when present, applying this
+   * preset restricts results to parcels whose point falls inside it, not just
+   * within south/west/north/east (which is still the polygon's own bounding
+   * box, kept so the map still knows where to fit). Null for plain bbox presets. */
+  polygon: number[][] | null;
   ownerId: string;
   /** The creator's display name — presets are shared (every signed-in user sees
    * everyone's), so the UI needs this to label presets that aren't the current
@@ -52,7 +57,7 @@ export interface ClientMapPreset {
 }
 
 export function toClientMapPreset(preset: MapPreset & { user: { name: string } }): ClientMapPreset {
-  const { id, name, south, west, north, east, isDefault, filters, userId, user } = preset;
+  const { id, name, south, west, north, east, isDefault, filters, polygon, userId, user } = preset;
   return {
     id,
     name,
@@ -62,6 +67,7 @@ export function toClientMapPreset(preset: MapPreset & { user: { name: string } }
     east,
     isDefault,
     filters: filters as DashboardFilters | null,
+    polygon: polygon as number[][] | null,
     ownerId: userId,
     ownerName: user.name,
   };

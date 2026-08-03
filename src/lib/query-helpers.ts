@@ -49,3 +49,23 @@ export function parseBBox(searchParams: URLSearchParams): ParsedBBox | undefined
   const [south, west, north, east] = parts;
   return { south, west, north, east };
 }
+
+/** Parses a `polygon` query param — a JSON-encoded array of [lng, lat] pairs
+ * (GeoJSON order, same shape as CatastroParcel.boundary's ring and
+ * MapPreset.polygon) — used for the exact point-in-polygon filter applied on
+ * top of the bbox narrowing (see /api/catastro-parcels and src/lib/geo.ts). */
+export function parsePolygon(searchParams: URLSearchParams): [number, number][] | undefined {
+  const raw = searchParams.get("polygon");
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length < 3) return undefined;
+    const valid = parsed.every(
+      (p): p is [number, number] =>
+        Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n))
+    );
+    return valid ? (parsed as [number, number][]) : undefined;
+  } catch {
+    return undefined;
+  }
+}

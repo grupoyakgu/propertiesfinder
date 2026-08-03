@@ -14,6 +14,9 @@ const presetSchema = z.object({
   // The dashboard's full search filter state at save time — an opaque object as far
   // as this route is concerned; only ever read back by the same client that wrote it.
   filters: z.record(z.string(), z.unknown()).optional(),
+  // A hand-drawn area — a GeoJSON [lng, lat] ring — for restricting this preset's
+  // results to points inside it, not just within south/west/north/east.
+  polygon: z.array(z.tuple([z.number(), z.number()])).min(3).optional(),
 });
 
 // Presets are shared: every signed-in user sees everyone's saved viewports (not
@@ -49,8 +52,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, south, west, north, east, isDefault, filters } = parsed.data;
+  const { name, south, west, north, east, isDefault, filters, polygon } = parsed.data;
   const filtersJson = filters as Prisma.InputJsonValue | undefined;
+  const polygonJson = polygon as Prisma.InputJsonValue | undefined;
 
   const preset = await prisma.$transaction(async (tx) => {
     if (isDefault) {
@@ -62,7 +66,15 @@ export async function POST(request: Request) {
 
     return tx.mapPreset.upsert({
       where: { userId_name: { userId: user.id, name } },
-      update: { south, west, north, east, filters: filtersJson, ...(isDefault ? { isDefault: true } : {}) },
+      update: {
+        south,
+        west,
+        north,
+        east,
+        filters: filtersJson,
+        polygon: polygonJson,
+        ...(isDefault ? { isDefault: true } : {}),
+      },
       create: {
         userId: user.id,
         name,
@@ -71,6 +83,7 @@ export async function POST(request: Request) {
         north,
         east,
         filters: filtersJson,
+        polygon: polygonJson,
         isDefault: isDefault ?? false,
       },
       include: { user: { select: { name: true } } },
