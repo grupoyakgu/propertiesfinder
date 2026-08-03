@@ -35,9 +35,14 @@ const STATUS_LABEL_KEYS: Record<OpportunityStatus, string> = {
 export function OpportunitiesPanel({
   currentUserId,
   canExportXls,
+  onRemoved,
 }: {
   currentUserId: string;
   canExportXls: boolean;
+  /** Called after a row is successfully removed here, so the data table's own
+   * "liked" state (which this panel doesn't otherwise share with) drops it too —
+   * otherwise the property would still show as selected/liked there. */
+  onRemoved?: (propertyId: string) => void;
 }) {
   const { t } = useLocale();
   const [loading, setLoading] = useState(true);
@@ -133,6 +138,7 @@ export function OpportunitiesPanel({
         return;
       }
       setOpportunities((prev) => prev.filter((existing) => existing.id !== o.id));
+      onRemoved?.(o.parcel.id);
     } catch {
       setError(t("opportunities.updateError"));
     } finally {

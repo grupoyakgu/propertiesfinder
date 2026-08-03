@@ -745,7 +745,11 @@ export function DashboardApp({
             />
           </div>
         ) : opportunitiesOpen ? (
-          <OpportunitiesPanel currentUserId={currentUserId} canExportXls={canExportXls} />
+          <OpportunitiesPanel
+            currentUserId={currentUserId}
+            canExportXls={canExportXls}
+            onRemoved={(propertyId) => toggleLike(propertyId, false)}
+          />
         ) : analysisOpen ? (
           <AnalysisEnginePanel canExportPdf={canExportPdf} />
         ) : adminOpen ? (
