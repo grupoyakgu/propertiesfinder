@@ -158,6 +158,11 @@ export function DashboardApp({
   // persistSetting below) so it survives both a "Back to search" round trip
   // and the user's next visit entirely.
   const [mapLocked, setMapLocked] = useState(initialMapLocked);
+  // A display-only toggle (not a search filter — not persisted, not saved with
+  // presets, mirroring how Opportunities' "assigned to me only" works) that
+  // narrows the card/table list down to properties the current user has
+  // already liked, using the already-loaded `likedIds` set below.
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   // A hand-drawn area (GeoJSON [lng, lat] ring) currently narrowing results to an
   // exact point-in-polygon match, on top of mapBounds — set by finishing a draw or
   // applying/refocusing a polygon preset, cleared by panning away (see the wrapped
@@ -480,10 +485,10 @@ export function DashboardApp({
     return ids;
   }, [mapBounds, markers]);
 
-  const visibleParcels = useMemo(
-    () => (visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels),
-    [parcels, visibleIds]
-  );
+  const visibleParcels = useMemo(() => {
+    const inBounds = visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels;
+    return favoritesOnly ? inBounds.filter((p) => likedIds.has(p.id)) : inBounds;
+  }, [parcels, visibleIds, favoritesOnly, likedIds]);
   const inViewCount = visibleParcels.length;
   const mapPaneLabel = mapBounds
     ? t("dashboard.inView", { n: inViewCount, total: resultCount })
@@ -805,7 +810,12 @@ export function DashboardApp({
           <AdminPanel currentUserId={currentUserId} />
         ) : (
           <div className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
-            <FiltersSidebar filters={filters} onChange={setFilters} />
+            <FiltersSidebar
+              filters={filters}
+              onChange={setFilters}
+              favoritesOnly={favoritesOnly}
+              onFavoritesOnlyChange={setFavoritesOnly}
+            />
           </div>
         )}
 

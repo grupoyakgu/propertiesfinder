@@ -267,6 +267,7 @@ const en = {
     cadastralUse: "Cadastral Use (Clase de inmueble)",
     min: "Min",
     max: "Max",
+    favoritesOnly: "Favorites only",
   },
   table: {
     referenciaCatastral: "Referencia Catastral",
@@ -598,6 +599,7 @@ const es: typeof en = {
     cadastralUse: "Uso catastral (Clase de inmueble)",
     min: "Mín",
     max: "Máx",
+    favoritesOnly: "Solo favoritos",
   },
   table: {
     referenciaCatastral: "Referencia Catastral",

@@ -60,3 +60,19 @@ body {
   background: var(--surface-muted);
   font-family: inherit;
 }
+
+/* Applied to a marker-cluster bubble (see map-view.tsx's hover-highlight effect)
+ * while the currently-hovered card/row's property is folded into it, so the
+ * user can still see where it is on the map even though it has no marker of
+ * its own on screen right now. Higher specificity than the plugin's own
+ * .marker-cluster-{small,medium,large} rules (two classes vs. one) so it wins
+ * without needing !important. Deliberately doesn't touch `transform` — Leaflet
+ * sets that inline (via translate3d) to position the icon, and an inline style
+ * always wins over a stylesheet rule for the same property. */
+.marker-cluster.marker-cluster-highlighted,
+.marker-cluster.marker-cluster-highlighted div {
+  background-color: rgba(176, 141, 87, 0.85);
+}
+.marker-cluster.marker-cluster-highlighted {
+  box-shadow: 0 0 0 3px rgba(176, 141, 87, 0.5);
+}

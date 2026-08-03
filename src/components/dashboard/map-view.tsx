@@ -237,6 +237,34 @@ export function MapView({
 }) {
   const router = useRouter();
   const suppressBoundsChangeRef = useRef(false);
+  // Lets the hover-highlight effect below find a given marker's actual Leaflet
+  // layer (to ask the cluster group what currently contains it) and the cluster
+  // group instance itself, without triggering any re-render on hover — both are
+  // populated via ref callbacks on the Markers/MarkerClusterGroup further down.
+  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const markerLayersById = useRef<Map<string, L.Marker>>(new Map());
+
+  // When the hovered property is currently folded into an unspiderfied cluster
+  // bubble (rather than rendered as its own pin), highlighting the individual
+  // marker (see markerIcon above) does nothing visible — the cluster icon is
+  // all that's on screen. Ask leaflet.markercluster which visible layer
+  // currently represents the hovered marker and, if that's a cluster rather
+  // than the marker itself, add a CSS class to its DOM element for the
+  // duration of the hover so the user can still see where it is.
+  useEffect(() => {
+    const clusterGroup = clusterGroupRef.current;
+    if (!clusterGroup || !hoveredId) return;
+    const markerLayer = markerLayersById.current.get(hoveredId);
+    if (!markerLayer) return;
+    const visibleParent = clusterGroup.getVisibleParent(markerLayer);
+    if (!visibleParent || visibleParent === markerLayer) return;
+    const el = visibleParent.getElement();
+    el?.classList.add("marker-cluster-highlighted");
+    return () => {
+      el?.classList.remove("marker-cluster-highlighted");
+    };
+  }, [hoveredId]);
+
   const restoreBounds = viewCommand?.bounds;
   const center: [number, number] = restoreBounds
     ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
@@ -320,10 +348,14 @@ export function MapView({
           markers group into a single bubble until the user zooms in. chunkedLoading
           spreads that initial mount across animation frames instead of doing it all
           synchronously, which is what actually caused the tab to hang. */}
-      <MarkerClusterGroup chunkedLoading maxClusterRadius={60}>
+      <MarkerClusterGroup ref={clusterGroupRef} chunkedLoading maxClusterRadius={60}>
         {markers.map((marker) => (
           <Marker
             key={marker.id}
+            ref={(instance) => {
+              if (instance) markerLayersById.current.set(marker.id, instance);
+              else markerLayersById.current.delete(marker.id);
+            }}
             position={[marker.lat, marker.lng]}
             icon={markerIcon(hoveredId === marker.id)}
             eventHandlers={{ click: () => router.prefetch(withBackHref(marker.href, backHref)) }}
