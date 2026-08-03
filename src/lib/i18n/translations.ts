@@ -283,6 +283,7 @@ const en = {
     prev: "Prev",
     next: "Next",
     pageOf: "Page {page} of {total}",
+    hasComments: "Has comments",
   },
   card: {
     floors: "floors",
@@ -613,6 +614,7 @@ const es: typeof en = {
     prev: "Anterior",
     next: "Siguiente",
     pageOf: "Página {page} de {total}",
+    hasComments: "Tiene comentarios",
   },
   card: {
     floors: "plantas",

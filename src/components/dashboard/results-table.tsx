@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, MapPinned, MessageSquare } from "lucide-react";
 import type { ClientCatastroParcel } from "@/lib/types";
 import { formatArea, formatCatastroParcelDisplayAddress, cn, withBackHref } from "@/lib/utils";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
@@ -71,6 +71,7 @@ function DataTable<T extends { id: string }>({
   onShowOnMap,
   likedIds,
   onToggleLike,
+  renderExtraIcon,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -86,6 +87,9 @@ function DataTable<T extends { id: string }>({
   onShowOnMap?: (id: string) => void;
   likedIds?: Set<string>;
   onToggleLike?: (id: string, liked: boolean) => void;
+  /** An optional small icon rendered alongside the like button — e.g. a comment
+   * indicator — returning null/undefined for a given row renders nothing. */
+  renderExtraIcon?: (row: T) => React.ReactNode;
 }) {
   const { t } = useLocale();
   const { sorted, sort, toggleSort } = useSortedRows(rows, columns, defaultSortKey);
@@ -146,11 +150,14 @@ function DataTable<T extends { id: string }>({
                   </td>
                 )}
                 <td className="px-3 py-2.5">
-                  <LikeButton
-                    propertyId={row.id}
-                    initialLiked={likedIds?.has(row.id) ?? false}
-                    onToggle={(liked) => onToggleLike?.(row.id, liked)}
-                  />
+                  <div className="flex items-center gap-1">
+                    <LikeButton
+                      propertyId={row.id}
+                      initialLiked={likedIds?.has(row.id) ?? false}
+                      onToggle={(liked) => onToggleLike?.(row.id, liked)}
+                    />
+                    {renderExtraIcon?.(row)}
+                  </div>
                 </td>
                 {columns.map((col, i) => (
                   <td key={col.key} className={cn("whitespace-nowrap px-3 py-2.5", col.align === "right" && "text-right")}>
@@ -302,6 +309,13 @@ export function CatastroResultsTable({
       onShowOnMap={onShowOnMap}
       likedIds={likedIds}
       onToggleLike={onToggleLike}
+      renderExtraIcon={(p) =>
+        p.hasComment ? (
+          <span title={t("table.hasComments")}>
+            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+          </span>
+        ) : null
+      }
     />
   );
 }

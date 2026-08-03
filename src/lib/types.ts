@@ -23,6 +23,13 @@ export interface ClientCatastroParcel {
 
   sourceDataset: string;
   importedAt: string;
+
+  /** Whether anyone has left a comment on this property — only populated by the
+   * Official Catastro Records list route (see /api/catastro-parcels), which
+   * batches the lookup for the whole page of results; undefined elsewhere
+   * (e.g. the detail page, which doesn't need it since it shows the full
+   * comment thread directly). */
+  hasComment?: boolean;
 }
 
 export function toClientCatastroParcel(parcel: CatastroParcel): ClientCatastroParcel {
