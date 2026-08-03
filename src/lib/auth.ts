@@ -56,6 +56,8 @@ export async function getCurrentUser() {
       isAdmin: true,
       isActive: true,
       permissions: true,
+      mapLocked: true,
+      showAllOnMap: true,
     },
   });
 

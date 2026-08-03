@@ -81,6 +81,7 @@ export function DashboardApp({
   initialFilters,
   initialMapVisible = false,
   initialShowAllOnMap = false,
+  initialMapLocked = false,
   initialMapBounds = null,
   initialPresets = [],
   initialLikedIds = [],
@@ -93,6 +94,7 @@ export function DashboardApp({
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
   initialShowAllOnMap?: boolean;
+  initialMapLocked?: boolean;
   initialMapBounds?: BoundsBox | null;
   initialPresets?: ClientMapPreset[];
   initialLikedIds?: string[];
@@ -141,6 +143,12 @@ export function DashboardApp({
   // survives a round trip through a property detail page's "Back to search" link —
   // otherwise this setting would silently reset to off every time.
   const [showAllOnMap, setShowAllOnMap] = useState(initialShowAllOnMap);
+  // Off by default: panning/zooming the map re-scopes the Official Catastro
+  // Records table (and which markers render) to the new viewport, same as
+  // showAllOnMap above — carried in the URL and persisted server-side (see
+  // persistSetting below) so it survives both a "Back to search" round trip
+  // and the user's next visit entirely.
+  const [mapLocked, setMapLocked] = useState(initialMapLocked);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A separate tab (before Settings) showing the shared Opportunities list —
   // mutually exclusive with normal browsing and Settings.
@@ -314,6 +322,26 @@ export function DashboardApp({
     setSelectedIds(new Set());
   };
 
+  // Persists Map Lock / "show all on map" to the signed-in user's row so they
+  // carry over to their next visit — skips the render that just hydrated from
+  // those same initial values, so mounting never fires a redundant PATCH.
+  const settingsHydrated = useRef(false);
+  useEffect(() => {
+    if (!settingsHydrated.current) {
+      settingsHydrated.current = true;
+      return;
+    }
+    if (!currentUserId) return;
+    fetch("/api/user-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mapLocked, showAllOnMap }),
+    }).catch(() => {
+      // Best-effort — a failed save just means the next visit falls back to
+      // whatever was last successfully persisted, not a user-facing error.
+    });
+  }, [mapLocked, showAllOnMap, currentUserId]);
+
   // Mount the map the first time it's shown, and never unmount it again afterwards
   // (visibility toggles purely via CSS below) so Leaflet keeps its pan/zoom state.
   // This also means the map (and its ~hundreds of markers/polygons) never has to
@@ -336,12 +364,13 @@ export function DashboardApp({
     const params = filtersToSearchParams(filters);
     if (mapVisible) params.set("map", "1");
     if (showAllOnMap) params.set("showAll", "1");
+    if (mapLocked) params.set("mapLocked", "1");
     if (mapBounds) {
       const { south, west, north, east } = mapBounds;
       params.set("bbox", [south, west, north, east].map((v) => v.toFixed(6)).join(","));
     }
     return params.toString();
-  }, [filters, mapVisible, showAllOnMap, mapBounds]);
+  }, [filters, mapVisible, showAllOnMap, mapLocked, mapBounds]);
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
@@ -588,7 +617,12 @@ export function DashboardApp({
       <div className="flex flex-1 overflow-hidden">
         {settingsOpen ? (
           <div className="flex-1 overflow-y-auto">
-            <MapDisplaySettings showAllOnMap={showAllOnMap} onChange={setShowAllOnMap} />
+            <MapDisplaySettings
+              showAllOnMap={showAllOnMap}
+              onChange={setShowAllOnMap}
+              mapLocked={mapLocked}
+              onMapLockedChange={setMapLocked}
+            />
             <PresetSettingsPanel
               presets={presets}
               currentUserId={currentUserId}
@@ -691,7 +725,12 @@ export function DashboardApp({
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
-              onBoundsChange={setMapBounds}
+              // Map Lock: while enabled, panning/zooming freely no longer feeds
+              // back into mapBounds — so the Official Catastro Records table (and
+              // which markers show) stays exactly as it was. Deliberate viewport
+              // changes (presets, "show on map", etc.) still go through setMapBounds
+              // directly elsewhere, bypassing this gate entirely.
+              onBoundsChange={mapLocked ? undefined : setMapBounds}
               visible={!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}

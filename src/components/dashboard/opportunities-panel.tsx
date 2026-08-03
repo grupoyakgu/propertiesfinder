@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Building2, Download, Earth, Search } from "lucide-react";
+import { AlertTriangle, Building2, Download, Earth, Search, Trash2 } from "lucide-react";
 import type { ClientOpportunity } from "@/lib/types";
 import { OpportunityStatus } from "@/generated/prisma/enums";
 import {
@@ -109,6 +109,36 @@ export function OpportunitiesPanel({
       setPending((prev) => {
         const next = new Set(prev);
         next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  // Same effect as un-liking the property from its card/detail page (the heart
+  // icon is a full toggle — see /api/favorites) — POSTing its propertyId again
+  // removes the shared opportunity outright, regardless of who owns it.
+  const removeOpportunity = async (o: ClientOpportunity) => {
+    if (!window.confirm(t("opportunities.confirmRemove", { referencia: o.parcel.referenciaCatastral }))) return;
+    setPending((prev) => new Set(prev).add(o.id));
+    setError(null);
+    try {
+      const res = await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: o.parcel.id }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setError(json?.error ?? t("opportunities.updateError"));
+        return;
+      }
+      setOpportunities((prev) => prev.filter((existing) => existing.id !== o.id));
+    } catch {
+      setError(t("opportunities.updateError"));
+    } finally {
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(o.id);
         return next;
       });
     }
@@ -225,6 +255,7 @@ export function OpportunitiesPanel({
                     <th className="px-4 py-2 text-left font-semibold text-muted-foreground">
                       {t("opportunities.colAssignedTo")}
                     </th>
+                    <th className="px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -305,12 +336,23 @@ export function OpportunitiesPanel({
                             ))}
                           </select>
                         </td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => removeOpportunity(o)}
+                            disabled={isPending}
+                            title={t("opportunities.remove")}
+                            className="rounded p-1 text-muted-foreground hover:text-danger disabled:opacity-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-4 text-center text-muted-foreground">
+                      <td colSpan={6} className="px-4 py-4 text-center text-muted-foreground">
                         {t("opportunities.noResults")}
                       </td>
                     </tr>

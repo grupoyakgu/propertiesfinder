@@ -66,6 +66,7 @@ const en = {
     mapDisplayDescription:
       "Choose whether matching properties appear on the map automatically, or only the ones you pick from the list.",
     showOnMapToggle: "Show properties on map automatically",
+    mapLockToggle: "Map Lock — panning the map doesn't change the results table",
     selectAll: "Select all",
     clearSelection: "Clear selection",
     selectedCount: "{n} selected",
@@ -92,6 +93,8 @@ const en = {
     exportError: "Failed to export the list.",
     loadError: "Failed to load opportunities.",
     updateError: "Failed to update opportunity.",
+    remove: "Remove from Opportunities",
+    confirmRemove: 'Remove "{referencia}" from Opportunities?',
   },
   analysis: {
     title: "Analysis Engine",
@@ -381,6 +384,7 @@ const es: typeof en = {
     mapDisplayDescription:
       "Elige si las propiedades que coinciden aparecen automáticamente en el mapa, o solo las que selecciones de la lista.",
     showOnMapToggle: "Mostrar propiedades en el mapa automáticamente",
+    mapLockToggle: "Bloqueo de mapa — desplazar el mapa no cambia la tabla de resultados",
     selectAll: "Seleccionar todo",
     clearSelection: "Borrar selección",
     selectedCount: "{n} seleccionadas",
@@ -407,6 +411,8 @@ const es: typeof en = {
     exportError: "No se pudo exportar la lista.",
     loadError: "No se pudieron cargar las oportunidades.",
     updateError: "No se pudo actualizar la oportunidad.",
+    remove: "Eliminar de Oportunidades",
+    confirmRemove: '¿Eliminar "{referencia}" de Oportunidades?',
   },
   analysis: {
     title: "Motor de Análisis",

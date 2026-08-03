@@ -56,6 +56,13 @@ model User {
   // for the known set. Defaults to granting every current permission so existing
   // users keep working unchanged; an admin can then selectively revoke.
   permissions  String[] @default(["analysis_engine"])
+  // Persisted dashboard preferences, restored on the user's next visit — see
+  // MapDisplaySettings and the "Settings" tab. mapLocked: panning the map no
+  // longer re-scopes the Official Catastro Records table/map markers to the
+  // new viewport. showAllOnMap: every matching property renders on the map
+  // automatically instead of only manually-picked ones.
+  mapLocked    Boolean  @default(false)
+  showAllOnMap Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -159,6 +166,11 @@ model MapPreset {
   // at save time, so applying a preset restores the search, not just the viewport.
   // Nullable so presets created before this field existed still load fine.
   filters   Json?
+  // An optional hand-drawn area (GeoJSON Polygon, WGS84) — when present, applying
+  // this preset restricts the Official Catastro Records table/map to parcels whose
+  // point falls inside it, not just within south/west/north/east (which is still
+  // kept, as the polygon's bounding box, so the map still knows where to fit).
+  polygon   Json?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

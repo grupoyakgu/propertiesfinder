@@ -18,7 +18,6 @@ export default async function DashboardPage({
 
   const initialFilters = filtersFromSearchParams(params);
   const initialMapVisible = params.get("map") === "1";
-  const initialShowAllOnMap = params.get("showAll") === "1";
 
   const bboxParam = params.get("bbox");
   const bboxParts = bboxParam?.split(",").map(Number);
@@ -28,6 +27,11 @@ export default async function DashboardPage({
       : null;
 
   const user = await getCurrentUser();
+  // A "Back to search" round-trip carries these in the URL and always wins
+  // (it's restoring an exact prior view within this session); otherwise fall
+  // back to the user's saved preference from a previous session.
+  const initialShowAllOnMap = params.has("showAll") ? params.get("showAll") === "1" : (user?.showAllOnMap ?? false);
+  const initialMapLocked = params.has("mapLocked") ? params.get("mapLocked") === "1" : (user?.mapLocked ?? false);
   // Presets and Opportunities are both shared — every signed-in user sees
   // everyone's, not just their own (see /api/map-presets and /api/favorites).
   const [presets, favorites] = user
@@ -66,6 +70,7 @@ export default async function DashboardPage({
       initialFilters={initialFilters}
       initialMapVisible={initialMapVisible}
       initialShowAllOnMap={initialShowAllOnMap}
+      initialMapLocked={initialMapLocked}
       initialMapBounds={initialMapBounds}
       initialPresets={initialPresets}
       initialLikedIds={initialLikedIds}
