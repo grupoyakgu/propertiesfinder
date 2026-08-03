@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, X } from "lucide-react";
+import { Heart, MessageSquare, X } from "lucide-react";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { countActiveFilters, emptyFilters } from "@/lib/filter-types";
 import { FilterSection, RangeField, CheckboxGroup } from "@/components/ui/filter-controls";
@@ -17,6 +17,8 @@ export function FiltersSidebar({
   onChange,
   favoritesOnly,
   onFavoritesOnlyChange,
+  commentsOnly,
+  onCommentsOnlyChange,
 }: {
   filters: DashboardFilters;
   onChange: (filters: DashboardFilters) => void;
@@ -25,6 +27,9 @@ export function FiltersSidebar({
    * DashboardFilters (not saved with presets, not part of "Clear all"). */
   favoritesOnly: boolean;
   onFavoritesOnlyChange: (value: boolean) => void;
+  /** Same idea, but for properties that have at least one comment. */
+  commentsOnly: boolean;
+  onCommentsOnlyChange: (value: boolean) => void;
 }) {
   const { locale, t } = useLocale();
 
@@ -54,7 +59,7 @@ export function FiltersSidebar({
         )}
       </div>
 
-      <label className="mx-4 mb-3 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground">
+      <label className="mx-4 mb-1.5 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground">
         <input
           type="checkbox"
           checked={favoritesOnly}
@@ -63,6 +68,17 @@ export function FiltersSidebar({
         />
         <Heart className="h-3.5 w-3.5 text-muted-foreground" />
         {t("filters.favoritesOnly")}
+      </label>
+
+      <label className="mx-4 mb-3 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-foreground">
+        <input
+          type="checkbox"
+          checked={commentsOnly}
+          onChange={(e) => onCommentsOnlyChange(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
+        />
+        <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+        {t("filters.commentsOnly")}
       </label>
 
       <div className="flex-1 overflow-y-auto px-4 pb-8">

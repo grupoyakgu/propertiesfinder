@@ -268,6 +268,7 @@ const en = {
     min: "Min",
     max: "Max",
     favoritesOnly: "Favorites only",
+    commentsOnly: "With comments only",
   },
   table: {
     referenciaCatastral: "Referencia Catastral",
@@ -600,6 +601,7 @@ const es: typeof en = {
     min: "Mín",
     max: "Máx",
     favoritesOnly: "Solo favoritos",
+    commentsOnly: "Solo con comentarios",
   },
   table: {
     referenciaCatastral: "Referencia Catastral",

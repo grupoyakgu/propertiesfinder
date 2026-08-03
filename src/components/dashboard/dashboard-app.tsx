@@ -163,6 +163,10 @@ export function DashboardApp({
   // narrows the card/table list down to properties the current user has
   // already liked, using the already-loaded `likedIds` set below.
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // Same idea as favoritesOnly above, but for `hasComment` (see /api/catastro-parcels,
+  // which batches this per page of results) — narrows the list to properties that
+  // have at least one comment.
+  const [commentsOnly, setCommentsOnly] = useState(false);
   // A hand-drawn area (GeoJSON [lng, lat] ring) currently narrowing results to an
   // exact point-in-polygon match, on top of mapBounds — set by finishing a draw or
   // applying/refocusing a polygon preset, cleared by panning away (see the wrapped
@@ -486,9 +490,11 @@ export function DashboardApp({
   }, [mapBounds, markers]);
 
   const visibleParcels = useMemo(() => {
-    const inBounds = visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels;
-    return favoritesOnly ? inBounds.filter((p) => likedIds.has(p.id)) : inBounds;
-  }, [parcels, visibleIds, favoritesOnly, likedIds]);
+    let list = visibleIds ? parcels.filter((p) => visibleIds.has(p.id)) : parcels;
+    if (favoritesOnly) list = list.filter((p) => likedIds.has(p.id));
+    if (commentsOnly) list = list.filter((p) => p.hasComment);
+    return list;
+  }, [parcels, visibleIds, favoritesOnly, likedIds, commentsOnly]);
   const inViewCount = visibleParcels.length;
   const mapPaneLabel = mapBounds
     ? t("dashboard.inView", { n: inViewCount, total: resultCount })
@@ -815,6 +821,8 @@ export function DashboardApp({
               onChange={setFilters}
               favoritesOnly={favoritesOnly}
               onFavoritesOnlyChange={setFavoritesOnly}
+              commentsOnly={commentsOnly}
+              onCommentsOnlyChange={setCommentsOnly}
             />
           </div>
         )}
