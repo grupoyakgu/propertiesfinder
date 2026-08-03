@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, LassoSelect, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
+import { Check, LassoSelect, Lock, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -168,6 +168,11 @@ export function DashboardApp({
   // once finished, see finishDrawing).
   const [drawMode, setDrawMode] = useState(false);
   const [drawnPoints, setDrawnPoints] = useState<[number, number][]>([]);
+  // A just-finished hand-drawn area waiting for a name — a drawn polygon must be
+  // saved as a preset (there's no "apply without saving" option, unlike a plain
+  // bounding-box view), so finishing a draw always opens this naming step.
+  const [pendingPolygon, setPendingPolygon] = useState<{ ring: number[][]; bounds: BoundsBox } | null>(null);
+  const [polygonPresetName, setPolygonPresetName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A separate tab (before Settings) showing the shared Opportunities list —
   // mutually exclusive with normal browsing and Settings.
@@ -223,6 +228,10 @@ export function DashboardApp({
     // bounding box; a plain preset has no polygon, so this also clears whatever
     // polygon filter (drawn or from a previous preset) was active before.
     setActivePolygon(preset.polygon);
+    // Selecting a polygon preset ("type 2") automatically turns Map Lock on, since
+    // panning away would otherwise silently drop the exact-area restriction the
+    // user just asked for — a plain (bounding-box-only) preset leaves Map Lock as-is.
+    if (preset.polygon) setMapLocked(true);
     // Presets are saved searches, not just saved viewports — restore the location
     // and land-characteristic filters that were active when it was saved too.
     // Older presets saved before this existed have no filters; leave the current
@@ -277,14 +286,17 @@ export function DashboardApp({
     ownerName: raw.user.name,
   });
 
-  const savePreset = async (name: string) => {
-    if (!mapBounds) return;
+  // Shared by the header's "Save current view" control and the mandatory
+  // polygon-naming step below — bounds/polygon default to whatever's currently
+  // active, but the polygon flow passes its own (just-drawn, not yet applied
+  // as state) values explicitly instead.
+  const createPreset = async (name: string, bounds: BoundsBox, polygon: number[][] | null) => {
     const res = await fetch("/api/map-presets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, ...mapBounds, filters, ...(activePolygon ? { polygon: activePolygon } : {}) }),
+      body: JSON.stringify({ name, ...bounds, filters, ...(polygon ? { polygon } : {}) }),
     });
-    if (!res.ok) return;
+    if (!res.ok) return null;
     const { preset } = await res.json();
     const clientPreset = toClientPreset(preset);
     setPresets((prev) => {
@@ -293,6 +305,12 @@ export function DashboardApp({
       return next;
     });
     setActivePresetId(clientPreset.id);
+    return clientPreset;
+  };
+
+  const savePreset = async (name: string) => {
+    if (!mapBounds) return;
+    await createPreset(name, mapBounds, activePolygon);
   };
 
   const deletePreset = async (id: string) => {
@@ -537,9 +555,9 @@ export function DashboardApp({
   };
 
   // Closes the polygon (min 3 vertices), applies it as the active filter right
-  // away — "create a preset out of it" is a separate, optional follow-up via the
-  // header's normal Save-preset control, which becomes available the moment
-  // mapBounds is set below — and fits the map to it.
+  // away for immediate visual feedback, and fits the map to it — but a drawn
+  // area always has to be named and saved as a preset (see commitPolygonPreset),
+  // so this also opens that mandatory naming step instead of leaving it optional.
   const finishDrawing = () => {
     if (drawnPoints.length < 3) return;
     const ring: number[][] = drawnPoints.map(([lat, lng]) => [lng, lat]);
@@ -560,11 +578,36 @@ export function DashboardApp({
     setActivePresetId(null);
     setDrawMode(false);
     setDrawnPoints([]);
+    setPendingPolygon({ ring, bounds });
   };
 
   const cancelDrawing = () => {
     setDrawMode(false);
     setDrawnPoints([]);
+  };
+
+  // Confirms the mandatory name for a just-drawn area and saves it as a preset —
+  // a hand-drawn area is always persisted this way, unlike a plain viewport
+  // (which the user may or may not choose to save via the header's own control).
+  const commitPolygonPreset = async () => {
+    const trimmed = polygonPresetName.trim();
+    if (!trimmed || !pendingPolygon) return;
+    const clientPreset = await createPreset(trimmed, pendingPolygon.bounds, pendingPolygon.ring);
+    if (!clientPreset) return;
+    // A polygon preset is a "type 2" preset — selecting/creating one always
+    // turns Map Lock on, since panning away would otherwise silently drop the
+    // exact-area restriction the user just named and saved.
+    setMapLocked(true);
+    setPendingPolygon(null);
+    setPolygonPresetName("");
+  };
+
+  // Discards the just-drawn area entirely (including the live preview applied
+  // by finishDrawing above) rather than leaving an unsaved, unnamed filter active.
+  const discardPolygonPreset = () => {
+    setActivePolygon(null);
+    setPendingPolygon(null);
+    setPolygonPresetName("");
   };
 
   const clearActivePolygon = () => {
@@ -612,6 +655,12 @@ export function DashboardApp({
           {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
+
+        {mapLocked && (
+          <span title={t("dashboard.mapLockedHint")} className="hidden shrink-0 sm:block">
+            <Lock className="h-4 w-4 text-primary" />
+          </span>
+        )}
 
         {mapVisible && (
           <button
@@ -874,6 +923,38 @@ export function DashboardApp({
                 <button
                   type="button"
                   onClick={cancelDrawing}
+                  className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" /> {t("dashboard.drawAreaCancel")}
+                </button>
+              </div>
+            )}
+
+            {pendingPolygon && (
+              <div className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs shadow-md">
+                <span className="font-medium text-foreground">{t("dashboard.namePolygonHint")}</span>
+                <input
+                  autoFocus
+                  value={polygonPresetName}
+                  onChange={(e) => setPolygonPresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitPolygonPreset();
+                    if (e.key === "Escape") discardPolygonPreset();
+                  }}
+                  placeholder={t("presets.namePlaceholder")}
+                  className="h-8 w-40 rounded-md border border-border bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={commitPolygonPreset}
+                  disabled={!polygonPresetName.trim()}
+                  className="flex items-center gap-1 font-medium text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Check className="h-3.5 w-3.5" /> {t("presets.save")}
+                </button>
+                <button
+                  type="button"
+                  onClick={discardPolygonPreset}
                   className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3.5 w-3.5" /> {t("dashboard.drawAreaCancel")}

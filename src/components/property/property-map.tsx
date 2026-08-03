@@ -18,7 +18,7 @@ export interface PropertyMapLocation {
 
 export function PropertyMap({ latitude, longitude, boundary }: PropertyMapLocation) {
   return (
-    <MapContainer center={[latitude, longitude]} zoom={16} scrollWheelZoom={false} className="h-full w-full">
+    <MapContainer center={[latitude, longitude]} zoom={15} scrollWheelZoom={false} className="h-full w-full">
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Satellite">
           <TileLayer
