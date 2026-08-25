@@ -1,7 +1,13 @@
 import { View, Text } from "@react-pdf/renderer";
 import type { ClientCatastroParcel } from "@/lib/types";
-import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, AtVerdict } from "@/lib/analysis-engine";
-import { VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
+import type {
+  AnalysisEngineData,
+  AnalysisEngineResult,
+  AnalysisMode,
+  AtVerdict,
+  ConsolidationRecommendation,
+} from "@/lib/analysis-engine";
+import { CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -133,8 +139,24 @@ const MODE_LABEL_KEYS: Record<AnalysisMode, string> = {
   hybrid: "analysis.hybridModeLabel",
 };
 
+// The PDF's DataTable is a plain two-column label/value layout, so a row's
+// confidence (Confirmed/Derived/Estimated/Unknown, or High/Medium/Low for a
+// zoning identification) is folded into the value string rather than adding
+// a third column.
 function developmentRightsRows(data: AnalysisEngineData): { label: string; value: string }[] {
-  return (data.developmentRights ?? []).map((row) => ({ label: row.parameter, value: row.potentialRight }));
+  return (data.developmentRights ?? []).map((row) => ({
+    label: row.parameter,
+    value: row.confidence ? `${row.potentialRight} (${row.confidence})` : row.potentialRight,
+  }));
+}
+
+function consolidationLabel(locale: Locale, recommendation: ConsolidationRecommendation): string {
+  return t(locale, CONSOLIDATION_LABEL_KEYS[recommendation]);
+}
+
+function consolidationTone(recommendation: ConsolidationRecommendation): "info" | "warning" | "danger" {
+  if (recommendation === "RECOMMENDED") return "info";
+  return recommendation === "NOT_RECOMMENDED" ? "danger" : "warning";
 }
 
 export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResult, locale: Locale): PdfSection {
@@ -178,6 +200,18 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h3}>{t(locale, "analysis.uncertainRequirementsHeading")}</Text>
                 <BulletList items={data.uncertainRequirements} />
+              </View>
+            )}
+
+            {data.consolidationRecommendation && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h2}>{t(locale, "analysis.consolidationHeading")}</Text>
+                <Callout
+                  tone={consolidationTone(data.consolidationRecommendation)}
+                  title={consolidationLabel(locale, data.consolidationRecommendation)}
+                >
+                  {data.consolidationExplanation ?? ""}
+                </Callout>
               </View>
             )}
           </View>

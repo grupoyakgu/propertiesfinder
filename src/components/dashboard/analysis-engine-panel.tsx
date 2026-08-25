@@ -9,8 +9,9 @@ import type {
   AnalysisMode,
   AnalysisProgressEvent,
   AtVerdict,
+  ConsolidationRecommendation,
 } from "@/lib/analysis-engine";
-import { VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
+import { CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
@@ -87,6 +88,21 @@ function VerdictBadge({ verdict }: { verdict: AtVerdict }) {
   );
 }
 
+function consolidationBadgeClass(recommendation: ConsolidationRecommendation): string {
+  if (recommendation === "RECOMMENDED") return "bg-success/10 text-success";
+  if (recommendation === "NOT_RECOMMENDED") return "bg-danger/10 text-danger";
+  return "bg-amber-500/10 text-amber-600";
+}
+
+function ConsolidationBadge({ recommendation }: { recommendation: ConsolidationRecommendation }) {
+  const { t } = useLocale();
+  return (
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", consolidationBadgeClass(recommendation))}>
+      {t(CONSOLIDATION_LABEL_KEYS[recommendation])}
+    </span>
+  );
+}
+
 /** Plain-text rendition of one mode's result, for the copy-to-clipboard button —
  * mirrors what's on screen. */
 function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Record<string, string | number>) => string): string {
@@ -108,7 +124,7 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     ) {
       lines.push("", t("analysis.developmentRightsHeading"));
       for (const row of data.developmentRights) {
-        lines.push(`${row.parameter}: ${row.potentialRight}`);
+        lines.push(`${row.parameter}: ${row.potentialRight}${row.confidence ? ` (${row.confidence})` : ""}`);
       }
     }
     if (data.verdict === "NO") {
@@ -117,6 +133,13 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     if (data.verdict === "UNCERTAIN" && data.uncertainRequirements && data.uncertainRequirements.length > 0) {
       lines.push("", t("analysis.uncertainRequirementsHeading"));
       for (const req of data.uncertainRequirements) lines.push(`- ${req}`);
+    }
+    if (data.consolidationRecommendation) {
+      lines.push(
+        "",
+        `${t("analysis.consolidationHeading")}: ${t(CONSOLIDATION_LABEL_KEYS[data.consolidationRecommendation])}`
+      );
+      if (data.consolidationExplanation) lines.push(data.consolidationExplanation);
     }
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
@@ -181,6 +204,9 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
             <th className="px-3 py-1.5 text-left font-semibold text-muted-foreground">
               {t("analysis.developmentRightsPotential")}
             </th>
+            <th className="px-3 py-1.5 text-left font-semibold text-muted-foreground">
+              {t("analysis.developmentRightsConfidence")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -188,6 +214,7 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
             <tr key={i} className="border-b border-border last:border-0">
               <td className="px-3 py-1.5 text-muted-foreground">{row.parameter}</td>
               <td className="px-3 py-1.5 font-medium text-foreground">{row.potentialRight}</td>
+              <td className="px-3 py-1.5 text-muted-foreground">{row.confidence || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -285,6 +312,20 @@ function ResultColumn({
             <DevelopmentRightsTable data={data} />
           </div>
 
+          {data.consolidationRecommendation && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("analysis.consolidationHeading")}
+              </h4>
+              <div className="mt-2">
+                <ConsolidationBadge recommendation={data.consolidationRecommendation} />
+                {data.consolidationExplanation && (
+                  <p className="mt-2 text-xs leading-relaxed text-foreground">{data.consolidationExplanation}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {result?.report && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -315,10 +356,27 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
     t("analysis.comparisonHeading"),
     "",
     [t("analysis.comparisonMetric"), ...available.map(({ labelKey }) => t(labelKey))].join("\t"),
-    [t("analysis.verdictLabel"), ...available.map(({ mode }) => progress[mode]?.result?.data?.verdict ?? "—")].join("\t"),
+    [
+      t("analysis.verdictLabel"),
+      ...available.map(({ mode }) => {
+        const verdict = progress[mode]?.result?.data?.verdict;
+        return verdict ? t(VERDICT_LABEL_KEYS[verdict]) : "—";
+      }),
+    ].join("\t"),
     [t("analysis.explanationLabel"), ...available.map(({ mode }) => progress[mode]?.result?.data?.explanation ?? "—")].join(
       "\t"
     ),
+    ...(available.some(({ mode }) => progress[mode]?.result?.data?.consolidationRecommendation)
+      ? [
+          [
+            t("analysis.consolidationHeading"),
+            ...available.map(({ mode }) => {
+              const rec = progress[mode]?.result?.data?.consolidationRecommendation;
+              return rec ? t(CONSOLIDATION_LABEL_KEYS[rec]) : "—";
+            }),
+          ].join("\t"),
+        ]
+      : []),
   ].join("\n");
 
   return (
@@ -353,7 +411,7 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
                 );
               })}
             </tr>
-            <tr className="last:border-0">
+            <tr className={available.some(({ mode }) => progress[mode]?.result?.data?.consolidationRecommendation) ? "border-b border-border" : "last:border-0"}>
               <td className="px-4 py-2 text-muted-foreground">{t("analysis.explanationLabel")}</td>
               {available.map(({ mode }) => (
                 <td key={mode} className="px-4 py-2 font-medium text-foreground">
@@ -361,6 +419,19 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
                 </td>
               ))}
             </tr>
+            {available.some(({ mode }) => progress[mode]?.result?.data?.consolidationRecommendation) && (
+              <tr className="last:border-0">
+                <td className="px-4 py-2 text-muted-foreground">{t("analysis.consolidationHeading")}</td>
+                {available.map(({ mode }) => {
+                  const rec = progress[mode]?.result?.data?.consolidationRecommendation;
+                  return (
+                    <td key={mode} className="px-4 py-2">
+                      {rec ? <ConsolidationBadge recommendation={rec} /> : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
