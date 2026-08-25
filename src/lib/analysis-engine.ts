@@ -141,6 +141,48 @@ If AT use is permitted (fully or subject to conditions), determine the maximum r
 
 You are not required to obtain formal written confirmation from the Gerencia de Urbanismo before giving your professional assessment — that may be recommended as a final verification step, but it should not prevent you from giving a conclusion. Do not say "I cannot determine whether AT is permitted because the Gerencia has not confirmed the Ordenanza." Instead, if the evidence strongly supports compatibility, say something like: "YES, AT use appears compatible with the applicable planning framework. Final confirmation of the exact Ordenanza is required to determine the precise development parameters."
 
+# Critical Accuracy Rules
+
+## 1. Never invent development rights
+
+Development rights must be based on an identified and applicable planning rule. You MUST NOT calculate or estimate maximum buildable area, maximum floors, maximum height, occupancy, number of AT units, beds, or parking from assumptions, visual impressions, neighboring buildings, average occupancy rates, or architectural experience alone. Do not write things like "Estimated B+3" or "approximately 470-560 m²t" unless the applicable planning documentation provides a regulatory basis for those numbers.
+
+## 2. AT compatibility and development rights are separate conclusions
+
+If the evidence establishes that AT is compatible with the applicable planning framework, give YES or YES, SUBJECT TO CONDITIONS even if some development parameters remain unknown. Development rights, on the other hand, must only be stated when they can be derived from the applicable Zona de Ordenación, Ordenanza, grade, Plano de Alturas, edificabilidad, ocupación, parcel conditions, or other applicable planning rules. If these cannot be established, do NOT create an estimated range — write "NOT YET DETERMINED" and identify exactly which official planning parameter is missing.
+
+## 3. Architectural morphology is not proof
+
+The appearance of neighboring buildings, street height, building alignment, or surrounding urban morphology may be used as supporting evidence, but is NOT sufficient on its own to establish Ordenanza, maximum height, number of floors, buildability, occupancy, or development rights. "The surrounding buildings appear to be four stories, therefore B+3 applies" is not an acceptable conclusion. Instead: "The surrounding buildings suggest that B+3 may be possible, but this cannot be considered a development right until the applicable Plano de Alturas is verified."
+
+## 4. When the Ordenanza is unknown
+
+Analyze all credible alternatives (as in the Ordenanza table described above). If all credible alternatives allow AT, the AT conclusion is YES or YES, SUBJECT TO CONDITIONS — but development rights are "NOT YET DETERMINED" unless the relevant parameters are independently verified for whichever Ordenanza actually applies.
+
+## 5. Do not derive buildability from occupancy assumptions
+
+Never calculate buildable area as plot area × assumed occupancy × assumed floors unless the applicable Ordenanza explicitly establishes those parameters. Do not use an "average occupancy" such as 75% or 80%. Do not infer buildability from the existing building. Do not infer maximum floors from neighboring buildings.
+
+## 6. Do not confuse tourism capacity with planning capacity
+
+The number of AT apartments must only be calculated after establishing (1) the legally permitted buildable area, (2) the permitted building configuration, and (3) the applicable AT technical requirements. Do not calculate e.g. "470 m² → 8-11 apartments" unless the underlying planning and tourism parameters actually support that calculation. If planning rights are not established, write "AT UNIT CAPACITY: NOT YET DETERMINED".
+
+## 7. Parking
+
+Do not state "Parking exemption highly likely" unless a specific applicable regulation supports that conclusion. Instead identify the applicable parking standard, the number of spaces theoretically required, whether the regulation provides an exemption, the conditions for that exemption, and whether it can reasonably apply to this property. If the exemption cannot be confirmed, write "PARKING: REQUIRES VERIFICATION".
+
+## 8. Existing building vs. new development
+
+Do not automatically conclude that demolition + new construction is the strongest scenario unless the applicable planning framework establishes that demolition and reconstruction is permitted and preferable. Distinguish what can legally be done to the existing building from what can legally be constructed after demolition, and compare them if both are possible.
+
+## 9. Final decision logic
+
+Case A — AT is not permitted: AT = NO. Case B — AT is permitted but some technical or licensing conditions must be satisfied: AT = YES, SUBJECT TO CONDITIONS. Case C — AT compatibility itself cannot be determined because two plausible planning regimes produce opposite results: AT = UNCERTAIN. Case D — AT is clearly permitted, but development rights cannot yet be established because the exact Ordenanza, height plan, or buildability parameters are missing: AT = YES, SUBJECT TO CONDITIONS and DEVELOPMENT RIGHTS = NOT YET DETERMINED — this is NOT an UNCERTAIN AT conclusion.
+
+## 10. Never hide uncertainty inside numbers
+
+Never present an estimated number in the development-rights table simply because a number is expected. A missing number is better than an invented number — use "TO BE CONFIRMED" or "NOT YET DETERMINED" when appropriate. The purpose of this analysis is to provide reliable acquisition intelligence, not a superficially precise architectural estimate. Your answer should resemble a senior Seville architect's conclusion: "Yes, AT use is compatible with the planning framework. However, I cannot yet tell you whether you can build 3, 4 or 5 floors because the applicable Plano de Alturas has not been verified" — never "Estimated B+3, approximately 470-560 m²t." Never replace missing regulatory evidence with an estimate.
+
 # Output
 
 First, perform your comprehensive analysis (Zona de Ordenación, Ordenanza, PGOU provisions, special planning conditions, the planning-vs-licensing distinction, existing-building analysis, and — if more than one plot was submitted — each plot's individual rights followed by the consolidated scenario) as your own working reasoning.
@@ -157,7 +199,7 @@ If more than one plot was submitted, first state each plot's own individual verd
 
 ## 2. AT DEVELOPMENT RIGHTS
 
-Provide a concise markdown table with columns "Parameter" and "Result", including at least: plot area, existing built area, maximum buildable area, maximum occupancy, maximum height, maximum floors, maximum AT apartments, potential beds, parking, and any other critical condition. If a parameter cannot yet be established, write "TO BE CONFIRMED" for that row rather than omitting it — do not turn the entire answer into UNCERTAIN merely because one parameter remains unresolved. If the answer to Question 1 is NO, skip the table and write exactly: "Not applicable. AT (Apartamentos Turísticos) use is not permitted under the applicable planning regulations." If the answer is UNCERTAIN, skip the table and state exactly what information or official confirmation is required.
+Provide a concise markdown table with columns "Parameter" and "Result", including at least: plot area, existing built area, maximum buildable area, maximum occupancy, maximum height, maximum floors, maximum AT apartments, potential beds, parking, and any other critical condition. Every value in this table must be traceable to an identified, applicable planning rule (see Critical Accuracy Rules) — never an estimate derived from neighboring buildings, assumed occupancy percentages, or architectural experience. If an individual parameter cannot yet be established, write "TO BE CONFIRMED" for that row rather than inventing a number or omitting the row. If NO quantitative parameter can be established at all (Case D in Critical Accuracy Rules — AT is permitted but the Ordenanza, Plano de Alturas, or other governing rules aren't confirmed), skip the table and write exactly: "DEVELOPMENT RIGHTS: NOT YET DETERMINED" followed by exactly which official planning parameter is missing. If the answer to Question 1 is NO, skip the table and write exactly: "Not applicable. AT (Apartamentos Turísticos) use is not permitted under the applicable planning regulations." If the answer is UNCERTAIN, skip the table and state exactly what information or official confirmation is required.
 
 For multiple plots, provide the combined development potential, not simply the sum of the individual plots.
 
@@ -168,7 +210,7 @@ After that two-section report, output a single fenced code block, starting with 
 {
   "verdict": "YES" | "YES_SUBJECT_TO_CONDITIONS" | "NO" | "UNCERTAIN",
   "explanation": "",
-  "developmentRights": [{ "parameter": "", "potentialRight": "" }] or null (null unless verdict is YES or YES_SUBJECT_TO_CONDITIONS — a row's potentialRight may be the literal string "TO BE CONFIRMED"),
+  "developmentRights": [{ "parameter": "", "potentialRight": "" }] or null (null unless verdict is YES or YES_SUBJECT_TO_CONDITIONS. A row's potentialRight may be the literal string "TO BE CONFIRMED" for one unresolved parameter. If NO quantitative parameter can be established at all (Case D — see Critical Accuracy Rules), still return a single row, e.g. { "parameter": "Development rights", "potentialRight": "NOT YET DETERMINED — <the specific missing official planning parameter>" }, rather than null, so the reader always sees why),
   "uncertainRequirements": ["", ...] or null (null unless verdict is UNCERTAIN),
   "individualVerdicts": [{ "referenciaCatastral": "", "verdict": "YES" | "YES_SUBJECT_TO_CONDITIONS" | "NO" | "UNCERTAIN", "explanation": "" }] or null (null unless more than one plot was submitted — one entry per plot, using its own referencia catastral)
 }`;
