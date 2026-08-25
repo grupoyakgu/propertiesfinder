@@ -113,7 +113,7 @@ const en = {
   analysis: {
     title: "Analysis Engine",
     description:
-      "AI-powered hotel & hospitality development-rights screening for Seville. Select up to {max} Opportunities to analyze — individually, or as a single consolidated development.",
+      "AI-powered Apartamentos Turísticos (AT) eligibility and development-rights screening for Seville. Select up to {max} Opportunities to analyze — individually, or as a single consolidated development.",
     noSelection: "No properties selected yet.",
     noSelectionHint: "Select up to {max} properties from the Opportunities tab to analyze them here.",
     goToOpportunities: "Go to Opportunities",
@@ -148,7 +148,7 @@ const en = {
     developmentRightsParameter: "Parameter",
     developmentRightsPotential: "Potential right",
     developmentRightsNotApplicable:
-      "Not applicable. Hotel / hospitality use is not permitted under the applicable planning regulations.",
+      "Not applicable. AT (Apartamentos Turísticos) use is not permitted under the applicable planning regulations.",
     uncertainRequirementsHeading: "What's needed to confirm this",
     individualVerdictsHeading: "Individual plot assessments",
     comparisonHeading: "Comparison",
@@ -196,16 +196,16 @@ const en = {
     exporting: "Generating PDF…",
     exportError: "Failed to generate the PDF report.",
     noPermission: "PDF export is disabled for your account.",
-    coverTitle: "Hotel & Hospitality Development Rights Report",
+    coverTitle: "Apartamentos Turísticos (AT) Development Rights Report",
     coverSubtitle: "Preliminary AI-Assisted Feasibility Screening",
     multiPlotTitle: "Consolidated study — {n} plots",
     generatedOn: "Generated on {date}",
     tocTitle: "Table of Contents",
     executiveSummaryTitle: "Executive Summary",
     executiveSummaryIntro:
-      "This report presents a preliminary, AI-assisted hotel/hospitality development-rights screening for the property described below, prepared for investment evaluation purposes.",
+      "This report presents a preliminary, AI-assisted Apartamentos Turísticos (AT) eligibility and development-rights screening for the property described below, prepared for investment evaluation purposes.",
     executiveSummaryIntroMulti:
-      "This report presents a preliminary, AI-assisted hotel/hospitality development-rights screening for the {n} plots described below, both individually and as a single consolidated development, prepared for investment evaluation purposes.",
+      "This report presents a preliminary, AI-assisted Apartamentos Turísticos (AT) eligibility and development-rights screening for the {n} plots described below, both individually and as a single consolidated development, prepared for investment evaluation purposes.",
     executiveSummaryModesNote:
       "Findings are based on: {modes}. Figures from different analysis methods may vary and should be cross-checked before relying on them.",
     catastroSectionTitle: "Catastro Property Data",
@@ -434,7 +434,7 @@ const es: typeof en = {
   analysis: {
     title: "Motor de Análisis",
     description:
-      "Estudio de viabilidad hotelera con IA para Sevilla. Selecciona hasta {max} Oportunidades para analizarlas, individualmente o como un único desarrollo consolidado.",
+      "Evaluación de elegibilidad y derechos de desarrollo para Apartamentos Turísticos (AT) con IA en Sevilla. Selecciona hasta {max} Oportunidades para analizarlas, individualmente o como un único desarrollo consolidado.",
     noSelection: "Aún no hay propiedades seleccionadas.",
     noSelectionHint: "Selecciona hasta {max} propiedades desde la pestaña de Oportunidades para analizarlas aquí.",
     goToOpportunities: "Ir a Oportunidades",
@@ -469,7 +469,7 @@ const es: typeof en = {
     developmentRightsParameter: "Parámetro",
     developmentRightsPotential: "Derecho potencial",
     developmentRightsNotApplicable:
-      "No aplica. El uso hotelero / hospedaje no está permitido según la normativa urbanística aplicable.",
+      "No aplica. El uso de Apartamentos Turísticos (AT) no está permitido según la normativa urbanística aplicable.",
     uncertainRequirementsHeading: "Qué se necesita para confirmarlo",
     individualVerdictsHeading: "Evaluación individual de cada parcela",
     comparisonHeading: "Comparativa",
@@ -517,16 +517,16 @@ const es: typeof en = {
     exporting: "Generando PDF…",
     exportError: "No se pudo generar el informe en PDF.",
     noPermission: "La exportación a PDF está deshabilitada para tu cuenta.",
-    coverTitle: "Informe de Derechos de Desarrollo Hotelero",
+    coverTitle: "Informe de Derechos de Desarrollo para Apartamentos Turísticos (AT)",
     coverSubtitle: "Estudio Preliminar de Viabilidad Asistido por IA",
     multiPlotTitle: "Estudio consolidado — {n} parcelas",
     generatedOn: "Generado el {date}",
     tocTitle: "Índice",
     executiveSummaryTitle: "Resumen Ejecutivo",
     executiveSummaryIntro:
-      "Este informe presenta un estudio preliminar de derechos de desarrollo hotelero/hospedaje, asistido por IA, para la propiedad descrita a continuación, elaborado con fines de evaluación de inversión.",
+      "Este informe presenta un estudio preliminar de elegibilidad y derechos de desarrollo para Apartamentos Turísticos (AT), asistido por IA, para la propiedad descrita a continuación, elaborado con fines de evaluación de inversión.",
     executiveSummaryIntroMulti:
-      "Este informe presenta un estudio preliminar de derechos de desarrollo hotelero/hospedaje, asistido por IA, para las {n} parcelas descritas a continuación, tanto individualmente como en un único desarrollo consolidado, elaborado con fines de evaluación de inversión.",
+      "Este informe presenta un estudio preliminar de elegibilidad y derechos de desarrollo para Apartamentos Turísticos (AT), asistido por IA, para las {n} parcelas descritas a continuación, tanto individualmente como en un único desarrollo consolidado, elaborado con fines de evaluación de inversión.",
     executiveSummaryModesNote:
       "Los hallazgos se basan en: {modes}. Las cifras de distintos métodos de análisis pueden variar y deben contrastarse antes de basarse en ellas.",
     catastroSectionTitle: "Datos Catastrales de la Propiedad",

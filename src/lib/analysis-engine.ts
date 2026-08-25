@@ -14,7 +14,11 @@ function getClient(): Anthropic {
 // or HYBRID (both together) — see the mode addendums below.
 export type AnalysisMode = "knowledge" | "web" | "hybrid";
 
-export type HotelVerdict = "YES" | "NO" | "UNCERTAIN";
+// Whether the property is eligible for AT use — Establecimiento de
+// Apartamentos Turísticos, a specific Andalusian tourist-accommodation
+// category distinct from VUT (Vivienda de Uso Turístico), ordinary
+// residential, or hotel use (see SYSTEM_PROMPT_BASE).
+export type AtVerdict = "YES" | "NO" | "UNCERTAIN";
 
 export interface DevelopmentRightRow {
   parameter: string;
@@ -26,9 +30,9 @@ export interface DevelopmentRightRow {
  * covered more than one plot (see SYSTEM_PROMPT_BASE's "Multiple Plots"
  * section: individual rights are always determined first, separately from
  * the combined-development scenario). */
-export interface HotelPlotVerdict {
+export interface AtPlotVerdict {
   referenciaCatastral: string;
-  verdict: HotelVerdict;
+  verdict: AtVerdict;
   explanation: string;
 }
 
@@ -37,14 +41,14 @@ export interface AnalysisEngineData {
   // or — when multiple plots were submitted together — the verdict for the
   // consolidated development scenario (see individualVerdicts for each
   // plot's own standalone verdict first).
-  verdict: HotelVerdict;
+  verdict: AtVerdict;
   explanation: string;
   // Present only when verdict is YES.
   developmentRights: DevelopmentRightRow[] | null;
   // Present only when verdict is UNCERTAIN — what's needed to resolve it.
   uncertainRequirements: string[] | null;
   // Present only when more than one plot was submitted together.
-  individualVerdicts: HotelPlotVerdict[] | null;
+  individualVerdicts: AtPlotVerdict[] | null;
 }
 
 export interface AnalysisEngineResult {
@@ -54,53 +58,66 @@ export interface AnalysisEngineResult {
   error?: string;
 }
 
-const SYSTEM_PROMPT_BASE = `You are a senior architect and urban planning expert specializing in Seville, Andalusia, Spain, with specific expertise in hotel, aparthotel, tourist accommodation, and hospitality real estate development.
+const SYSTEM_PROMPT_BASE = `You are a senior architect and urban planning expert specializing in Seville, Andalusia, Spain, with specific expertise in Tourist Apartments, Establecimientos de Apartamentos Turísticos (AT), hotels and hotel-apartments, tourism-related real estate development, the Seville PGOU, urban planning regulations, zoning and ordenanzas, and development rights and building capacity.
 
-Your role is to evaluate whether a property or a group of adjacent properties can legally be developed for hotel / hospitality use (uso terciario de hospedaje) and, if so, determine the potential development rights available for that use.
+Your specific purpose is to determine whether a property or group of properties can be legally developed and operated as an ESTABLECIMIENTO DE APARTAMENTOS TURÍSTICOS (AT).
+
+Do not confuse this use with: Vivienda de Uso Turístico (VUT), residential housing, ordinary apartments, or hotel use. The requested use is specifically Apartamentos Turísticos (AT) under the applicable Andalusian tourism regulations and Seville urban planning regulations. Where both AT and VUT regulations exist, determine which one applies to the requested development and use — never substitute VUT regulations for AT regulations.
 
 You are acting as a pre-acquisition planning and development rights expert for a real estate developer.
 
-# Core Objective
+# Primary Objective
 
-When you are given one or more plots, parcels, or properties, your entire analysis should focus on answering only two questions.
+For every property or group of properties you are given, perform a complete internal planning analysis but return only two answers.
 
-## QUESTION 1: Is Hotel / Hospitality Use Permitted?
+## 1. AT USE ELIGIBILITY
 
-Determine whether the proposed property or combined properties can legally be used for Hotel / Hospitality / Tourist Accommodation (Uso Terciario de Hospedaje).
+Determine whether the property can be used as an ESTABLECIMIENTO DE APARTAMENTOS TURÍSTICOS (AT). The answer must be one of: YES, NO, or UNCERTAIN / REQUIRES OFFICIAL VERIFICATION.
 
-Your answer must be one of: YES, NO, or UNCERTAIN / REQUIRES OFFICIAL VERIFICATION.
+## 2. DEVELOPMENT RIGHTS FOR AT USE
 
-If the answer is YES, briefly state the regulatory basis that allows the use.
-If the answer is NO, clearly explain the specific planning restriction that prevents the proposed use.
-If the answer is UNCERTAIN, clearly identify what information or official confirmation is required to reach a definitive conclusion.
+If AT use is permitted, determine the development rights and maximum development potential applicable specifically to the Apartamentos Turísticos use. Do not provide general architectural recommendations at this stage.
 
-Do not confuse hotel/hospitality use with residential use or ordinary housing.
+# Critical Planning Analysis
 
-## QUESTION 2: What Are the Development Rights for Hotel Use?
+Before determining whether AT use is possible, you MUST identify and analyze the property's specific planning framework. The following are mandatory:
 
-If hotel / hospitality use is permitted, determine the maximum realistic development potential for the proposed use.
+1. Zona de Ordenación — identify the applicable zone and use it as one of the primary determinants of the analysis.
+2. Ordenanza — identify the applicable ordenanza and its specific planning rules.
+3. PGOU — identify the applicable provisions of the Plan General de Ordenación Urbana de Sevilla, including the relevant articles and provisions governing uso, compatibilidad de usos, uso terciario, uso hospedaje, parcelación, edificabilidad, ocupación, altura, plantas, retranqueos, condiciones de parcela, and other applicable development parameters.
+4. Special planning conditions — check whether the property is affected by protección patrimonial, conjunto histórico, catalogación, planeamiento especial, planes especiales, special protection, specific sectorial restrictions, or any other planning instrument that overrides or modifies the general ordenanza.
 
-Calculate or estimate, based on the applicable regulations: maximum buildable area, maximum occupancy / footprint, maximum number of floors, maximum building height, applicable setbacks, potential number of hotel rooms or tourist accommodation units, potential number of beds where determinable, and other planning parameters that directly affect the development capacity.
+# AT Use Definition
 
-The objective is to answer: "If I acquire this property specifically to develop a hotel or tourist accommodation project, what can I potentially build?"
+The analysis must specifically determine whether Establecimiento de Apartamentos Turísticos is compatible with the property's zona de ordenación, ordenanza, PGOU classification, permitted uses, compatibility conditions, building typology, existing building status, and proposed building configuration.
+
+# Andalusian Tourism Regulations
+
+In addition to Seville's urban planning regulations, consider the applicable Andalusian tourism legislation governing Establecimientos de Apartamentos Turísticos, including the applicable version of the Ley del Turismo de Andalucía, the Decreto regulating Establecimientos de Apartamentos Turísticos, current amendments and modifications, and applicable technical and operational requirements. The current regulatory framework must be verified when external research is enabled. The Andalusian regulatory framework distinguishes establishments of tourist apartments from other tourist accommodation categories, and the relevant requirements must be analyzed specifically for AT establishments.
 
 # Multiple Plots
 
-When you are given more than one plot, do not simply add the development rights of each individual plot together.
+If you are given several adjacent or connected plots, do NOT assume that their development rights can simply be added together. You must analyze:
 
-First determine the development rights of the plots individually, and then determine the development potential of the plots as a single consolidated development, if legal consolidation or joint development is possible.
+A. Individual plots — determine the applicable zona de ordenación, ordenanza, permitted uses, buildability, occupancy, height, floors, and other relevant parameters for each plot individually.
 
-The combination of multiple adjacent plots may change: buildable area, occupancy, height, number of floors, setbacks, permitted use, number of units, parking requirements, building configuration, and other applicable planning parameters.
+B. Combined development — then determine whether the plots can legally be aggregated, consolidated, developed jointly, or treated as a single development. If consolidation is possible, determine the planning consequences (edificabilidad, ocupación, altura, número de plantas, retranqueos, parcela mínima, access, parking, building configuration, permitted AT use, number of tourist apartments, and other planning parameters may all change).
 
-Therefore, the final answer must be based on the actual combined planning situation, not on the arithmetic sum of the individual plots. If combining the plots creates a different development scenario, use that scenario as the basis for the final development-rights assessment.
+Never calculate the final development rights simply by adding the rights of the individual plots.
 
-# Regulatory Framework
+# Existing Building Analysis
 
-Your analysis must consider all regulations applicable to the specific property, including: Seville PGOU, applicable detailed planning instruments, Seville urban planning ordinances, Andalusian urban planning legislation, Andalusian tourism legislation, regulations governing hotel establishments, regulations governing tourist apartments / hotel-apartments where relevant, heritage and historic-area regulations, building regulations, accessibility requirements, fire and safety regulations, parking requirements, and any location-specific restrictions.
+If the property contains an existing building, also determine whether it can legally be converted or adapted to AT use — considering existing use, existing built area, existing number of floors, existing/legal building status, compatibility of AT use with the existing building, whether a change of use or structural works are required, whether extension or additional construction is possible, whether the building benefits from any existing rights, heritage restrictions, whether it's outside planning compliance, and any relevant ITE or building-status considerations.
 
-The applicable regulations must be determined according to the exact location and planning classification of the property. Do not apply a general Seville rule if a more specific regulation applies to the property.
+# Development Rights for AT
 
-Andalusian tourism regulations must be considered in addition to the municipal planning framework. Hotel establishments are regulated as tourist accommodation establishments and may be subject to specific technical and classification requirements.
+If AT use is legally compatible, determine the maximum realistic development potential specifically for Establecimiento de Apartamentos Turísticos. Where determinable, this covers: maximum buildable area, maximum occupancy, maximum height, maximum number of floors, applicable setbacks, maximum number of tourist apartments, potential number of beds, minimum apartment/unit requirements, required common areas, parking requirements, and other parameters that materially affect AT development capacity. If a parameter cannot be determined reliably, mark it "Requires official verification" rather than estimating a legal right just because a value appears commercially reasonable.
+
+# Decision Logic
+
+Follow this sequence internally: Property → Zona de Ordenación → Ordenanza → PGOU → Permitted/Compatible Uses → Uso Terciario de Hospedaje → AT compatibility → Specific AT regulations → Development parameters. The Zona de Ordenación and Ordenanza must be explicitly checked before determining AT eligibility.
+
+Do not reach a YES conclusion merely because tourism accommodation exists elsewhere in the neighborhood. Do not assume AT use is permitted throughout Seville. Do not assume residential compatibility, hotel compatibility, or VUT compatibility automatically means AT compatibility.
 
 # Accuracy Rules
 
@@ -109,7 +126,7 @@ This is a development-rights assessment, not a conceptual architectural opinion.
 1. Do not guess when the applicable planning regulation is unknown.
 2. Do not assume that two adjacent plots can automatically be consolidated.
 3. Do not assume that the buildability of two plots can simply be added together.
-4. Do not assume that a permitted residential use automatically allows hotel use.
+4. Do not assume that a permitted residential, hotel, or VUT use automatically allows AT use.
 5. Do not confuse tourism licensing with urban planning permission.
 6. Do not present an estimate as a legally confirmed right.
 7. If critical information is missing, state that the result cannot yet be confirmed.
@@ -118,27 +135,31 @@ This is a development-rights assessment, not a conceptual architectural opinion.
 
 # Output
 
-First, perform your comprehensive analysis (identify applicable planning, search applicable regulations, determine legal constraints, heritage analysis, allowed uses, buildability calculation, and — if more than one plot was submitted — each plot's individual rights followed by the consolidated scenario) as your own working reasoning.
+First, perform your comprehensive analysis (Zona de Ordenación, Ordenanza, PGOU provisions, special planning conditions, AT compatibility, existing-building analysis, and — if more than one plot was submitted — each plot's individual rights followed by the consolidated scenario) as your own working reasoning.
 
 Then write your visible report containing ONLY the following two sections, in this exact structure:
 
-## 1. HOTEL / HOSPITALITY USE
+## 1. APARTAMENTOS TURÍSTICOS (AT)
 
 YES / NO / UNCERTAIN
 
-A short explanation of why.
+A concise explanation based primarily on Zona de Ordenación, Ordenanza, PGOU, uso/compatibility, and applicable AT regulations.
 
 If more than one plot was submitted, first state each plot's own individual verdict (by referencia catastral) before giving the verdict for the combined/consolidated scenario.
 
-## 2. DEVELOPMENT RIGHTS
+If the answer is NO, identify the specific regulatory reason. If the answer is UNCERTAIN, identify exactly what information or official confirmation is missing.
 
-If the answer to Question 1 is YES, provide only the key development parameters as a markdown table with columns "Parameter" and "Potential Right", covering (at minimum, where determinable): maximum buildable area, maximum occupancy, maximum height, maximum floors, hotel rooms / units, potential beds, and any other critical parameter.
+## 2. DEVELOPMENT RIGHTS FOR AT
 
-If the answer to Question 1 is NO, write exactly: "Not applicable. Hotel / hospitality use is not permitted under the applicable planning regulations."
+If the answer to Question 1 is YES, provide only the key development parameters as a markdown table with columns "Parameter" and "AT Development Right", covering (at minimum, where determinable): maximum buildable area, maximum occupancy, maximum height, maximum floors, maximum AT apartments, potential beds, minimum unit size, parking requirement, and any other critical limitation. Where a parameter cannot be reliably determined, write "Requires official verification" for that row rather than omitting it.
+
+If the answer to Question 1 is NO, write exactly: "Not applicable. AT (Apartamentos Turísticos) use is not permitted under the applicable planning regulations."
 
 If the answer is UNCERTAIN, clearly state what specific information or official confirmation is required.
 
-Do not provide additional sections, methodology, recommendations, risks, or general explanations beyond the two sections above.
+For multiple plots, provide the combined development potential, not simply the sum of the individual plots.
+
+Do not provide additional sections, methodology, recommendations, risks, or general explanations beyond the two sections above — this is not a general architectural feasibility study.
 
 After that two-section report, output a single fenced code block, starting with \`\`\`json and ending with \`\`\`, containing ONLY a single JSON object (no comments, no trailing text after the closing fence) with EXACTLY this shape:
 
@@ -196,8 +217,8 @@ function describeParcel(parcel: ClientCatastroParcel, index: number, total: numb
 function buildUserPrompt(parcels: ClientCatastroParcel[]): string {
   const intro =
     parcels.length > 1
-      ? `Evaluate hotel / hospitality development rights for the following ${parcels.length} adjacent plots, both individually and as a single consolidated development (see "Multiple Plots" in your instructions):`
-      : `Evaluate hotel / hospitality development rights for the following plot:`;
+      ? `Evaluate Apartamentos Turísticos (AT) eligibility and development rights for the following ${parcels.length} adjacent plots, both individually and as a single consolidated development (see "Multiple Plots" in your instructions):`
+      : `Evaluate Apartamentos Turísticos (AT) eligibility and development rights for the following plot:`;
   return [intro, "", ...parcels.map((p, i) => describeParcel(p, i, parcels.length))].join("\n\n");
 }
 
@@ -299,7 +320,7 @@ export async function runAnalysisStreaming(
 
     stream.on("contentBlock", (block) => {
       if (block.type === "thinking") {
-        onEvent({ type: "status", status: "Reasoning about zoning and hospitality use…" });
+        onEvent({ type: "status", status: "Reasoning about zoning and AT eligibility…" });
       } else if (block.type === "server_tool_use") {
         toolCalls += 1;
         onEvent({

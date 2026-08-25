@@ -8,7 +8,7 @@ import type {
   AnalysisEngineResult,
   AnalysisMode,
   AnalysisProgressEvent,
-  HotelVerdict,
+  AtVerdict,
 } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -70,13 +70,13 @@ function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModePro
   );
 }
 
-function verdictBadgeClass(verdict: HotelVerdict): string {
+function verdictBadgeClass(verdict: AtVerdict): string {
   if (verdict === "YES") return "bg-success/10 text-success";
   if (verdict === "NO") return "bg-danger/10 text-danger";
   return "bg-amber-500/10 text-amber-600";
 }
 
-function VerdictBadge({ verdict }: { verdict: HotelVerdict }) {
+function VerdictBadge({ verdict }: { verdict: AtVerdict }) {
   const { t } = useLocale();
   const labelKey = verdict === "YES" ? "analysis.verdictYes" : verdict === "NO" ? "analysis.verdictNo" : "analysis.verdictUncertain";
   return (

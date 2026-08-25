@@ -1,6 +1,6 @@
 import { View, Text } from "@react-pdf/renderer";
 import type { ClientCatastroParcel } from "@/lib/types";
-import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, HotelVerdict } from "@/lib/analysis-engine";
+import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, AtVerdict } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -17,11 +17,11 @@ function t(locale: Locale, key: string, vars?: Record<string, string | number>) 
   return translate(locale, key, vars);
 }
 
-function verdictLabel(locale: Locale, verdict: HotelVerdict): string {
+function verdictLabel(locale: Locale, verdict: AtVerdict): string {
   return t(locale, `analysis.verdict${verdict.charAt(0)}${verdict.slice(1).toLowerCase()}`);
 }
 
-function verdictTone(verdict: HotelVerdict): "info" | "warning" | "danger" {
+function verdictTone(verdict: AtVerdict): "info" | "warning" | "danger" {
   return verdict === "YES" ? "info" : verdict === "NO" ? "danger" : "warning";
 }
 
@@ -115,7 +115,7 @@ export function buildCatastroSection(parcels: ClientCatastroParcel[], locale: Lo
 }
 
 // ---------------------------------------------------------------------------
-// One mode's full hotel/hospitality-use answer (Knowledge-based / Web-grounded
+// One mode's full AT (Apartamentos Turísticos)-use answer (Knowledge-based / Web-grounded
 // / Hybrid)
 // ---------------------------------------------------------------------------
 
