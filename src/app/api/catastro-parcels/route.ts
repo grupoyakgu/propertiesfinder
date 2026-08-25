@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildCatastroParcelWhere, parseCatastroSort } from "@/lib/catastro-parcel-query";
-import { parsePolygon } from "@/lib/query-helpers";
+import { parsePolygon, parseBBox } from "@/lib/query-helpers";
 import { isPointInPolygon } from "@/lib/geo";
+import { pickEvenlySpread } from "@/lib/spatial-sample";
 import type { CatastroParcel } from "@/generated/prisma/client";
 import { toClientCatastroParcel, type ClientCatastroParcel } from "@/lib/types";
 
@@ -22,20 +23,21 @@ async function withHasComment(parcels: CatastroParcel[]): Promise<ClientCatastro
   return parcels.map((p) => ({ ...toClientCatastroParcel(p), hasComment: commentedIds.has(p.id) }));
 }
 
-// Above the normal `take` cap — only used as the candidate pool for the exact
-// point-in-polygon filter below, never returned as-is. The `where` clause's
-// bbox already narrows to the polygon's own bounding box (the client always
-// sends both — see dashboard-app.tsx), so this is bounded to that area, not
-// the whole table. A polygon whose bbox alone matches more rows than this
-// shows a partial total, the same truncation tradeoff plain bbox search
-// already has.
-const POLYGON_CANDIDATE_CAP = 5000;
+// Above the normal `take` cap — used both as the point-in-polygon candidate pool
+// and as the lightweight id/lat/lng pool for pickEvenlySpread below, when a plain
+// bbox search matches more than `take` rows. Bounded to the bbox area (the
+// client always sends one for a map-scoped view — see dashboard-app.tsx), not
+// the whole table. A search matching more than this many rows within its bbox
+// samples from a partial candidate pool — the same truncation tradeoff plain
+// bbox search already has, just applied one step earlier.
+const CANDIDATE_CAP = 5000;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const where = buildCatastroParcelWhere(searchParams);
   const orderBy = parseCatastroSort(searchParams.get("sort"));
   const polygon = parsePolygon(searchParams);
+  const bbox = parseBBox(searchParams) ?? null;
 
   // Each parcel renders as a Marker plus up to two Polygons (boundary + planning
   // overlay) on the map, with real official cadastral geometry and no clustering.
@@ -46,10 +48,27 @@ export async function GET(request: Request) {
   const take = Math.min(Number(searchParams.get("limit")) || 500, 1000);
 
   if (!polygon) {
-    const [parcels, total] = await Promise.all([
-      prisma.catastroParcel.findMany({ where, orderBy, take }),
-      prisma.catastroParcel.count({ where }),
-    ]);
+    const total = await prisma.catastroParcel.count({ where });
+
+    if (total <= take) {
+      const parcels = await prisma.catastroParcel.findMany({ where, orderBy });
+      return NextResponse.json({ parcels: await withHasComment(parcels), count: parcels.length, total });
+    }
+
+    // More matches than fit on one page. Sorting by e.g. import date and simply
+    // truncating to `take` can return a geographically lopsided subset — an
+    // entire dense area (a historic city center, say) can end up completely
+    // unrepresented if it wasn't part of whichever batch sorts first, even
+    // though thousands of matches exist right there (see pickEvenlySpread's
+    // own comment). Sample evenly across the viewport instead, from a bounded
+    // lightweight candidate pool.
+    const candidates = await prisma.catastroParcel.findMany({
+      where,
+      select: { id: true, latitude: true, longitude: true },
+      take: CANDIDATE_CAP,
+    });
+    const sampledIds = pickEvenlySpread(candidates, take, bbox);
+    const parcels = await prisma.catastroParcel.findMany({ where: { id: { in: sampledIds } }, orderBy });
     return NextResponse.json({ parcels: await withHasComment(parcels), count: parcels.length, total });
   }
 
@@ -58,14 +77,22 @@ export async function GET(request: Request) {
   const candidates = await prisma.catastroParcel.findMany({
     where,
     orderBy,
-    take: POLYGON_CANDIDATE_CAP,
+    take: CANDIDATE_CAP,
   });
   const matched = candidates.filter((p) => isPointInPolygon([p.longitude, p.latitude], polygon));
-  const page = matched.slice(0, take);
+
+  let page: CatastroParcel[];
+  if (matched.length <= take) {
+    page = matched;
+  } else {
+    const sampledIds = pickEvenlySpread(matched, take, bbox);
+    const byId = new Map(matched.map((p) => [p.id, p]));
+    page = sampledIds.map((id) => byId.get(id)!);
+  }
 
   return NextResponse.json({
     parcels: await withHasComment(page),
-    count: Math.min(matched.length, take),
+    count: page.length,
     total: matched.length,
   });
 }
