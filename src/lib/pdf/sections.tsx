@@ -7,7 +7,7 @@ import type {
   AtVerdict,
   ConsolidationRecommendation,
 } from "@/lib/analysis-engine";
-import { CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
+import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -176,20 +176,37 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               {data.explanation}
             </Callout>
 
-            {(data.maxLegalStudioUnits || data.realisticStudioUnits || data.maximumBeds || data.keyInvestmentLimiter) && (
+            {(data.verifiedLegalStudioCapacity ||
+              data.scenarioStudioCapacity ||
+              data.realisticArchitecturalStudioCapacity ||
+              data.maximumBeds ||
+              data.keyInvestmentLimiter ||
+              data.acquisitionRisk) && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h3}>{t(locale, "analysis.investmentConclusionHeading")}</Text>
                 <DataTable
                   rows={[
-                    data.maxLegalStudioUnits
-                      ? { label: t(locale, "analysis.maxLegalStudioUnitsLabel"), value: data.maxLegalStudioUnits }
+                    data.verifiedLegalStudioCapacity
+                      ? { label: t(locale, "analysis.verifiedLegalStudioCapacityLabel"), value: data.verifiedLegalStudioCapacity }
                       : null,
-                    data.realisticStudioUnits
-                      ? { label: t(locale, "analysis.realisticStudioUnitsLabel"), value: data.realisticStudioUnits }
+                    data.scenarioStudioCapacity
+                      ? { label: t(locale, "analysis.scenarioStudioCapacityLabel"), value: data.scenarioStudioCapacity }
+                      : null,
+                    data.realisticArchitecturalStudioCapacity
+                      ? {
+                          label: t(locale, "analysis.realisticArchitecturalStudioCapacityLabel"),
+                          value: data.realisticArchitecturalStudioCapacity,
+                        }
                       : null,
                     data.maximumBeds ? { label: t(locale, "analysis.maximumBedsLabel"), value: data.maximumBeds } : null,
                     data.keyInvestmentLimiter
                       ? { label: t(locale, "analysis.keyInvestmentLimiterLabel"), value: data.keyInvestmentLimiter }
+                      : null,
+                    data.acquisitionRisk
+                      ? {
+                          label: t(locale, "analysis.acquisitionRiskLabel"),
+                          value: t(locale, ACQUISITION_RISK_LABEL_KEYS[data.acquisitionRisk]),
+                        }
                       : null,
                   ].filter((r): r is { label: string; value: string } => r !== null)}
                 />
@@ -238,7 +255,15 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
             {data.criticalItemsToVerify && data.criticalItemsToVerify.length > 0 && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h2}>{t(locale, "analysis.criticalItemsHeading")}</Text>
-                <BulletList items={data.criticalItemsToVerify.map((c) => `${c.item} — ${c.whyItMatters}`)} />
+                <BulletList
+                  items={data.criticalItemsToVerify.map(
+                    (c) =>
+                      `${c.item} — ${c.whyItMatters} (${t(locale, "analysis.criticalItemAcquisitionImpactLabel")}: ${t(
+                        locale,
+                        ACQUISITION_RISK_LABEL_KEYS[c.acquisitionImpact]
+                      )}; ${t(locale, "analysis.criticalItemNextVerificationLabel")}: ${c.nextVerification})`
+                  )}
+                />
               </View>
             )}
           </View>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Copy, FileDown, Sparkles, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientOpportunity } from "@/lib/types";
 import type {
+  AcquisitionRisk,
   AnalysisEngineData,
   AnalysisEngineResult,
   AnalysisMode,
@@ -12,7 +13,7 @@ import type {
   ConsolidationRecommendation,
   CriticalItem,
 } from "@/lib/analysis-engine";
-import { CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
+import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
@@ -104,6 +105,21 @@ function ConsolidationBadge({ recommendation }: { recommendation: ConsolidationR
   );
 }
 
+function acquisitionRiskBadgeClass(risk: AcquisitionRisk): string {
+  if (risk === "LOW") return "bg-success/10 text-success";
+  if (risk === "HIGH") return "bg-danger/10 text-danger";
+  return "bg-amber-500/10 text-amber-600";
+}
+
+function AcquisitionRiskBadge({ risk }: { risk: AcquisitionRisk }) {
+  const { t } = useLocale();
+  return (
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", acquisitionRiskBadgeClass(risk))}>
+      {t(ACQUISITION_RISK_LABEL_KEYS[risk])}
+    </span>
+  );
+}
+
 /** Plain-text rendition of one mode's result, for the copy-to-clipboard button —
  * mirrors what's on screen. */
 function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Record<string, string | number>) => string): string {
@@ -112,12 +128,17 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
   if (data) {
     lines.push(`${t("analysis.verdictLabel")}: ${t(VERDICT_LABEL_KEYS[data.verdict])}`);
     lines.push(data.explanation);
-    if (data.maxLegalStudioUnits) lines.push(`${t("analysis.maxLegalStudioUnitsLabel")}: ${data.maxLegalStudioUnits}`);
-    if (data.realisticStudioUnits)
-      lines.push(`${t("analysis.realisticStudioUnitsLabel")}: ${data.realisticStudioUnits}`);
+    if (data.verifiedLegalStudioCapacity)
+      lines.push(`${t("analysis.verifiedLegalStudioCapacityLabel")}: ${data.verifiedLegalStudioCapacity}`);
+    if (data.scenarioStudioCapacity)
+      lines.push(`${t("analysis.scenarioStudioCapacityLabel")}: ${data.scenarioStudioCapacity}`);
+    if (data.realisticArchitecturalStudioCapacity)
+      lines.push(`${t("analysis.realisticArchitecturalStudioCapacityLabel")}: ${data.realisticArchitecturalStudioCapacity}`);
     if (data.maximumBeds) lines.push(`${t("analysis.maximumBedsLabel")}: ${data.maximumBeds}`);
     if (data.keyInvestmentLimiter)
       lines.push(`${t("analysis.keyInvestmentLimiterLabel")}: ${data.keyInvestmentLimiter}`);
+    if (data.acquisitionRisk)
+      lines.push(`${t("analysis.acquisitionRiskLabel")}: ${t(ACQUISITION_RISK_LABEL_KEYS[data.acquisitionRisk])}`);
     if (data.individualVerdicts && data.individualVerdicts.length > 0) {
       lines.push("", t("analysis.individualVerdictsHeading"));
       for (const v of data.individualVerdicts) {
@@ -150,7 +171,11 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     }
     if (data.criticalItemsToVerify && data.criticalItemsToVerify.length > 0) {
       lines.push("", t("analysis.criticalItemsHeading"));
-      for (const c of data.criticalItemsToVerify) lines.push(`- ${c.item}: ${c.whyItMatters}`);
+      for (const c of data.criticalItemsToVerify) {
+        lines.push(
+          `- ${c.item}: ${c.whyItMatters} (${t("analysis.criticalItemAcquisitionImpactLabel")}: ${t(ACQUISITION_RISK_LABEL_KEYS[c.acquisitionImpact])}; ${t("analysis.criticalItemNextVerificationLabel")}: ${c.nextVerification})`
+        );
+      }
     }
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
@@ -234,21 +259,28 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
   );
 }
 
-/** The four "primary output" investment figures — see SYSTEM_PROMPT_BASE's
- * "Investment Conclusion". Only rendered when at least one is present (they're
- * all gated together server-side, but each field checked independently here
- * to stay resilient to a partial result). */
+/** The primary output investment figures — see SYSTEM_PROMPT_BASE's
+ * "Investment Conclusion": the three distinct studio-capacity numbers (never
+ * to be merged into one another), maximum beds, the key limiter, and the
+ * overall acquisition risk. Only rendered when at least one is present
+ * (they're all gated together server-side, but each field checked
+ * independently here to stay resilient to a partial result). */
 function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
   const { t } = useLocale();
   const stats: { labelKey: string; value: string }[] = [
-    data.maxLegalStudioUnits ? { labelKey: "analysis.maxLegalStudioUnitsLabel", value: data.maxLegalStudioUnits } : null,
-    data.realisticStudioUnits
-      ? { labelKey: "analysis.realisticStudioUnitsLabel", value: data.realisticStudioUnits }
+    data.verifiedLegalStudioCapacity
+      ? { labelKey: "analysis.verifiedLegalStudioCapacityLabel", value: data.verifiedLegalStudioCapacity }
+      : null,
+    data.scenarioStudioCapacity
+      ? { labelKey: "analysis.scenarioStudioCapacityLabel", value: data.scenarioStudioCapacity }
+      : null,
+    data.realisticArchitecturalStudioCapacity
+      ? { labelKey: "analysis.realisticArchitecturalStudioCapacityLabel", value: data.realisticArchitecturalStudioCapacity }
       : null,
     data.maximumBeds ? { labelKey: "analysis.maximumBedsLabel", value: data.maximumBeds } : null,
   ].filter((s): s is { labelKey: string; value: string } => s !== null);
 
-  if (stats.length === 0 && !data.keyInvestmentLimiter) return null;
+  if (stats.length === 0 && !data.keyInvestmentLimiter && !data.acquisitionRisk) return null;
 
   return (
     <div>
@@ -256,7 +288,7 @@ function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
         {t("analysis.investmentConclusionHeading")}
       </h4>
       {stats.length > 0 && (
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-2">
           {stats.map(({ labelKey, value }) => (
             <div key={labelKey} className="rounded-md bg-surface-muted p-2">
               <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{t(labelKey)}</dt>
@@ -269,6 +301,12 @@ function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
         <p className="mt-2 text-xs text-foreground">
           <span className="font-medium">{t("analysis.keyInvestmentLimiterLabel")}:</span> {data.keyInvestmentLimiter}
         </p>
+      )}
+      {data.acquisitionRisk && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-xs font-medium text-foreground">{t("analysis.acquisitionRiskLabel")}:</span>
+          <AcquisitionRiskBadge risk={data.acquisitionRisk} />
+        </div>
       )}
     </div>
   );
@@ -287,18 +325,33 @@ function CriticalItemsList({ items }: { items: CriticalItem[] }) {
           <li key={i} className="rounded-md bg-surface-muted p-2 text-xs">
             <p className="font-medium text-foreground">{c.item}</p>
             <p className="mt-1 text-muted-foreground">{c.whyItMatters}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {c.couldChangeAtConclusion && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {c.canChangeAtLegality && (
                 <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                  {t("analysis.criticalItemChangesAtConclusion")}
+                  {t("analysis.criticalItemCanChangeAtLegality")}
                 </span>
               )}
-              {c.couldChangeStudioCount && (
+              {c.canChangeDevelopmentRights && (
                 <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                  {t("analysis.criticalItemChangesStudioCount")}
+                  {t("analysis.criticalItemCanChangeDevelopmentRights")}
                 </span>
               )}
+              {c.canChangeStudioCapacity && (
+                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                  {t("analysis.criticalItemCanChangeStudioCapacity")}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {t("analysis.criticalItemAcquisitionImpactLabel")}:
+                </span>
+                <AcquisitionRiskBadge risk={c.acquisitionImpact} />
+              </span>
             </div>
+            <p className="mt-1.5 text-muted-foreground">
+              <span className="font-medium text-foreground">{t("analysis.criticalItemNextVerificationLabel")}:</span>{" "}
+              {c.nextVerification}
+            </p>
           </li>
         ))}
       </ul>
