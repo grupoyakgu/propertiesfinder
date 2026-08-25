@@ -17,6 +17,7 @@ import type {
 import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine-types";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
+import { InvestmentDashboardTable } from "@/components/dashboard/investment-dashboard-table";
 
 const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
   { mode: "knowledge", labelKey: "analysis.knowledgeModeLabel", hintKey: "analysis.knowledgeModeHint" },
@@ -390,11 +391,13 @@ function ResultColumn({
   modeLabelKey,
   modeHintKey,
   progress,
+  parcels,
 }: {
   mode: AnalysisMode;
   modeLabelKey: string;
   modeHintKey: string;
   progress: ModeProgress | null;
+  parcels: ClientCatastroParcel[];
 }) {
   const { t } = useLocale();
   const result = progress?.result ?? null;
@@ -436,6 +439,9 @@ function ResultColumn({
 
       {data && (
         <div className="space-y-4 p-4">
+          {/* Investment Dashboard Table */}
+          {parcels && parcels.length > 0 && <InvestmentDashboardTable parcels={parcels} data={data} />}
+
           <div>
             <div className="flex items-center gap-2">
               <VerdictBadge verdict={data.verdict} />
@@ -1002,6 +1008,7 @@ export function AnalysisEnginePanel({
                   modeLabelKey={labelKey}
                   modeHintKey={hintKey}
                   progress={progress[mode] ?? null}
+                  parcels={parcels}
                 />
               ))}
             </div>
