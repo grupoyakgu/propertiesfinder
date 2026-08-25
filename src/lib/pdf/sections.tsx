@@ -1,6 +1,6 @@
 import { View, Text } from "@react-pdf/renderer";
 import type { ClientCatastroParcel } from "@/lib/types";
-import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, ResidualLandValue } from "@/lib/analysis-engine";
+import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, HotelVerdict } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -15,6 +15,14 @@ export interface PdfSection {
 
 function t(locale: Locale, key: string, vars?: Record<string, string | number>) {
   return translate(locale, key, vars);
+}
+
+function verdictLabel(locale: Locale, verdict: HotelVerdict): string {
+  return t(locale, `analysis.verdict${verdict.charAt(0)}${verdict.slice(1).toLowerCase()}`);
+}
+
+function verdictTone(verdict: HotelVerdict): "info" | "warning" | "danger" {
+  return verdict === "YES" ? "info" : verdict === "NO" ? "danger" : "warning";
 }
 
 function DataTable({ rows }: { rows: { label: string; value: string }[] }) {
@@ -64,11 +72,12 @@ function Callout({
 }
 
 // ---------------------------------------------------------------------------
-// Catastro property data
+// Catastro property data — one plot, or several when this is a consolidated
+// multi-plot run (see analysis-engine.ts's "Multiple Plots" behavior).
 // ---------------------------------------------------------------------------
 
-export function buildCatastroSection(parcel: ClientCatastroParcel, locale: Locale): PdfSection {
-  const rows = [
+function parcelRows(parcel: ClientCatastroParcel, locale: Locale): { label: string; value: string }[] {
+  return [
     { label: t(locale, "detail.referenciaCatastral"), value: parcel.referenciaCatastral },
     { label: t(locale, "detail.address"), value: formatCatastroParcelDisplayAddress(parcel) || "—" },
     { label: t(locale, "detail.municipality"), value: parcel.municipality },
@@ -85,131 +94,88 @@ export function buildCatastroSection(parcel: ClientCatastroParcel, locale: Local
     { label: t(locale, "detail.claseDeInmueble"), value: cadastralClassLabels[locale][parcel.cadastralUse] },
     { label: t(locale, "detail.currentUse"), value: parcel.landUse ? landUseLabels[locale][parcel.landUse] : "—" },
   ];
+}
 
+export function buildCatastroSection(parcels: ClientCatastroParcel[], locale: Locale): PdfSection {
   return {
     id: "catastro",
     title: t(locale, "pdf.catastroSectionTitle"),
     node: (
       <View>
         <Text style={typography.h1}>{t(locale, "pdf.catastroSectionTitle")}</Text>
-        <DataTable rows={rows} />
+        {parcels.map((parcel, i) => (
+          <View key={parcel.id} style={{ marginTop: i === 0 ? 0 : 10 }}>
+            {parcels.length > 1 && <Text style={typography.h3}>{parcel.referenciaCatastral}</Text>}
+            <DataTable rows={parcelRows(parcel, locale)} />
+          </View>
+        ))}
       </View>
     ),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Residual land value table (shared by mode sections + comparison)
+// One mode's full hotel/hospitality-use answer (Knowledge-based / Web-grounded
+// / Hybrid)
 // ---------------------------------------------------------------------------
 
-const RESIDUAL_FIELDS: { key: keyof ResidualLandValue; labelKey: string }[] = [
-  { key: "commercial_use_allowed", labelKey: "analysis.commercialUseAllowed" },
-  { key: "tourist_use_allowed", labelKey: "analysis.touristUseAllowed" },
-  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
-  { key: "saleable_area", labelKey: "analysis.saleableArea" },
-  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
-  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
-  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
-  { key: "estimated_studio_apartments", labelKey: "analysis.estimatedStudioApartments" },
-  { key: "commercial_area", labelKey: "analysis.commercialArea" },
-  { key: "parking_spaces", labelKey: "analysis.parkingSpaces" },
-  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
-  { key: "total_construction_cost", labelKey: "analysis.totalConstructionCost" },
-  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
-  { key: "developer_margin", labelKey: "analysis.developerMargin" },
-  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
-  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
-];
+const MODE_TITLE_KEYS: Record<AnalysisMode, string> = {
+  knowledge: "pdf.knowledgeSectionTitle",
+  web: "pdf.webSectionTitle",
+  hybrid: "pdf.hybridSectionTitle",
+};
 
-const COMPARISON_FIELDS: { key: keyof ResidualLandValue; labelKey: string }[] = [
-  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
-  { key: "saleable_area", labelKey: "analysis.saleableArea" },
-  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
-  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
-  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
-  { key: "estimated_studio_apartments", labelKey: "analysis.estimatedStudioApartments" },
-  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
-  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
-  { key: "developer_margin", labelKey: "analysis.developerMargin" },
-  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
-  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
-];
+const MODE_LABEL_KEYS: Record<AnalysisMode, string> = {
+  knowledge: "analysis.knowledgeModeLabel",
+  web: "analysis.webModeLabel",
+  hybrid: "analysis.hybridModeLabel",
+};
 
-const SUMMARY_FIELDS: { key: keyof AnalysisEngineData; labelKey: string }[] = [
-  { key: "planning_zone", labelKey: "analysis.planningZone" },
-  { key: "urban_classification", labelKey: "analysis.urbanClassification" },
-  { key: "ordinance", labelKey: "analysis.ordinance" },
-  { key: "special_plan", labelKey: "analysis.specialPlan" },
-  { key: "protection_level", labelKey: "analysis.protectionLevel" },
-  { key: "max_build_area", labelKey: "analysis.maxBuildArea" },
-  { key: "remaining_buildability", labelKey: "analysis.remainingBuildability" },
-  { key: "max_footprint", labelKey: "analysis.maxFootprint" },
-  { key: "max_height", labelKey: "analysis.maxHeight" },
-  { key: "max_floors", labelKey: "analysis.maxFloors" },
-  { key: "parking_required", labelKey: "analysis.parkingRequired" },
-  { key: "planning_risk", labelKey: "analysis.planningRisk" },
-  { key: "overall_score", labelKey: "analysis.overallScore" },
-];
+function developmentRightsRows(data: AnalysisEngineData): { label: string; value: string }[] {
+  return (data.developmentRights ?? []).map((row) => ({ label: row.parameter, value: row.potentialRight }));
+}
 
-// ---------------------------------------------------------------------------
-// One mode's full analysis (Knowledge-based or Web-grounded)
-// ---------------------------------------------------------------------------
-
-export function buildModeSection(
-  mode: AnalysisMode,
-  result: AnalysisEngineResult,
-  locale: Locale
-): PdfSection {
-  const titleKey = mode === "knowledge" ? "pdf.knowledgeSectionTitle" : "pdf.webSectionTitle";
-  const title = t(locale, titleKey);
+export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResult, locale: Locale): PdfSection {
+  const title = t(locale, MODE_TITLE_KEYS[mode]);
   const data = result.data;
 
-  const summaryRows = data
-    ? SUMMARY_FIELDS.map(({ key, labelKey }) => ({
-        label: t(locale, labelKey),
-        value: typeof data[key] === "string" ? (data[key] as string) : "",
-      })).filter((r) => r.value)
-    : [];
-
-  const listFields: { labelKey: string; items: string[] }[] = data
-    ? [
-        { labelKey: "analysis.allowedUses", items: data.allowed_uses ?? [] },
-        { labelKey: "analysis.heritageConstraints", items: data.heritage_constraints ?? [] },
-        { labelKey: "analysis.planningConstraints", items: data.planning_constraints ?? [] },
-        { labelKey: "analysis.developmentOptions", items: data.development_options ?? [] },
-      ].filter((f) => f.items.length > 0)
-    : [];
-
-  const rlv = data?.residual_land_value;
-  const rlvRows = rlv
-    ? RESIDUAL_FIELDS.map(({ key, labelKey }) => ({ label: t(locale, labelKey), value: rlv[key] ?? "" }))
-    : [];
-
   return {
-    id: mode === "knowledge" ? "knowledge" : "web",
+    id: mode,
     title,
     node: (
       <View>
         <Text style={typography.h1}>{title}</Text>
 
-        {summaryRows.length > 0 && (
+        {data && (
           <View>
-            <Text style={typography.h2}>{t(locale, "analysis.summaryHeading")}</Text>
-            <DataTable rows={summaryRows} />
-          </View>
-        )}
+            <Callout tone={verdictTone(data.verdict)} title={verdictLabel(locale, data.verdict)}>
+              {data.explanation}
+            </Callout>
 
-        {listFields.map((f) => (
-          <View key={f.labelKey} style={{ marginTop: 8 }}>
-            <Text style={typography.h3}>{t(locale, f.labelKey)}</Text>
-            <BulletList items={f.items} />
-          </View>
-        ))}
+            {data.individualVerdicts && data.individualVerdicts.length > 0 && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h3}>{t(locale, "analysis.individualVerdictsHeading")}</Text>
+                <BulletList
+                  items={data.individualVerdicts.map(
+                    (v) => `${v.referenciaCatastral}: ${verdictLabel(locale, v.verdict)} — ${v.explanation}`
+                  )}
+                />
+              </View>
+            )}
 
-        {rlvRows.length > 0 && (
-          <View style={{ marginTop: 4 }}>
-            <Text style={typography.h2}>{t(locale, "analysis.residualLandValueHeading")}</Text>
-            <DataTable rows={rlvRows} />
+            {data.verdict === "YES" && data.developmentRights && data.developmentRights.length > 0 && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h2}>{t(locale, "analysis.developmentRightsHeading")}</Text>
+                <DataTable rows={developmentRightsRows(data)} />
+              </View>
+            )}
+
+            {data.verdict === "UNCERTAIN" && data.uncertainRequirements && data.uncertainRequirements.length > 0 && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h3}>{t(locale, "analysis.uncertainRequirementsHeading")}</Text>
+                <BulletList items={data.uncertainRequirements} />
+              </View>
+            )}
           </View>
         )}
 
@@ -225,19 +191,21 @@ export function buildModeSection(
 }
 
 // ---------------------------------------------------------------------------
-// Side-by-side comparison (only when both modes are present)
+// Side-by-side comparison (only when 2+ modes produced a result)
 // ---------------------------------------------------------------------------
 
 export function buildComparisonSection(
-  knowledge: AnalysisEngineResult,
-  web: AnalysisEngineResult,
+  results: Partial<Record<AnalysisMode, AnalysisEngineResult>>,
   locale: Locale
 ): PdfSection | null {
-  const kRlv = knowledge.data?.residual_land_value;
-  const wRlv = web.data?.residual_land_value;
-  if (!kRlv || !wRlv) return null;
+  const available = (Object.keys(results) as AnalysisMode[]).filter((mode) => {
+    const r = results[mode];
+    return r && !r.error && r.data;
+  });
+  if (available.length < 2) return null;
 
   const title = t(locale, "pdf.comparisonSectionTitle");
+  const colWidth = `${Math.floor(64 / available.length)}%`;
 
   return {
     id: "comparison",
@@ -248,16 +216,28 @@ export function buildComparisonSection(
         <View style={compareTable.table}>
           <View style={compareTable.headerRow}>
             <Text style={[compareTable.headerCell, { width: "36%" }]}>{t(locale, "analysis.comparisonMetric")}</Text>
-            <Text style={[compareTable.headerCell, { width: "32%" }]}>{t(locale, "analysis.knowledgeModeLabel")}</Text>
-            <Text style={[compareTable.headerCell, { width: "32%" }]}>{t(locale, "analysis.webModeLabel")}</Text>
+            {available.map((mode) => (
+              <Text key={mode} style={[compareTable.headerCell, { width: colWidth }]}>
+                {t(locale, MODE_LABEL_KEYS[mode])}
+              </Text>
+            ))}
           </View>
-          {COMPARISON_FIELDS.map(({ key, labelKey }, i) => (
-            <View key={key} style={i === COMPARISON_FIELDS.length - 1 ? compareTable.rowLast : compareTable.row}>
-              <Text style={[compareTable.metricCell, { width: "36%" }]}>{t(locale, labelKey)}</Text>
-              <Text style={[compareTable.valueCell, { width: "32%" }]}>{kRlv[key] || "—"}</Text>
-              <Text style={[compareTable.valueCell, { width: "32%" }]}>{wRlv[key] || "—"}</Text>
-            </View>
-          ))}
+          <View style={compareTable.row}>
+            <Text style={[compareTable.metricCell, { width: "36%" }]}>{t(locale, "analysis.verdictLabel")}</Text>
+            {available.map((mode) => (
+              <Text key={mode} style={[compareTable.valueCell, { width: colWidth }]}>
+                {verdictLabel(locale, results[mode]!.data!.verdict)}
+              </Text>
+            ))}
+          </View>
+          <View style={compareTable.rowLast}>
+            <Text style={[compareTable.metricCell, { width: "36%" }]}>{t(locale, "analysis.explanationLabel")}</Text>
+            {available.map((mode) => (
+              <Text key={mode} style={[compareTable.valueCell, { width: colWidth }]}>
+                {results[mode]!.data!.explanation || "—"}
+              </Text>
+            ))}
+          </View>
         </View>
       </View>
     ),
@@ -269,23 +249,16 @@ export function buildComparisonSection(
 // ---------------------------------------------------------------------------
 
 export function buildExecutiveSummarySection(
-  parcel: ClientCatastroParcel,
-  knowledge: AnalysisEngineResult | null,
-  web: AnalysisEngineResult | null,
+  parcels: ClientCatastroParcel[],
+  results: Partial<Record<AnalysisMode, AnalysisEngineResult>>,
   locale: Locale
 ): PdfSection {
   const title = t(locale, "pdf.executiveSummaryTitle");
-  const hasKnowledge = !!knowledge && !knowledge.error;
-  const hasWeb = !!web && !web.error;
-  const modesText = hasKnowledge && hasWeb
-    ? t(locale, "pdf.modeBoth")
-    : hasKnowledge
-      ? t(locale, "pdf.modeKnowledgeOnly")
-      : t(locale, "pdf.modeWebOnly");
-
-  const highlights: { mode: string; data: AnalysisEngineData }[] = [];
-  if (hasKnowledge && knowledge?.data) highlights.push({ mode: t(locale, "analysis.knowledgeModeLabel"), data: knowledge.data });
-  if (hasWeb && web?.data) highlights.push({ mode: t(locale, "analysis.webModeLabel"), data: web.data });
+  const available = (Object.keys(results) as AnalysisMode[]).filter((mode) => {
+    const r = results[mode];
+    return r && !r.error;
+  });
+  const modesText = available.map((mode) => t(locale, MODE_LABEL_KEYS[mode])).join(" · ");
 
   return {
     id: "summary",
@@ -293,27 +266,23 @@ export function buildExecutiveSummarySection(
     node: (
       <View>
         <Text style={typography.h1}>{title}</Text>
-        <Text style={[typography.body, { marginBottom: 8 }]}>{t(locale, "pdf.executiveSummaryIntro")}</Text>
-        <Text style={[typography.body, { marginBottom: 10 }]}>
-          {t(locale, "pdf.executiveSummaryModesNote", { modes: modesText })}
+        <Text style={[typography.body, { marginBottom: 8 }]}>
+          {parcels.length > 1
+            ? t(locale, "pdf.executiveSummaryIntroMulti", { n: parcels.length })
+            : t(locale, "pdf.executiveSummaryIntro")}
         </Text>
+        {modesText && (
+          <Text style={[typography.body, { marginBottom: 10 }]}>
+            {t(locale, "pdf.executiveSummaryModesNote", { modes: modesText })}
+          </Text>
+        )}
 
-        {highlights.map(({ mode, data }) => {
-          const rlv = data.residual_land_value;
-          if (!rlv && !data.overall_score) return null;
+        {available.map((mode) => {
+          const data = results[mode]?.data;
+          if (!data) return null;
           return (
-            <Callout key={mode} tone="info" title={mode}>
-              {[
-                data.overall_score ? `${t(locale, "pdf.opportunityScoreLabel")}: ${data.overall_score}` : null,
-                rlv?.residual_land_value
-                  ? `${t(locale, "pdf.residualLandValueLabel")}: ${rlv.residual_land_value}`
-                  : null,
-                rlv?.highest_and_best_use
-                  ? `${t(locale, "pdf.highestAndBestUseLabel")}: ${rlv.highest_and_best_use}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join("   •   ")}
+            <Callout key={mode} tone={verdictTone(data.verdict)} title={`${t(locale, MODE_LABEL_KEYS[mode])} — ${verdictLabel(locale, data.verdict)}`}>
+              {data.explanation}
             </Callout>
           );
         })}

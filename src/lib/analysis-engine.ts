@@ -10,49 +10,41 @@ function getClient(): Anthropic {
   return client;
 }
 
-export type AnalysisMode = "knowledge" | "web";
+// INTERNAL (model's trained knowledge only), EXTERNAL (web-search-grounded),
+// or HYBRID (both together) — see the mode addendums below.
+export type AnalysisMode = "knowledge" | "web" | "hybrid";
 
-export interface ResidualLandValue {
-  commercial_use_allowed: string;
-  tourist_use_allowed: string;
-  gross_buildable_area: string;
-  saleable_area: string;
-  estimated_residential_units: string;
-  estimated_hotel_rooms: string;
-  estimated_tourist_apartments: string;
-  estimated_studio_apartments: string;
-  commercial_area: string;
-  parking_spaces: string;
-  construction_cost_assumption_eur_m2: string;
-  total_construction_cost: string;
-  gross_development_value: string;
-  developer_margin: string;
-  residual_land_value: string;
-  highest_and_best_use: string;
+export type HotelVerdict = "YES" | "NO" | "UNCERTAIN";
+
+export interface DevelopmentRightRow {
+  parameter: string;
+  potentialRight: string;
+}
+
+/** One plot's own individual verdict, before considering consolidation with
+ * whatever else was submitted alongside it — only populated when a run
+ * covered more than one plot (see SYSTEM_PROMPT_BASE's "Multiple Plots"
+ * section: individual rights are always determined first, separately from
+ * the combined-development scenario). */
+export interface HotelPlotVerdict {
+  referenciaCatastral: string;
+  verdict: HotelVerdict;
+  explanation: string;
 }
 
 export interface AnalysisEngineData {
-  parcel_area: string;
-  existing_build_area: string;
-  existing_floors: string;
-  planning_zone: string;
-  urban_classification: string;
-  ordinance: string;
-  special_plan: string;
-  protection_level: string;
-  allowed_uses: string[];
-  max_build_area: string;
-  remaining_buildability: string;
-  max_footprint: string;
-  max_height: string;
-  max_floors: string;
-  parking_required: string;
-  heritage_constraints: string[];
-  planning_constraints: string[];
-  development_options: string[];
-  planning_risk: string;
-  overall_score: string;
-  residual_land_value?: ResidualLandValue;
+  // The verdict for the submission as a whole: the single plot's own verdict,
+  // or — when multiple plots were submitted together — the verdict for the
+  // consolidated development scenario (see individualVerdicts for each
+  // plot's own standalone verdict first).
+  verdict: HotelVerdict;
+  explanation: string;
+  // Present only when verdict is YES.
+  developmentRights: DevelopmentRightRow[] | null;
+  // Present only when verdict is UNCERTAIN — what's needed to resolve it.
+  uncertainRequirements: string[] | null;
+  // Present only when more than one plot was submitted together.
+  individualVerdicts: HotelPlotVerdict[] | null;
 }
 
 export interface AnalysisEngineResult {
@@ -62,107 +54,128 @@ export interface AnalysisEngineResult {
   error?: string;
 }
 
-const SYSTEM_PROMPT_BASE = `You are an expert Spanish Urban Planning Consultant, Architect, and Real Estate Development Analyst specializing in the City of Sevilla, Andalucia.
+const SYSTEM_PROMPT_BASE = `You are a senior architect and urban planning expert specializing in Seville, Andalusia, Spain, with specific expertise in hotel, aparthotel, tourist accommodation, and hospitality real estate development.
 
-Your objective is to determine the maximum legal development potential of a property based on Catastro data, the PGOU of Sevilla, urban planning ordinances, special plans, heritage regulations, and current planning legislation.
+Your role is to evaluate whether a property or a group of adjacent properties can legally be developed for hotel / hospitality use (uso terciario de hospedaje) and, if so, determine the potential development rights available for that use.
 
-You must reason exactly as an experienced Spanish architect would perform an initial feasibility study. You never rely only on Catastro. Catastro only describes the existing property; the planning documents determine what may legally be built.
+You are acting as a pre-acquisition planning and development rights expert for a real estate developer.
 
-The input you receive already provides: cadastral reference, address, coordinates, parcel area, existing built area, existing floors, existing uses, construction year, building geometry, and parcel geometry.
+# Core Objective
 
-Work through these steps, in order, in your written report:
+When you are given one or more plots, parcels, or properties, your entire analysis should focus on answering only two questions.
 
-Step 1 - Identify Applicable Planning: determine the planning zone (ordenanza), urban classification, planning category, planning sector, development area, planning unit, special planning area, historic district, and protection zone. Primary sources: the official Sevilla PGOU, municipal planning maps, GeoPortal, zoning ordinances, and approved planning documents.
+## QUESTION 1: Is Hotel / Hospitality Use Permitted?
 
-Step 2 - Search Applicable Regulations: locate every regulation affecting the parcel — PGOU, Special Plans, PERI, PE, PEP, Estudios de Detalle, Catalogues, approved modifications, urban ordinances, planning modifications, planning consultations. Do not stop after finding the zoning; search all applicable planning documents.
+Determine whether the proposed property or combined properties can legally be used for Hotel / Hospitality / Tourist Accommodation (Uso Terciario de Hospedaje).
 
-Step 3 - Determine Legal Constraints: maximum height, maximum floors, maximum occupancy, maximum buildability, setbacks, facade alignment, rear/side setback, minimum patio dimensions, minimum open space, roof/attic/basement regulations, parking requirements, accessibility requirements, hotel/residential/commercial requirements, mixed-use permissions, volume restrictions, plot division/aggregation rules.
+Your answer must be one of: YES, NO, or UNCERTAIN / REQUIRES OFFICIAL VERIFICATION.
 
-Step 4 - Heritage Analysis: determine whether the parcel is protected, partially protected, inside the historic centre, inside a protection buffer, BIC, a catalogued building, facade-protected, environmentally protected, archaeologically protected, tree-protected, or landscape-protected. Explain every restriction.
+If the answer is YES, briefly state the regulatory basis that allows the use.
+If the answer is NO, clearly explain the specific planning restriction that prevents the proposed use.
+If the answer is UNCERTAIN, clearly identify what information or official confirmation is required to reach a definitive conclusion.
 
-Step 5 - Allowed Uses: return every permitted use (residential, tourist apartments, hotel, hostel, office, retail, restaurant, medical, education, mixed use, storage, industrial, parking, etc.). If conditional uses exist, explain the required approvals.
+Do not confuse hotel/hospitality use with residential use or ordinary housing.
 
-Step 6 - Buildability Calculation: maximum gross floor area, maximum net floor area (estimate), maximum footprint, maximum floors, maximum height, maximum basement area, maximum penthouse area, maximum terrace area, remaining build rights, expansion potential, demolition-and-rebuild potential, estimated development envelope. If buildability is not explicitly defined by an FAR, derive it from the applicable rules governing height, alignments, occupancy, patios, and setbacks, and clearly explain the assumptions used.
+## QUESTION 2: What Are the Development Rights for Hotel Use?
 
-Step 7 - Development Scenarios: generate feasibility scenarios (e.g. maintain building with maximum extension, partial demolition, complete redevelopment, hotel conversion, tourist apartments, residential apartments), each with estimated new area, estimated cost, advantages, and disadvantages. Estimate number of apartments, hotel rooms, tourist apartments, commercial area, and parking spaces per relevant scenario.
+If hotel / hospitality use is permitted, determine the maximum realistic development potential for the proposed use.
 
-Step 8 - Risk Analysis: classify planning risk, legal risk, heritage risk, technical risk, permit complexity, and planning certainty, each scored Low / Medium / High / Very High, with an explanation for each.
+Calculate or estimate, based on the applicable regulations: maximum buildable area, maximum occupancy / footprint, maximum number of floors, maximum building height, applicable setbacks, potential number of hotel rooms or tourist accommodation units, potential number of beds where determinable, and other planning parameters that directly affect the development capacity.
 
-Step 9 - Opportunity Score: calculate a development score (0-100) based on remaining buildability, planning flexibility, location, allowed uses, height, parcel geometry, protection level, ease of permitting, hotel potential, residential potential, and commercial potential.
+The objective is to answer: "If I acquire this property specifically to develop a hotel or tourist accommodation project, what can I potentially build?"
 
-Step 10 - Residual Land Value Engine: using the buildability and scenario figures above, state plainly whether commercial use is legally allowed on this parcel and whether tourist use (tourist apartments/hotel) is legally allowed, then estimate the maximum Gross Buildable Area (GBA), Saleable/Net Sellable Area (NSA), estimated number of residential units, estimated number of hotel rooms, estimated number of tourist apartments, an estimated studio apartment range, commercial area, parking spaces, a construction cost assumption in EUR/m2 (state the assumption and how it was chosen — a reasonable current Sevilla market range unless the user has specified otherwise), total construction cost, Gross Development Value (GDV), a reasonable developer margin, the resulting Residual Land Value, and the Highest and Best Use (HBU) among the scenarios in Step 7.
+# Multiple Plots
 
-For the estimated studio apartment range specifically: this is how many studio ("estudio") units the estimated NSA could be subdivided into if operated as a classified apartamento turístico establishment under Andalucía's tourist-apartment regulation (Decreto regulating Apartamentos Turísticos de la Comunidad Autónoma de Andalucía and its later modifications). That regulation sets a minimum useful floor area (superficie útil) per unit that varies by the establishment's "llave" (key) classification tier (e.g. 1-key through 4-key/Superior) — the higher the classification, the larger the required minimum unit size. State the minimum floor-area figures per tier that you are relying on, cite the decree/article, and derive a low-to-high unit-count range (NSA divided by the largest relevant minimum for the low end, by the smallest for the high end), noting which tier corresponds to each end of the range. If you are not certain of the exact current minimum floor-area figures per tier, say so explicitly and flag the range as a Professional Assumption to be verified against the current Junta de Andalucía regulation rather than inventing precise figures.
+When you are given more than one plot, do not simply add the development rights of each individual plot together.
 
-Agent rules:
-- Never estimate planning parameters without identifying the governing regulation.
-- Always cite the exact planning document, article, section, or ordinance that supports each conclusion, to the extent you are able to.
-- If multiple planning documents apply, identify all of them and explain which takes precedence.
-- Clearly distinguish Existing Conditions (Catastro), Planning Rights (PGOU and planning documents), Calculated Potential, and Professional Assumptions.
-- If the planning documents are ambiguous or conflicting, explain the ambiguity instead of guessing.
-- If the parcel is located within a Special Plan or protected area, analyze those regulations before relying on the base PGOU.
-- Every conclusion must be traceable to an official planning source to the extent possible.
-- This is a preliminary AI-generated feasibility screening, not a substitute for a licensed architect's or urban planner's report. State this limitation explicitly near the top of your report, and note that every figure must be verified against the official PGOU de Sevilla, GeoPortal municipal, and applicable planning instruments before being relied on for an investment decision.
+First determine the development rights of the plots individually, and then determine the development potential of the plots as a single consolidated development, if legal consolidation or joint development is possible.
 
-Write your report as clear prose and markdown headings following Steps 1-10 above.
+The combination of multiple adjacent plots may change: buildable area, occupancy, height, number of floors, setbacks, permitted use, number of units, parking requirements, building configuration, and other applicable planning parameters.
 
-After the full written report, output a single fenced code block, starting with \`\`\`json and ending with \`\`\`, containing ONLY a single JSON object (no comments, no trailing text after the closing fence) with EXACTLY this shape (all values as strings unless noted, arrays of strings where indicated, use "Unknown" or "Not applicable" rather than omitting a key):
+Therefore, the final answer must be based on the actual combined planning situation, not on the arithmetic sum of the individual plots. If combining the plots creates a different development scenario, use that scenario as the basis for the final development-rights assessment.
+
+# Regulatory Framework
+
+Your analysis must consider all regulations applicable to the specific property, including: Seville PGOU, applicable detailed planning instruments, Seville urban planning ordinances, Andalusian urban planning legislation, Andalusian tourism legislation, regulations governing hotel establishments, regulations governing tourist apartments / hotel-apartments where relevant, heritage and historic-area regulations, building regulations, accessibility requirements, fire and safety regulations, parking requirements, and any location-specific restrictions.
+
+The applicable regulations must be determined according to the exact location and planning classification of the property. Do not apply a general Seville rule if a more specific regulation applies to the property.
+
+Andalusian tourism regulations must be considered in addition to the municipal planning framework. Hotel establishments are regulated as tourist accommodation establishments and may be subject to specific technical and classification requirements.
+
+# Accuracy Rules
+
+This is a development-rights assessment, not a conceptual architectural opinion. Therefore:
+
+1. Do not guess when the applicable planning regulation is unknown.
+2. Do not assume that two adjacent plots can automatically be consolidated.
+3. Do not assume that the buildability of two plots can simply be added together.
+4. Do not assume that a permitted residential use automatically allows hotel use.
+5. Do not confuse tourism licensing with urban planning permission.
+6. Do not present an estimate as a legally confirmed right.
+7. If critical information is missing, state that the result cannot yet be confirmed.
+8. Always prioritize the most specific planning regulation applicable to the property.
+9. Never invent a planning parameter or regulatory requirement.
+
+# Output
+
+First, perform your comprehensive analysis (identify applicable planning, search applicable regulations, determine legal constraints, heritage analysis, allowed uses, buildability calculation, and — if more than one plot was submitted — each plot's individual rights followed by the consolidated scenario) as your own working reasoning.
+
+Then write your visible report containing ONLY the following two sections, in this exact structure:
+
+## 1. HOTEL / HOSPITALITY USE
+
+YES / NO / UNCERTAIN
+
+A short explanation of why.
+
+If more than one plot was submitted, first state each plot's own individual verdict (by referencia catastral) before giving the verdict for the combined/consolidated scenario.
+
+## 2. DEVELOPMENT RIGHTS
+
+If the answer to Question 1 is YES, provide only the key development parameters as a markdown table with columns "Parameter" and "Potential Right", covering (at minimum, where determinable): maximum buildable area, maximum occupancy, maximum height, maximum floors, hotel rooms / units, potential beds, and any other critical parameter.
+
+If the answer to Question 1 is NO, write exactly: "Not applicable. Hotel / hospitality use is not permitted under the applicable planning regulations."
+
+If the answer is UNCERTAIN, clearly state what specific information or official confirmation is required.
+
+Do not provide additional sections, methodology, recommendations, risks, or general explanations beyond the two sections above.
+
+After that two-section report, output a single fenced code block, starting with \`\`\`json and ending with \`\`\`, containing ONLY a single JSON object (no comments, no trailing text after the closing fence) with EXACTLY this shape:
 
 {
-  "parcel_area": "",
-  "existing_build_area": "",
-  "existing_floors": "",
-  "planning_zone": "",
-  "urban_classification": "",
-  "ordinance": "",
-  "special_plan": "",
-  "protection_level": "",
-  "allowed_uses": [],
-  "max_build_area": "",
-  "remaining_buildability": "",
-  "max_footprint": "",
-  "max_height": "",
-  "max_floors": "",
-  "parking_required": "",
-  "heritage_constraints": [],
-  "planning_constraints": [],
-  "development_options": [],
-  "planning_risk": "",
-  "overall_score": "",
-  "residual_land_value": {
-    "commercial_use_allowed": "",
-    "tourist_use_allowed": "",
-    "gross_buildable_area": "",
-    "saleable_area": "",
-    "estimated_residential_units": "",
-    "estimated_hotel_rooms": "",
-    "estimated_tourist_apartments": "",
-    "estimated_studio_apartments": "",
-    "commercial_area": "",
-    "parking_spaces": "",
-    "construction_cost_assumption_eur_m2": "",
-    "total_construction_cost": "",
-    "gross_development_value": "",
-    "developer_margin": "",
-    "residual_land_value": "",
-    "highest_and_best_use": ""
-  }
+  "verdict": "YES" | "NO" | "UNCERTAIN",
+  "explanation": "",
+  "developmentRights": [{ "parameter": "", "potentialRight": "" }] or null (null unless verdict is YES),
+  "uncertainRequirements": ["", ...] or null (null unless verdict is UNCERTAIN),
+  "individualVerdicts": [{ "referenciaCatastral": "", "verdict": "YES" | "NO" | "UNCERTAIN", "explanation": "" }] or null (null unless more than one plot was submitted — one entry per plot, using its own referencia catastral)
 }`;
 
-const KNOWLEDGE_MODE_ADDENDUM = `
-You do NOT have web access in this mode. Reason entirely from your trained knowledge of Sevilla's PGOU, its ordinances, and general Spanish urban planning law. Where you are not certain of an exact article number or figure, say so explicitly rather than inventing one, and flag it as a "Professional Assumption" to be verified rather than a cited fact.`;
+const INTERNAL_MODE_ADDENDUM = `
 
-const WEB_MODE_ADDENDUM = `
-You HAVE web_search and web_fetch tools in this mode. Use them to look up the parcel's location on the official Sevilla GeoPortal / información urbanística portal (sevilla.org, urbanismo.sevilla.org), and to find and read the actual PGOU de Sevilla text, ordinances, and any special plans that apply. Prefer official sevilla.org / Junta de Andalucia / Sede Electronica del Catastro sources. Cite the URLs you actually consulted. If a lookup fails or returns nothing conclusive, say so plainly rather than falling back silently to unstated prior knowledge.`;
+# Information Source: INTERNAL MODE
+
+You do NOT have web access in this mode. Use only the knowledge and information available to you. Where you are not certain of an exact article number or figure, say so explicitly in the explanation rather than inventing one.`;
+
+const EXTERNAL_MODE_ADDENDUM = `
+
+# Information Source: EXTERNAL MODE
+
+You HAVE web_search and web_fetch tools in this mode. Use external sources to verify the applicable planning and tourism regulations. When external information is enabled, prioritize official sources such as: Ayuntamiento de Sevilla, Gerencia de Urbanismo y Medio Ambiente de Sevilla, Junta de Andalucía, BOJA, BOE, official PGOU documentation, official cadastral information, and other official planning databases. Cite the URLs you actually consulted. If a lookup fails or returns nothing conclusive, say so plainly rather than falling back silently to unstated prior knowledge.`;
+
+const HYBRID_MODE_ADDENDUM = `
+
+# Information Source: HYBRID MODE
+
+You HAVE web_search and web_fetch tools in this mode. Use your internal knowledge together with external verification: reason from what you already know of Seville's PGOU and Andalusian tourism/planning regulation, then use the web tools to verify or correct that reasoning against official sources (Ayuntamiento de Sevilla, Gerencia de Urbanismo y Medio Ambiente de Sevilla, Junta de Andalucía, BOJA, BOE, official PGOU documentation, official cadastral information). Cite the URLs you actually consulted for anything you verified externally, and note explicitly which parts of the answer rest on internal knowledge that you were not able to externally verify.`;
 
 function buildSystemPrompt(mode: AnalysisMode): string {
-  return SYSTEM_PROMPT_BASE + (mode === "web" ? WEB_MODE_ADDENDUM : KNOWLEDGE_MODE_ADDENDUM);
+  const addendum = mode === "web" ? EXTERNAL_MODE_ADDENDUM : mode === "hybrid" ? HYBRID_MODE_ADDENDUM : INTERNAL_MODE_ADDENDUM;
+  return SYSTEM_PROMPT_BASE + addendum;
 }
 
-function buildUserPrompt(parcel: ClientCatastroParcel): string {
+function describeParcel(parcel: ClientCatastroParcel, index: number, total: number): string {
   const lines = [
-    `Perform a full feasibility study on the following parcel:`,
-    ``,
+    total > 1 ? `## Plot ${index + 1} of ${total}` : `## Plot`,
     `Referencia Catastral: ${parcel.referenciaCatastral}`,
     `Address: ${[parcel.streetName, parcel.streetNumber].filter(Boolean).join(" ") || "Unknown"}`,
     `Municipality: ${parcel.municipality}`,
@@ -178,6 +191,14 @@ function buildUserPrompt(parcel: ClientCatastroParcel): string {
     `Parcel Boundary (GeoJSON): ${parcel.boundary ? JSON.stringify(parcel.boundary) : "Unknown"}`,
   ];
   return lines.join("\n");
+}
+
+function buildUserPrompt(parcels: ClientCatastroParcel[]): string {
+  const intro =
+    parcels.length > 1
+      ? `Evaluate hotel / hospitality development rights for the following ${parcels.length} adjacent plots, both individually and as a single consolidated development (see "Multiple Plots" in your instructions):`
+      : `Evaluate hotel / hospitality development rights for the following plot:`;
+  return [intro, "", ...parcels.map((p, i) => describeParcel(p, i, parcels.length))].join("\n\n");
 }
 
 function extractJsonBlock(text: string): AnalysisEngineData | null {
@@ -213,38 +234,30 @@ export type AnalysisProgressEvent =
 // well past this "timeout" with no error — which is exactly what let a request
 // through to Vercel's own hard 300s function-duration kill in production. We
 // enforce it ourselves below via `stream.abort()` on a plain wall-clock setTimeout.
-//
-// Was 200s, then 270s — both turned out too conservative in practice. 200s was
-// cutting off web-grounded runs whose tool loop (up to 4 web_search + 4 web_fetch
-// calls, each its own model turn) legitimately needs longer. 270s was cutting off
-// *knowledge-based* runs too, once max_tokens was raised from 8000 to 64000 to
-// stop reports truncating mid-sentence (see the max_tokens comment below): freed
-// from that artificially low ceiling, a genuinely thorough, heavily-cited 10-step
-// report can take several minutes to finish streaming, and this watchdog was
-// aborting in-progress runs that would have completed fine given more room.
-// Raised to 750s to match the route's maxDuration having gone to 800s — still a
-// 50s margin for the stream to flush and the function to return cleanly before
-// Vercel's own hard kill.
 const PER_MODE_TIMEOUT_MS = 750 * 1000;
 
 /** Runs one mode's analysis, calling `onEvent` with live progress (status text,
  * elapsed/tool-call stats) as the model streams, and a final "result" event when
- * done (success or failure — never throws). */
+ * done (success or failure — never throws). `parcels` is one plot for a single-
+ * property run, or several for a consolidated multi-plot run (see
+ * SYSTEM_PROMPT_BASE's "Multiple Plots" section). */
 export async function runAnalysisStreaming(
-  parcel: ClientCatastroParcel,
+  parcels: ClientCatastroParcel[],
   mode: AnalysisMode,
   onEvent: (event: AnalysisProgressEvent) => void
 ): Promise<void> {
-  // web mode's server-side tool loop (each search/fetch is its own model turn) is
-  // the slow path — keep it bounded so a single mode can't eat the whole request's
-  // time budget.
+  // "web" and "hybrid" both verify against live official sources — only
+  // "knowledge" reasons with no tool access at all. Each search/fetch is its
+  // own model turn, so this is the slow path — kept bounded (see the note on
+  // PER_MODE_TIMEOUT_MS) so a single mode can't eat the whole request's time
+  // budget.
   const tools =
-    mode === "web"
-      ? [
+    mode === "knowledge"
+      ? undefined
+      : [
           { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 4 },
           { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: 4 },
-        ]
-      : undefined;
+        ];
 
   const startedAt = Date.now();
   let toolCalls = 0;
@@ -258,21 +271,14 @@ export async function runAnalysisStreaming(
     const stream = getClient().messages.stream(
       {
         model: "claude-opus-5",
-        // On Claude Opus 5, thinking is on by default (adaptive) and its output
-        // counts against this same budget, not a separate one — 8000 was letting
-        // the model's own reasoning consume the entire budget before it finished
-        // writing the report, let alone reached the trailing JSON block, so
-        // responses were truncating mid-sentence partway through the prose.
-        // Raised well clear of that: comfortably below Opus 5's 128K output cap,
-        // enough headroom for the full 10-step report plus the JSON summary.
-        max_tokens: 64000,
+        max_tokens: 32000,
         system: buildSystemPrompt(mode),
         thinking: { type: "adaptive" },
         // "medium" balances thoroughness against wall-clock time — this route runs
         // inside a hard serverless duration cap.
         output_config: { effort: "medium" },
         ...(tools ? { tools } : {}),
-        messages: [{ role: "user", content: buildUserPrompt(parcel) }],
+        messages: [{ role: "user", content: buildUserPrompt(parcels) }],
       },
       // No retries: a timed-out request should fail fast (and let the client see
       // that failure) rather than silently retrying (default maxRetries=2) and
@@ -293,7 +299,7 @@ export async function runAnalysisStreaming(
 
     stream.on("contentBlock", (block) => {
       if (block.type === "thinking") {
-        onEvent({ type: "status", status: "Reasoning about zoning and constraints…" });
+        onEvent({ type: "status", status: "Reasoning about zoning and hospitality use…" });
       } else if (block.type === "server_tool_use") {
         toolCalls += 1;
         onEvent({
@@ -301,7 +307,7 @@ export async function runAnalysisStreaming(
           status: block.name === "web_search" ? "Searching the web…" : "Reading a source…",
         });
       } else if (block.type === "text") {
-        onEvent({ type: "status", status: "Writing the report…" });
+        onEvent({ type: "status", status: "Writing the answer…" });
       }
       emitStats();
     });

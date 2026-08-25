@@ -66,11 +66,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  opportunities     Favorite[]
-  mapPresets        MapPreset[]
-  comments          Comment[]
-  analysisResults   AnalysisResult[]
-  analysisSummaries AnalysisSummary[]
+  opportunities   Favorite[]
+  mapPresets      MapPreset[]
+  comments        Comment[]
+  analysisResults AnalysisResult[]
 
   @@map("users")
 }
@@ -99,9 +98,6 @@ model CatastroParcel {
 
   sourceDataset String // e.g. "INSPIRE-CP-BU", for traceability
   importedAt    DateTime @default(now())
-
-  analysisResults   AnalysisResult[]
-  analysisSummaries AnalysisSummary[]
 
   @@index([municipality, province])
   @@index([latitude, longitude])
@@ -181,61 +177,51 @@ model MapPreset {
   @@map("map_presets")
 }
 
-// The most recent successful Analysis Engine result for a given user/parcel/mode,
-// so the full report and residual-land-value summary table are still there when
-// the user comes back — no need to re-run the (slow, costly) AI analysis just to
-// look at a result they already generated. Only successful runs are persisted
-// (see the API route): a failed re-run doesn't clobber a previously saved good
-// result for that mode.
+// The most recent successful Analysis Engine result for a given user/plot-
+// combination/mode, so the report is still there when the user comes back — no
+// need to re-run the (slow, costly) AI analysis just to look at a result they
+// already generated. Only successful runs are persisted (see the API route): a
+// failed re-run doesn't clobber a previously saved good result for that mode.
+//
+// A "run" targets one or more CatastroParcels selected together from the
+// Opportunities tab (a single plot, or up to the admin-configured limit for a
+// consolidated multi-plot feasibility study) — parcelIds holds that whole set.
+// There's no FK to CatastroParcel (a list can't cleanly carry one), so a
+// deleted parcel simply leaves a dangling id in old results rather than
+// cascading; parcels aren't user-deletable today so this is a non-issue in
+// practice. parcelKey is the same ids, sorted and comma-joined, existing only
+// so the uniqueness constraint below doesn't depend on Postgres array-equality
+// unique-index support (portable, and avoids any ordering ambiguity).
 model AnalysisResult {
-  id       String @id @default(cuid())
-  userId   String
-  parcelId String
-  mode     String // "knowledge" | "web"
-  report   String
-  data     Json? // AnalysisEngineData shape — see src/lib/analysis-engine.ts
+  id        String   @id @default(cuid())
+  userId    String
+  parcelIds String[]
+  parcelKey String
+  mode      String // "knowledge" | "web" | "hybrid"
+  report    String
+  data      Json? // AnalysisEngineData shape — see src/lib/analysis-engine.ts
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parcel CatastroParcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, parcelId, mode])
+  @@unique([userId, parcelKey, mode])
   @@map("analysis_results")
 }
 
-// A normalized, queryable copy of just the Residual Land Value Engine's headline
-// numbers (the ones shown in the summary table under each mode's report) —
-// deliberately a separate table from AnalysisResult's report/full-JSON blob, so
-// this specific figure set has its own durable, independently-readable home
-// rather than living only inside a JSON column. Written alongside AnalysisResult
-// on every successful run, same one-per-user/parcel/mode upsert semantics.
-model AnalysisSummary {
-  id       String @id @default(cuid())
-  userId   String
-  parcelId String
-  mode     String // "knowledge" | "web"
+// A single-row table (id is always "singleton") holding app-wide configuration
+// an admin can change from the Admin tab, as opposed to User's own per-user
+// preferences (mapLocked, showAllOnMap, etc.).
+model AppSettings {
+  id String @id @default("singleton")
 
-  commercialUseAllowed       String
-  touristUseAllowed          String
-  grossBuildableArea         String
-  saleableArea               String
-  estimatedResidentialUnits  String
-  estimatedHotelRooms        String
-  estimatedTouristApartments String
-  constructionCostPerSqm     String
-  grossDevelopmentValue      String
-  developerMargin            String
-  residualLandValue          String
-  highestAndBestUse          String
+  // Hard cap on how many Opportunities can be selected at once for a single
+  // Analysis Engine run (consolidated multi-plot feasibility study) — see
+  // OpportunitiesPanel's selection checkboxes and AnalysisEnginePanel.
+  maxAnalysisPlots Int @default(2)
 
-  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parcel CatastroParcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, parcelId, mode])
-  @@map("analysis_summaries")
+  @@map("app_settings")
 }

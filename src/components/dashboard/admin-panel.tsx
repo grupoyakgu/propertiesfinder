@@ -1,10 +1,109 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Pencil, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Settings, ShieldCheck, Trash2, X } from "lucide-react";
 import { useLocale } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 import { type Permission } from "@/lib/permissions";
+
+/** The App settings section: global (not per-user) configuration — currently
+ * just the Analysis Engine's plot-selection cap (see OpportunitiesPanel /
+ * AnalysisEnginePanel). Fetches and saves its own state independently of the
+ * user table below. */
+function AppSettingsSection() {
+  const { t } = useLocale();
+  const [loading, setLoading] = useState(true);
+  const [maxAnalysisPlots, setMaxAnalysisPlots] = useState(2);
+  const [draft, setDraft] = useState("2");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || typeof data?.maxAnalysisPlots !== "number") return;
+        setMaxAnalysisPlots(data.maxAnalysisPlots);
+        setDraft(String(data.maxAnalysisPlots));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async () => {
+    const value = Number(draft);
+    if (!Number.isInteger(value) || value < 1) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxAnalysisPlots: value }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(json?.error ?? t("admin.settingSaveError"));
+        return;
+      }
+      setMaxAnalysisPlots(json.maxAnalysisPlots);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {
+      setError(t("admin.settingSaveError"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div>
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Settings className="h-4 w-4 text-primary" />
+          {t("admin.appSettingsTitle")}
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t("admin.appSettingsDescription")}</p>
+      </div>
+
+      {!loading && (
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="max-analysis-plots">
+              {t("admin.maxAnalysisPlotsLabel")}
+            </label>
+            <p className="mt-0.5 max-w-sm text-xs text-muted-foreground">{t("admin.maxAnalysisPlotsHint")}</p>
+            <input
+              id="max-analysis-plots"
+              type="number"
+              min={1}
+              max={10}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="mt-2 h-9 w-24 rounded-md border border-border bg-background px-3 text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || Number(draft) === maxAnalysisPlots || !draft}
+            className="rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saved ? t("admin.settingSaved") : t("admin.saveSettingAction")}
+          </button>
+          {error && <span className="text-xs text-danger">{error}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // One row per togglable permission column, in display order.
 const PERMISSION_COLUMNS: { permission: Permission; labelKey: string }[] = [
@@ -141,7 +240,8 @@ export function AdminPanel({ currentUserId }: { currentUserId: string }) {
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <AppSettingsSection />
+      <div className="mx-auto mt-8 max-w-5xl space-y-6">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <ShieldCheck className="h-4 w-4 text-primary" />

@@ -36,6 +36,9 @@ export function OpportunitiesPanel({
   currentUserId,
   canExportXls,
   onRemoved,
+  selectedForAnalysis,
+  onToggleSelectedForAnalysis,
+  maxAnalysisPlots,
 }: {
   currentUserId: string;
   canExportXls: boolean;
@@ -43,6 +46,12 @@ export function OpportunitiesPanel({
    * "liked" state (which this panel doesn't otherwise share with) drops it too —
    * otherwise the property would still show as selected/liked there. */
   onRemoved?: (propertyId: string) => void;
+  /** Which properties are currently picked for the Analysis Engine tab — owned
+   * by dashboard-app.tsx (not this panel) so the selection survives switching
+   * away to another tab and back. */
+  selectedForAnalysis: Set<string>;
+  onToggleSelectedForAnalysis: (propertyId: string) => void;
+  maxAnalysisPlots: number;
 }) {
   const { t } = useLocale();
   const [loading, setLoading] = useState(true);
@@ -246,6 +255,9 @@ export function OpportunitiesPanel({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-muted">
+                    <th className="px-4 py-2 text-left font-semibold text-muted-foreground" title={t("opportunities.selectForAnalysis")}>
+                      {t("opportunities.colSelect")}
+                    </th>
                     <th className="px-4 py-2 text-left font-semibold text-muted-foreground">
                       {t("opportunities.colReferencia")}
                     </th>
@@ -268,8 +280,24 @@ export function OpportunitiesPanel({
                   {filtered.map((o) => {
                     const isPending = pending.has(o.id);
                     const assigneeKnown = users.some((u) => u.id === o.assignedUserId);
+                    const isSelected = selectedForAnalysis.has(o.parcel.id);
+                    const selectionDisabled = !isSelected && selectedForAnalysis.size >= maxAnalysisPlots;
                     return (
                       <tr key={o.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={selectionDisabled}
+                            onChange={() => onToggleSelectedForAnalysis(o.parcel.id)}
+                            title={
+                              selectionDisabled
+                                ? t("opportunities.selectionLimitReached", { max: maxAnalysisPlots })
+                                : t("opportunities.selectForAnalysis")
+                            }
+                            className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </td>
                         <td className="px-4 py-2">
                           <Link
                             href={`/catastro/${o.parcel.referenciaCatastral}`}
@@ -358,7 +386,7 @@ export function OpportunitiesPanel({
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-4 text-center text-muted-foreground">
+                      <td colSpan={7} className="px-4 py-4 text-center text-muted-foreground">
                         {t("opportunities.noResults")}
                       </td>
                     </tr>

@@ -3,6 +3,7 @@ import { filtersFromSearchParams } from "@/lib/filter-types";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toClientMapPreset } from "@/lib/types";
+import { getAppSettings } from "@/lib/app-settings";
 import type { MapViewport } from "@/components/dashboard/map-view";
 
 export default async function DashboardPage({
@@ -53,7 +54,7 @@ export default async function DashboardPage({
   const initialMapLocked = params.has("mapLocked") ? params.get("mapLocked") === "1" : (user?.mapLocked ?? false);
   // Presets and Opportunities are both shared — every signed-in user sees
   // everyone's, not just their own (see /api/map-presets and /api/favorites).
-  const [presets, favorites] = user
+  const [presets, favorites, appSettings] = user
     ? await Promise.all([
         prisma.mapPreset.findMany({
           orderBy: { createdAt: "asc" },
@@ -63,10 +64,12 @@ export default async function DashboardPage({
           where: { source: "catastro" },
           select: { propertyId: true },
         }),
+        getAppSettings(),
       ])
-    : [[], []];
+    : [[], [], null];
   const initialPresets = presets.map(toClientMapPreset);
   const initialLikedIds = favorites.map((f) => f.propertyId);
+  const initialMaxAnalysisPlots = appSettings?.maxAnalysisPlots ?? 2;
 
   // A "Back to search" bbox always wins; only fall back to the default preset when
   // no explicit viewport was requested (e.g. a fresh visit to a bare /dashboard URL).
@@ -94,6 +97,7 @@ export default async function DashboardPage({
       initialMapViewport={initialMapViewport}
       initialPresets={initialPresets}
       initialLikedIds={initialLikedIds}
+      initialMaxAnalysisPlots={initialMaxAnalysisPlots}
       currentUserId={user?.id ?? ""}
       isAdmin={user?.isAdmin ?? false}
       canUseAnalysisEngine={user?.permissions.includes("analysis_engine") ?? false}

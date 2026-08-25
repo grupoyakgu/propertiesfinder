@@ -1,108 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Copy, FileDown, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, Copy, FileDown, Sparkles, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientOpportunity } from "@/lib/types";
 import type {
   AnalysisEngineData,
   AnalysisEngineResult,
   AnalysisMode,
   AnalysisProgressEvent,
+  HotelVerdict,
 } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
-interface Field {
-  key: keyof AnalysisEngineData;
-  labelKey: string;
-}
-
-const SUMMARY_FIELDS: Field[] = [
-  { key: "planning_zone", labelKey: "analysis.planningZone" },
-  { key: "urban_classification", labelKey: "analysis.urbanClassification" },
-  { key: "ordinance", labelKey: "analysis.ordinance" },
-  { key: "special_plan", labelKey: "analysis.specialPlan" },
-  { key: "protection_level", labelKey: "analysis.protectionLevel" },
-  { key: "max_build_area", labelKey: "analysis.maxBuildArea" },
-  { key: "remaining_buildability", labelKey: "analysis.remainingBuildability" },
-  { key: "max_footprint", labelKey: "analysis.maxFootprint" },
-  { key: "max_height", labelKey: "analysis.maxHeight" },
-  { key: "max_floors", labelKey: "analysis.maxFloors" },
-  { key: "parking_required", labelKey: "analysis.parkingRequired" },
-  { key: "planning_risk", labelKey: "analysis.planningRisk" },
-  { key: "overall_score", labelKey: "analysis.overallScore" },
-];
-
-const LIST_FIELDS: Field[] = [
-  { key: "allowed_uses", labelKey: "analysis.allowedUses" },
-  { key: "heritage_constraints", labelKey: "analysis.heritageConstraints" },
-  { key: "planning_constraints", labelKey: "analysis.planningConstraints" },
-  { key: "development_options", labelKey: "analysis.developmentOptions" },
-];
-
-interface ResidualField {
-  key: keyof NonNullable<AnalysisEngineData["residual_land_value"]>;
-  labelKey: string;
-}
-
-// Full set shown in each mode's own results column.
-const RESIDUAL_FIELDS: ResidualField[] = [
-  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
-  { key: "saleable_area", labelKey: "analysis.saleableArea" },
-  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
-  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
-  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
-  { key: "estimated_studio_apartments", labelKey: "analysis.estimatedStudioApartments" },
-  { key: "commercial_area", labelKey: "analysis.commercialArea" },
-  { key: "parking_spaces", labelKey: "analysis.parkingSpaces" },
-  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
-  { key: "total_construction_cost", labelKey: "analysis.totalConstructionCost" },
-  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
-  { key: "developer_margin", labelKey: "analysis.developerMargin" },
-  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
-  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
-];
-
-// The exact metric set requested for the end-of-analysis comparison table —
-// narrower than RESIDUAL_FIELDS (drops commercial area/parking/total construction
-// cost) so the table stays focused on the headline investment numbers.
-const COMPARISON_FIELDS: ResidualField[] = [
-  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
-  { key: "saleable_area", labelKey: "analysis.saleableArea" },
-  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
-  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
-  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
-  { key: "estimated_studio_apartments", labelKey: "analysis.estimatedStudioApartments" },
-  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
-  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
-  { key: "developer_margin", labelKey: "analysis.developerMargin" },
-  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
-  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
-];
-
-// Rendered as an actual <table>, right below each mode's own full report text —
-// a compact numeric summary of that report (permitted-use flags plus the same
-// headline residual-land-value figures used in the comparison table), so the
-// reader doesn't have to scan the prose above to find these numbers.
-const SUMMARY_TABLE_FIELDS: ResidualField[] = [
-  { key: "commercial_use_allowed", labelKey: "analysis.commercialUseAllowed" },
-  { key: "tourist_use_allowed", labelKey: "analysis.touristUseAllowed" },
-  { key: "gross_buildable_area", labelKey: "analysis.grossBuildableArea" },
-  { key: "saleable_area", labelKey: "analysis.saleableArea" },
-  { key: "estimated_residential_units", labelKey: "analysis.estimatedResidentialUnits" },
-  { key: "estimated_hotel_rooms", labelKey: "analysis.estimatedHotelRooms" },
-  { key: "estimated_tourist_apartments", labelKey: "analysis.estimatedTouristApartments" },
-  { key: "estimated_studio_apartments", labelKey: "analysis.estimatedStudioApartments" },
-  { key: "construction_cost_assumption_eur_m2", labelKey: "analysis.constructionCostAssumption" },
-  { key: "gross_development_value", labelKey: "analysis.grossDevelopmentValue" },
-  { key: "developer_margin", labelKey: "analysis.developerMargin" },
-  { key: "residual_land_value", labelKey: "analysis.residualLandValue" },
-  { key: "highest_and_best_use", labelKey: "analysis.highestAndBestUse" },
-];
-
 const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
   { mode: "knowledge", labelKey: "analysis.knowledgeModeLabel", hintKey: "analysis.knowledgeModeHint" },
   { mode: "web", labelKey: "analysis.webModeLabel", hintKey: "analysis.webModeHint" },
+  { mode: "hybrid", labelKey: "analysis.hybridModeLabel", hintKey: "analysis.hybridModeHint" },
 ];
 
 interface ModeProgress {
@@ -128,11 +42,8 @@ function initialProgress(): ModeProgress {
 // Rough expected wall-clock time per mode (web-grounded runs slower — each search/
 // fetch is its own model turn). Purely a heuristic for the progress bar's fill
 // percentage; it's capped short of 100% until the mode actually finishes so it
-// never looks "done" prematurely. Raised from 45s/120s once max_tokens went from
-// 8000 to 64000 (see analysis-engine.ts) — a full, uncapped, heavily-cited
-// 10-step report genuinely takes a few minutes, and the old values had the bar
-// sitting at 95% for most of a run, reading as stalled.
-const EXPECTED_MS: Record<AnalysisMode, number> = { knowledge: 180_000, web: 300_000 };
+// never looks "done" prematurely.
+const EXPECTED_MS: Record<AnalysisMode, number> = { knowledge: 90_000, web: 240_000, hybrid: 240_000 };
 
 function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModeProgress }) {
   const { t } = useLocale();
@@ -159,35 +70,51 @@ function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModePro
   );
 }
 
+function verdictBadgeClass(verdict: HotelVerdict): string {
+  if (verdict === "YES") return "bg-success/10 text-success";
+  if (verdict === "NO") return "bg-danger/10 text-danger";
+  return "bg-amber-500/10 text-amber-600";
+}
+
+function VerdictBadge({ verdict }: { verdict: HotelVerdict }) {
+  const { t } = useLocale();
+  const labelKey = verdict === "YES" ? "analysis.verdictYes" : verdict === "NO" ? "analysis.verdictNo" : "analysis.verdictUncertain";
+  return (
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", verdictBadgeClass(verdict))}>
+      {t(labelKey)}
+    </span>
+  );
+}
+
 /** Plain-text rendition of one mode's result, for the copy-to-clipboard button —
- * mirrors what's on screen (summary fields, residual land value, full report). */
+ * mirrors what's on screen. */
 function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const lines: string[] = [];
-  if (result.data) {
-    for (const { key, labelKey } of SUMMARY_FIELDS) {
-      const value = result.data[key];
-      if (typeof value === "string" && value) lines.push(`${t(labelKey)}: ${value}`);
-    }
-    for (const { key, labelKey } of LIST_FIELDS) {
-      const value = result.data[key];
-      if (Array.isArray(value) && value.length > 0) lines.push(`${t(labelKey)}: ${value.join(", ")}`);
-    }
-    if (result.data.residual_land_value) {
-      lines.push("", t("analysis.residualLandValueHeading"));
-      for (const { key, labelKey } of RESIDUAL_FIELDS) {
-        const value = result.data.residual_land_value[key];
-        if (value) lines.push(`${t(labelKey)}: ${value}`);
+  const data = result.data;
+  if (data) {
+    lines.push(`${t("analysis.verdictLabel")}: ${data.verdict}`);
+    lines.push(data.explanation);
+    if (data.individualVerdicts && data.individualVerdicts.length > 0) {
+      lines.push("", t("analysis.individualVerdictsHeading"));
+      for (const v of data.individualVerdicts) {
+        lines.push(`${v.referenciaCatastral}: ${v.verdict} — ${v.explanation}`);
       }
+    }
+    if (data.verdict === "YES" && data.developmentRights && data.developmentRights.length > 0) {
+      lines.push("", t("analysis.developmentRightsHeading"));
+      for (const row of data.developmentRights) {
+        lines.push(`${row.parameter}: ${row.potentialRight}`);
+      }
+    }
+    if (data.verdict === "NO") {
+      lines.push("", t("analysis.developmentRightsNotApplicable"));
+    }
+    if (data.verdict === "UNCERTAIN" && data.uncertainRequirements && data.uncertainRequirements.length > 0) {
+      lines.push("", t("analysis.uncertainRequirementsHeading"));
+      for (const req of data.uncertainRequirements) lines.push(`- ${req}`);
     }
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
-  if (result.data?.residual_land_value) {
-    lines.push("", t("analysis.summaryTableHeading"));
-    for (const { key, labelKey } of SUMMARY_TABLE_FIELDS) {
-      const value = result.data.residual_land_value[key];
-      if (value) lines.push(`${t(labelKey)}: ${value}`);
-    }
-  }
   return lines.join("\n");
 }
 
@@ -219,6 +146,51 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
+  const { t } = useLocale();
+  if (data.verdict === "NO") {
+    return <p className="mt-2 text-xs text-muted-foreground">{t("analysis.developmentRightsNotApplicable")}</p>;
+  }
+  if (data.verdict === "UNCERTAIN") {
+    if (!data.uncertainRequirements || data.uncertainRequirements.length === 0) return null;
+    return (
+      <div className="mt-2">
+        <h5 className="text-xs font-semibold text-muted-foreground">{t("analysis.uncertainRequirementsHeading")}</h5>
+        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-foreground">
+          {data.uncertainRequirements.map((req, i) => (
+            <li key={i}>{req}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (!data.developmentRights || data.developmentRights.length === 0) return null;
+  return (
+    <div className="mt-2 overflow-x-auto rounded-md border border-border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-border bg-surface-muted">
+            <th className="px-3 py-1.5 text-left font-semibold text-muted-foreground">
+              {t("analysis.developmentRightsParameter")}
+            </th>
+            <th className="px-3 py-1.5 text-left font-semibold text-muted-foreground">
+              {t("analysis.developmentRightsPotential")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.developmentRights.map((row, i) => (
+            <tr key={i} className="border-b border-border last:border-0">
+              <td className="px-3 py-1.5 text-muted-foreground">{row.parameter}</td>
+              <td className="px-3 py-1.5 font-medium text-foreground">{row.potentialRight}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ResultColumn({
   mode,
   modeLabelKey,
@@ -232,6 +204,7 @@ function ResultColumn({
 }) {
   const { t } = useLocale();
   const result = progress?.result ?? null;
+  const data = result?.data ?? null;
 
   return (
     <div className="flex-1 min-w-0 rounded-lg border border-border bg-surface">
@@ -267,68 +240,47 @@ function ResultColumn({
         </div>
       )}
 
-      {result && !result.error && (
-        <div className="space-y-6 p-4">
-          {result.data && (
+      {data && (
+        <div className="space-y-4 p-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <VerdictBadge verdict={data.verdict} />
+              {progress?.source === "saved" && (
+                <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {t("analysis.savedResultBadge")}
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-foreground">{data.explanation}</p>
+          </div>
+
+          {data.individualVerdicts && data.individualVerdicts.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("analysis.summaryHeading")}
+                {t("analysis.individualVerdictsHeading")}
               </h4>
-              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                {SUMMARY_FIELDS.map(({ key, labelKey }) => {
-                  const value = result.data?.[key];
-                  if (typeof value !== "string" || !value) return null;
-                  return (
-                    <div key={key} className="col-span-2 sm:col-span-1">
-                      <dt className="text-muted-foreground">{t(labelKey)}</dt>
-                      <dd className="font-medium text-foreground">{value}</dd>
+              <ul className="mt-2 space-y-2">
+                {data.individualVerdicts.map((v) => (
+                  <li key={v.referenciaCatastral} className="rounded-md bg-surface-muted p-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{v.referenciaCatastral}</span>
+                      <VerdictBadge verdict={v.verdict} />
                     </div>
-                  );
-                })}
-              </dl>
-              {LIST_FIELDS.map(({ key, labelKey }) => {
-                const value = result.data?.[key];
-                if (!Array.isArray(value) || value.length === 0) return null;
-                return (
-                  <div key={key} className="mt-3">
-                    <dt className="text-xs text-muted-foreground">{t(labelKey)}</dt>
-                    <dd className="mt-1 flex flex-wrap gap-1">
-                      {value.map((item, i) => (
-                        <span
-                          key={i}
-                          className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-foreground"
-                        >
-                          {item}
-                        </span>
-                      ))}
-                    </dd>
-                  </div>
-                );
-              })}
+                    <p className="mt-1 text-muted-foreground">{v.explanation}</p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          {result.data?.residual_land_value && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("analysis.residualLandValueHeading")}
-              </h4>
-              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                {RESIDUAL_FIELDS.map(({ key, labelKey }) => {
-                  const value = result.data?.residual_land_value?.[key];
-                  if (!value) return null;
-                  return (
-                    <div key={key} className="col-span-2 sm:col-span-1">
-                      <dt className="text-muted-foreground">{t(labelKey)}</dt>
-                      <dd className="font-medium text-foreground">{value}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-          )}
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("analysis.developmentRightsHeading")}
+            </h4>
+            <DevelopmentRightsTable data={data} />
+          </div>
 
-          {result.report && (
+          {result?.report && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("analysis.fullReportHeading")}
@@ -338,61 +290,29 @@ function ResultColumn({
               </div>
             </div>
           )}
-
-          {result.data?.residual_land_value && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("analysis.summaryTableHeading")}
-              </h4>
-              <div className="mt-2 overflow-x-auto rounded-md border border-border">
-                <table className="w-full text-xs">
-                  <tbody>
-                    {SUMMARY_TABLE_FIELDS.map(({ key, labelKey }) => {
-                      const value = result.data?.residual_land_value?.[key];
-                      return (
-                        <tr key={key} className="border-b border-border last:border-0">
-                          <td className="w-1/2 bg-surface-muted px-3 py-2 text-muted-foreground">{t(labelKey)}</td>
-                          <td className="px-3 py-2 font-medium text-foreground">{value || "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-/** End-of-analysis summary table: the headline residual land value numbers,
- * side by side for whichever modes have a completed, non-error result — added
- * alongside (not replacing) each column's own full Residual Land Value Engine
- * section, so the two modes can be compared directly without cross-referencing. */
+/** End-of-analysis comparison: the verdict and explanation side by side for
+ * whichever modes have a completed, non-error result. */
 function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, ModeProgress>> }) {
   const { t } = useLocale();
   const available = MODES.filter(({ mode }) => {
     const result = progress[mode]?.result;
-    return result && !result.error && result.data?.residual_land_value;
+    return result && !result.error && result.data;
   });
-  if (available.length === 0) return null;
-
-  const sourceLabel = (mode: AnalysisMode) =>
-    progress[mode]?.source === "saved" ? t("analysis.savedResultBadge") : t("analysis.liveResultBadge");
+  if (available.length < 2) return null;
 
   const copyText = [
     t("analysis.comparisonHeading"),
     "",
-    [
-      t("analysis.comparisonMetric"),
-      ...available.map(({ mode, labelKey }) => `${t(labelKey)} (${sourceLabel(mode)})`),
-    ].join("\t"),
-    ...COMPARISON_FIELDS.map(({ key, labelKey }) =>
-      [t(labelKey), ...available.map(({ mode }) => progress[mode]?.result?.data?.residual_land_value?.[key] || "—")].join(
-        "\t"
-      )
+    [t("analysis.comparisonMetric"), ...available.map(({ labelKey }) => t(labelKey))].join("\t"),
+    [t("analysis.verdictLabel"), ...available.map(({ mode }) => progress[mode]?.result?.data?.verdict ?? "—")].join("\t"),
+    [t("analysis.explanationLabel"), ...available.map(({ mode }) => progress[mode]?.result?.data?.explanation ?? "—")].join(
+      "\t"
     ),
   ].join("\n");
 
@@ -411,34 +331,31 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
               </th>
               {available.map(({ mode, labelKey }) => (
                 <th key={mode} className="px-4 py-2 text-left font-semibold text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    {t(labelKey)}
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] font-medium normal-case",
-                        progress[mode]?.source === "saved"
-                          ? "bg-surface-muted text-muted-foreground"
-                          : "bg-primary/10 text-primary"
-                      )}
-                    >
-                      {sourceLabel(mode)}
-                    </span>
-                  </div>
+                  {t(labelKey)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {COMPARISON_FIELDS.map(({ key, labelKey }) => (
-              <tr key={key} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 text-muted-foreground">{t(labelKey)}</td>
-                {available.map(({ mode }) => (
-                  <td key={mode} className="px-4 py-2 font-medium text-foreground">
-                    {progress[mode]?.result?.data?.residual_land_value?.[key] || "—"}
+            <tr className="border-b border-border">
+              <td className="px-4 py-2 text-muted-foreground">{t("analysis.verdictLabel")}</td>
+              {available.map(({ mode }) => {
+                const verdict = progress[mode]?.result?.data?.verdict;
+                return (
+                  <td key={mode} className="px-4 py-2">
+                    {verdict ? <VerdictBadge verdict={verdict} /> : "—"}
                   </td>
-                ))}
-              </tr>
-            ))}
+                );
+              })}
+            </tr>
+            <tr className="last:border-0">
+              <td className="px-4 py-2 text-muted-foreground">{t("analysis.explanationLabel")}</td>
+              {available.map(({ mode }) => (
+                <td key={mode} className="px-4 py-2 font-medium text-foreground">
+                  {progress[mode]?.result?.data?.explanation || "—"}
+                </td>
+              ))}
+            </tr>
           </tbody>
         </table>
       </div>
@@ -450,10 +367,10 @@ function ComparisonTable({ progress }: { progress: Partial<Record<AnalysisMode, 
  * Only rendered once `progress` has at least one non-error result (checked by
  * the caller) — this component just handles the fetch/blob-download plumbing. */
 function ExportPdfButton({
-  parcelId,
+  parcelIds,
   progress,
 }: {
-  parcelId: string;
+  parcelIds: string[];
   progress: Partial<Record<AnalysisMode, ModeProgress>>;
 }) {
   const { t } = useLocale();
@@ -472,7 +389,7 @@ function ExportPdfButton({
       const res = await fetch("/api/analysis-engine/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelId, results }),
+        body: JSON.stringify({ parcelIds, results }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -516,22 +433,58 @@ function ExportPdfButton({
   );
 }
 
-export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: boolean }) {
+export function AnalysisEnginePanel({
+  selectedParcelIds,
+  maxAnalysisPlots,
+  onDeselect,
+  onGoToOpportunities,
+  canExportPdf = false,
+}: {
+  /** Chosen via the Opportunities tab's own selection checkboxes (see
+   * OpportunitiesPanel) — this panel doesn't manage the selection itself, only
+   * consumes it, so switching tabs back and forth keeps it intact. */
+  selectedParcelIds: string[];
+  maxAnalysisPlots: number;
+  onDeselect: (parcelId: string) => void;
+  onGoToOpportunities: () => void;
+  canExportPdf?: boolean;
+}) {
   const { t } = useLocale();
-  const [loadingFavorites, setLoadingFavorites] = useState(true);
+  const [loadingParcels, setLoadingParcels] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
   const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // Loads whichever modes already have a saved (previously successful) result for
-  // this parcel, so the report and comparison table are there immediately — no
-  // need to click "Run analysis" again just to see a result that already exists.
-  const loadSavedResults = async (parcelId: string) => {
+  // Stable regardless of selection order — matches the server's own key (see
+  // /api/analysis-engine's parcelKeyFor) so a saved result loads whether the
+  // plots were selected in one order or the other.
+  const selectionKey = [...selectedParcelIds].sort().join(",");
+
+  // Any results already on screen are for whatever the selection was before —
+  // reset them the moment the selection itself changes, using React's
+  // "adjust state during render" pattern (see the docs on adjusting state
+  // when a prop changes) rather than an Effect, so this doesn't cause an
+  // extra post-paint render on top of the one below that fetches the new
+  // selection's data.
+  const [prevSelectionKey, setPrevSelectionKey] = useState(selectionKey);
+  if (selectionKey !== prevSelectionKey) {
+    setPrevSelectionKey(selectionKey);
+    setProgress(null);
+    setRunError(null);
+    if (selectedParcelIds.length === 0) {
+      setParcels([]);
+      setLoadingParcels(false);
+    } else {
+      setLoadingParcels(true);
+    }
+  }
+
+  const loadSavedResults = async (ids: string[]) => {
+    if (ids.length === 0) return;
     try {
-      const res = await fetch(`/api/analysis-engine?parcelId=${encodeURIComponent(parcelId)}`);
+      const res = await fetch(`/api/analysis-engine?parcelIds=${encodeURIComponent(ids.join(","))}`);
       if (!res.ok) return;
       const json = await res.json().catch(() => null);
       const results = json?.results as Partial<Record<AnalysisMode, AnalysisEngineResult>> | undefined;
@@ -549,31 +502,31 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
     }
   };
 
+  // Resolves the selected ids into full parcel objects (for the address chips
+  // and the request body) via the same shared Opportunities list everyone
+  // sees — and starts fresh whenever the selection itself changes, since any
+  // results on screen are for a different plot combination otherwise.
   useEffect(() => {
     let cancelled = false;
+    if (selectedParcelIds.length === 0) return;
     fetch("/api/favorites")
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
         const opportunities: ClientOpportunity[] = data.opportunities ?? [];
-        // The engine only runs against opportunities still worth exploring —
-        // enforced again server-side in the POST route regardless of this filter.
-        const fetched = opportunities
-          .filter((o) => o.status !== "NOT_RELEVANT")
-          .map((o) => o.parcel);
-        setParcels(fetched);
-        if (fetched.length > 0) {
-          setSelectedId(fetched[0].id);
-          loadSavedResults(fetched[0].id);
-        }
+        const byId = new Map(opportunities.map((o) => [o.parcel.id, o.parcel]));
+        const resolved = selectedParcelIds.map((id) => byId.get(id)).filter((p): p is ClientCatastroParcel => !!p);
+        setParcels(resolved);
+        loadSavedResults(selectedParcelIds);
       })
       .finally(() => {
-        if (!cancelled) setLoadingFavorites(false);
+        if (!cancelled) setLoadingParcels(false);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey]);
 
   const toggleMode = (mode: AnalysisMode) => {
     setSelectedModes((prev) => {
@@ -582,17 +535,6 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
       else next.add(mode);
       return next;
     });
-  };
-
-  // Switching properties makes any results on screen stale (they're for a
-  // different parcel), so start fresh rather than leaving the old parcel's numbers
-  // up next to a newly-selected one — then load whatever's already saved for the
-  // newly-selected parcel.
-  const selectParcel = (id: string) => {
-    setSelectedId(id);
-    setProgress(null);
-    setRunError(null);
-    loadSavedResults(id);
   };
 
   const applyEvent = (mode: AnalysisMode, event: AnalysisProgressEvent) => {
@@ -612,23 +554,17 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
 
   const runAnalysis = async () => {
     const modes = [...selectedModes];
-    if (!selectedId || modes.length === 0) return;
+    if (selectedParcelIds.length === 0 || modes.length === 0) return;
     setRunning(true);
     setRunError(null);
     // Only reset the mode(s) actually being (re)run — a previously-completed
-    // result for a mode not included in this run is left exactly as it was, so
-    // e.g. re-running just "web" after "knowledge" already finished doesn't wipe
-    // out the knowledge-based result or the comparison table built from it. A
-    // mode that's neither selected now nor has an earlier saved result gets a
-    // notice explaining why it's empty, instead of just silently not appearing.
+    // result for a mode not included in this run is left exactly as it was.
     setProgress((prev) => {
       const next = { ...(prev ?? {}) };
       for (const mode of modes) next[mode] = initialProgress();
       for (const { mode } of MODES) {
         if (modes.includes(mode)) continue;
         if (next[mode]?.result) {
-          // Carried over from an earlier run — no longer "live" now that a new
-          // run has started without it, so mark it as a saved result instead.
           next[mode] = { ...next[mode]!, source: "saved" };
         } else {
           next[mode] = { ...initialProgress(), notice: true };
@@ -641,7 +577,7 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
       const res = await fetch("/api/analysis-engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelId: selectedId, modes }),
+        body: JSON.stringify({ parcelIds: selectedParcelIds, modes }),
       });
 
       if (!res.ok || !res.body) {
@@ -675,7 +611,7 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
     }
   };
 
-  const isEmpty = !loadingFavorites && parcels.length === 0;
+  const isEmpty = selectedParcelIds.length === 0;
   const visibleModes = MODES.filter(({ mode }) => progress?.[mode]);
 
   return (
@@ -686,60 +622,82 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
             <Sparkles className="h-4 w-4 text-primary" />
             {t("analysis.title")}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">{t("analysis.description")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("analysis.description", { max: maxAnalysisPlots })}
+          </p>
         </div>
 
-        {loadingFavorites && <p className="text-sm text-muted-foreground">{t("dashboard.searching")}</p>}
-        {isEmpty && <p className="text-sm text-muted-foreground">{t("analysis.noFavorites")}</p>}
-
-        {!isEmpty && !loadingFavorites && (
-          <div className="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-surface p-4">
-            <div className="flex-1 min-w-[220px]">
-              <label className="text-xs font-medium text-muted-foreground" htmlFor="analysis-parcel-picker">
-                {t("analysis.pickerLabel")}
-              </label>
-              <select
-                id="analysis-parcel-picker"
-                value={selectedId}
-                onChange={(e) => selectParcel(e.target.value)}
-                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              >
-                {parcels.map((parcel) => (
-                  <option key={parcel.id} value={parcel.id}>
-                    {parcel.referenciaCatastral} — {formatCatastroParcelDisplayAddress(parcel)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <span className="text-xs font-medium text-muted-foreground">{t("analysis.modeSelectionLabel")}</span>
-              <div className="mt-1 flex flex-wrap gap-3">
-                {MODES.map(({ mode, labelKey }) => (
-                  <label key={mode} className="flex items-center gap-1.5 text-xs text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={selectedModes.has(mode)}
-                      onChange={() => toggleMode(mode)}
-                      className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
-                    />
-                    {t(labelKey)}
-                  </label>
-                ))}
-              </div>
-            </div>
-
+        {isEmpty && (
+          <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-center">
+            <p className="text-sm text-muted-foreground">{t("analysis.noSelection")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("analysis.noSelectionHint", { max: maxAnalysisPlots })}
+            </p>
             <button
               type="button"
-              onClick={runAnalysis}
-              disabled={running || !selectedId || selectedModes.size === 0}
-              className={cn(
-                "rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground",
-                "disabled:opacity-50"
-              )}
+              onClick={onGoToOpportunities}
+              className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground"
             >
-              {running ? t("analysis.running") : t("analysis.runButton")}
+              {t("analysis.goToOpportunities")}
             </button>
+          </div>
+        )}
+
+        {!isEmpty && (
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <span className="text-xs font-medium text-muted-foreground">{t("analysis.selectedHeading")}</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {loadingParcels && <p className="text-xs text-muted-foreground">{t("dashboard.searching")}</p>}
+              {!loadingParcels &&
+                parcels.map((parcel) => (
+                  <span
+                    key={parcel.id}
+                    className="flex items-center gap-1.5 rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs text-foreground"
+                  >
+                    <span className="font-medium">{parcel.referenciaCatastral}</span>
+                    <span className="text-muted-foreground">{formatCatastroParcelDisplayAddress(parcel)}</span>
+                    <button
+                      type="button"
+                      onClick={() => onDeselect(parcel.id)}
+                      title={t("analysis.removeSelection")}
+                      className="rounded-full p-0.5 text-muted-foreground hover:bg-surface hover:text-danger"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-4">
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">{t("analysis.modeSelectionLabel")}</span>
+                <div className="mt-1 flex flex-wrap gap-3">
+                  {MODES.map(({ mode, labelKey }) => (
+                    <label key={mode} className="flex items-center gap-1.5 text-xs text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={selectedModes.has(mode)}
+                        onChange={() => toggleMode(mode)}
+                        className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
+                      />
+                      {t(labelKey)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={runAnalysis}
+                disabled={running || parcels.length === 0 || selectedModes.size === 0}
+                className={cn(
+                  "rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground",
+                  "disabled:opacity-50"
+                )}
+              >
+                {running ? t("analysis.running") : t("analysis.runButton")}
+              </button>
+            </div>
           </div>
         )}
 
@@ -759,7 +717,7 @@ export function AnalysisEnginePanel({ canExportPdf = false }: { canExportPdf?: b
                 <span>{t("analysis.disclaimer")}</span>
               </div>
               {canExportPdf && visibleModes.some(({ mode }) => progress[mode]?.result && !progress[mode]?.result?.error) && (
-                <ExportPdfButton parcelId={selectedId} progress={progress} />
+                <ExportPdfButton parcelIds={selectedParcelIds} progress={progress} />
               )}
             </div>
 

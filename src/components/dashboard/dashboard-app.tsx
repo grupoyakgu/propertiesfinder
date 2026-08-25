@@ -101,6 +101,7 @@ export function DashboardApp({
   canUseAnalysisEngine = false,
   canExportPdf = false,
   canExportXls = false,
+  initialMaxAnalysisPlots = 2,
 }: {
   initialFilters: DashboardFilters;
   initialMapVisible?: boolean;
@@ -119,6 +120,12 @@ export function DashboardApp({
   canUseAnalysisEngine?: boolean;
   canExportPdf?: boolean;
   canExportXls?: boolean;
+  /** The admin-configured cap on how many Opportunities can be selected at once
+   * for a single Analysis Engine run — see the Admin tab's App settings
+   * section. Server-fetched once at load time; an admin changing it later
+   * doesn't retroactively update an already-open session (same tradeoff as
+   * every other SSR-seeded preference in this component). */
+  initialMaxAnalysisPlots?: number;
 }) {
   const router = useRouter();
   const { locale, t } = useLocale();
@@ -233,6 +240,31 @@ export function DashboardApp({
       const next = new Set(prev);
       if (liked) next.add(id);
       else next.delete(id);
+      return next;
+    });
+  };
+
+  // Which properties are currently picked for the Analysis Engine tab — set via
+  // the Opportunities tab's own checkboxes (see OpportunitiesPanel), consumed
+  // by AnalysisEnginePanel. Lives here (not in either panel) so it survives
+  // switching between the two tabs. Capped at the admin-configured limit —
+  // enforced again server-side in the POST route regardless of this cap.
+  const [analysisSelection, setAnalysisSelection] = useState<Set<string>>(new Set());
+
+  const toggleAnalysisSelection = (parcelId: string) => {
+    setAnalysisSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(parcelId)) next.delete(parcelId);
+      else if (next.size < initialMaxAnalysisPlots) next.add(parcelId);
+      return next;
+    });
+  };
+
+  const removeFromAnalysisSelection = (parcelId: string) => {
+    setAnalysisSelection((prev) => {
+      if (!prev.has(parcelId)) return prev;
+      const next = new Set(prev);
+      next.delete(parcelId);
       return next;
     });
   };
@@ -756,6 +788,16 @@ export function DashboardApp({
             )}
           >
             {t("dashboard.tabAnalysis")}
+            {analysisSelection.size > 0 && (
+              <span
+                className={cn(
+                  "ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  analysisOpen ? "bg-primary-foreground/20" : "bg-primary/10 text-primary"
+                )}
+              >
+                {analysisSelection.size}
+              </span>
+            )}
           </button>
         )}
         <button
@@ -810,10 +852,22 @@ export function DashboardApp({
           <OpportunitiesPanel
             currentUserId={currentUserId}
             canExportXls={canExportXls}
-            onRemoved={(propertyId) => toggleLike(propertyId, false)}
+            onRemoved={(propertyId) => {
+              toggleLike(propertyId, false);
+              removeFromAnalysisSelection(propertyId);
+            }}
+            selectedForAnalysis={analysisSelection}
+            onToggleSelectedForAnalysis={toggleAnalysisSelection}
+            maxAnalysisPlots={initialMaxAnalysisPlots}
           />
         ) : analysisOpen ? (
-          <AnalysisEnginePanel canExportPdf={canExportPdf} />
+          <AnalysisEnginePanel
+            selectedParcelIds={[...analysisSelection]}
+            maxAnalysisPlots={initialMaxAnalysisPlots}
+            onDeselect={removeFromAnalysisSelection}
+            onGoToOpportunities={() => openTab("opportunities")}
+            canExportPdf={canExportPdf}
+          />
         ) : adminOpen ? (
           <AdminPanel currentUserId={currentUserId} />
         ) : (

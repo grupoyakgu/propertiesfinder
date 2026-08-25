@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { getAppSettings } from "@/lib/app-settings";
 import { toClientCatastroParcel } from "@/lib/types";
 import {
   runAnalysisStreaming,
@@ -12,30 +13,34 @@ import {
 } from "@/lib/analysis-engine";
 
 // Raise the allowed function duration on platforms that respect it (e.g. Vercel) —
-// running two Claude Opus 5 analyses (one of them tool-using) can take several
-// minutes. 300s turned out too tight once max_tokens was raised to stop reports
-// truncating mid-sentence (see analysis-engine.ts): a genuinely thorough,
-// heavily-cited 10-step report can legitimately take longer than 300s to finish
-// streaming, and our own internal watchdog was aborting in-progress runs that
-// would have completed fine given more room. 800s is the ceiling Vercel allows
-// via this export on plans with Fluid Compute; if the account's actual plan caps
-// lower, Vercel enforces its real limit regardless of this value.
+// running up to three Claude Opus 5 analyses (two of them tool-using) can take
+// several minutes. 800s is the ceiling Vercel allows via this export on plans
+// with Fluid Compute; if the account's actual plan caps lower, Vercel enforces
+// its real limit regardless of this value.
 export const maxDuration = 800;
 
+// A stable, order-independent key for a set of parcel ids — see AnalysisResult's
+// schema comment for why this exists instead of relying on a Postgres array
+// unique index.
+function parcelKeyFor(parcelIds: string[]): string {
+  return [...parcelIds].sort().join(",");
+}
+
 const requestSchema = z.object({
-  parcelId: z.string().min(1),
-  modes: z.array(z.enum(["knowledge", "web"])).min(1).max(2),
+  parcelIds: z.array(z.string().min(1)).min(1),
+  modes: z.array(z.enum(["knowledge", "web", "hybrid"])).min(1).max(3),
 });
 
 // Persists a mode's result once it finishes successfully, so it's still there next
-// time the user opens this parcel — no need to re-run the analysis just to see it
-// again. Only successes are saved: a failed re-run shouldn't clobber a previously
-// saved good result for that mode. Best-effort — this sits on top of an
-// already-successful in-session result, so a persistence hiccup shouldn't surface
-// as a failure to the user.
+// time the user opens this exact plot combination — no need to re-run the
+// analysis just to see it again. Only successes are saved: a failed re-run
+// shouldn't clobber a previously saved good result for that mode. Best-effort —
+// this sits on top of an already-successful in-session result, so a persistence
+// hiccup shouldn't surface as a failure to the user.
 async function persistResult(
   userId: string,
-  parcelId: string,
+  parcelIds: string[],
+  parcelKey: string,
   mode: AnalysisMode,
   result: AnalysisEngineResult
 ) {
@@ -43,55 +48,18 @@ async function persistResult(
   try {
     const data = result.data as Prisma.InputJsonValue | null;
     await prisma.analysisResult.upsert({
-      where: { userId_parcelId_mode: { userId, parcelId, mode } },
-      update: { report: result.report, data: data ?? undefined },
-      create: { userId, parcelId, mode, report: result.report, data: data ?? undefined },
+      where: { userId_parcelKey_mode: { userId, parcelKey, mode } },
+      update: { report: result.report, data: data ?? undefined, parcelIds },
+      create: { userId, parcelIds, parcelKey, mode, report: result.report, data: data ?? undefined },
     });
   } catch (err) {
     console.error("Failed to persist analysis result", err);
   }
 }
 
-// Writes just the Residual Land Value Engine's headline numbers into their own
-// normalized table (AnalysisSummary), separate from AnalysisResult's report/JSON
-// blob — see the schema comment for why. Skipped if the model didn't produce a
-// residual_land_value block at all (e.g. a degenerate/very short response).
-async function persistSummary(
-  userId: string,
-  parcelId: string,
-  mode: AnalysisMode,
-  result: AnalysisEngineResult
-) {
-  if (result.error) return;
-  const rlv = result.data?.residual_land_value;
-  if (!rlv) return;
-  try {
-    const fields = {
-      commercialUseAllowed: rlv.commercial_use_allowed,
-      touristUseAllowed: rlv.tourist_use_allowed,
-      grossBuildableArea: rlv.gross_buildable_area,
-      saleableArea: rlv.saleable_area,
-      estimatedResidentialUnits: rlv.estimated_residential_units,
-      estimatedHotelRooms: rlv.estimated_hotel_rooms,
-      estimatedTouristApartments: rlv.estimated_tourist_apartments,
-      constructionCostPerSqm: rlv.construction_cost_assumption_eur_m2,
-      grossDevelopmentValue: rlv.gross_development_value,
-      developerMargin: rlv.developer_margin,
-      residualLandValue: rlv.residual_land_value,
-      highestAndBestUse: rlv.highest_and_best_use,
-    };
-    await prisma.analysisSummary.upsert({
-      where: { userId_parcelId_mode: { userId, parcelId, mode } },
-      update: fields,
-      create: { userId, parcelId, mode, ...fields },
-    });
-  } catch (err) {
-    console.error("Failed to persist analysis summary", err);
-  }
-}
-
 // Returns the current user's saved (most recently successful) result for each
-// mode of the given parcel, so the client can show them without a fresh run.
+// mode of the given exact set of parcels, so the client can show them without a
+// fresh run.
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -107,15 +75,18 @@ export async function GET(request: Request) {
     });
   }
 
-  const parcelId = new URL(request.url).searchParams.get("parcelId");
-  if (!parcelId) {
-    return new Response(JSON.stringify({ error: "parcelId is required" }), {
+  const parcelIdsParam = new URL(request.url).searchParams.get("parcelIds");
+  const parcelIds = parcelIdsParam ? parcelIdsParam.split(",").filter(Boolean) : [];
+  if (parcelIds.length === 0) {
+    return new Response(JSON.stringify({ error: "parcelIds is required" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const rows = await prisma.analysisResult.findMany({ where: { userId: user.id, parcelId } });
+  const rows = await prisma.analysisResult.findMany({
+    where: { userId: user.id, parcelKey: parcelKeyFor(parcelIds) },
+  });
   const results: Partial<Record<AnalysisMode, AnalysisEngineResult>> = {};
   for (const row of rows) {
     const mode = row.mode as AnalysisMode;
@@ -152,28 +123,49 @@ export async function POST(request: Request) {
     );
   }
 
-  // The Analysis Engine only ever runs against a shared Opportunity, and only
-  // while it's still worth exploring — enforced here regardless of what the
-  // picker UI already filters out, since that's just client-side convenience.
-  const opportunity = await prisma.favorite.findUnique({
-    where: { source_propertyId: { source: "catastro", propertyId: parsed.data.parcelId } },
-  });
-  if (!opportunity || opportunity.status === "NOT_RELEVANT") {
+  const parcelIds = [...new Set(parsed.data.parcelIds)];
+
+  // Enforced server-side regardless of what the selection UI already caps —
+  // an admin can lower the limit at any time (see the Admin tab), and a
+  // client already holding a larger selection shouldn't be able to slip it
+  // through anyway.
+  const { maxAnalysisPlots } = await getAppSettings();
+  if (parcelIds.length > maxAnalysisPlots) {
     return new Response(
-      JSON.stringify({ error: "This property isn't an active opportunity to analyze" }),
+      JSON.stringify({ error: `You can analyze at most ${maxAnalysisPlots} plot(s) at a time` }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // The Analysis Engine only ever runs against shared Opportunities, and only
+  // while they're still worth exploring — enforced here regardless of what the
+  // picker UI already filters out, since that's just client-side convenience.
+  const opportunities = await prisma.favorite.findMany({
+    where: { source: "catastro", propertyId: { in: parcelIds } },
+  });
+  const activeIds = new Set(
+    opportunities.filter((o) => o.status !== "NOT_RELEVANT").map((o) => o.propertyId)
+  );
+  if (parcelIds.some((id) => !activeIds.has(id))) {
+    return new Response(
+      JSON.stringify({ error: "Every selected property must be an active Opportunity" }),
       { status: 403, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  const parcel = await prisma.catastroParcel.findUnique({ where: { id: parsed.data.parcelId } });
-  if (!parcel) {
-    return new Response(JSON.stringify({ error: "Parcel not found" }), {
+  const parcels = await prisma.catastroParcel.findMany({ where: { id: { in: parcelIds } } });
+  if (parcels.length !== parcelIds.length) {
+    return new Response(JSON.stringify({ error: "One or more parcels were not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const clientParcel = toClientCatastroParcel(parcel);
+  // Keep the analyzed order stable and predictable (matches the order the
+  // caller asked for) rather than whatever order the database happened to
+  // return rows in.
+  const clientParcels = parcelIds.map((id) => toClientCatastroParcel(parcels.find((p) => p.id === id)!));
+  const parcelKey = parcelKeyFor(parcelIds);
   const modes = parsed.data.modes as AnalysisMode[];
   const encoder = new TextEncoder();
 
@@ -189,10 +181,9 @@ export async function POST(request: Request) {
 
       await Promise.allSettled(
         modes.map((mode) =>
-          runAnalysisStreaming(clientParcel, mode, (event) => {
+          runAnalysisStreaming(clientParcels, mode, (event) => {
             if (event.type === "result") {
-              persistResult(user.id, parcel.id, mode, event.result);
-              persistSummary(user.id, parcel.id, mode, event.result);
+              persistResult(user.id, parcelIds, parcelKey, mode, event.result);
             }
             send(mode, event);
           })
