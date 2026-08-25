@@ -16,6 +16,7 @@ import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
 import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
+import { AppVersion } from "@/components/dashboard/app-version";
 import { OpportunitiesPanel } from "@/components/dashboard/opportunities-panel";
 import { AnalysisEnginePanel } from "@/components/dashboard/analysis-engine-panel";
 import { AdminPanel } from "@/components/dashboard/admin-panel";
@@ -803,6 +804,7 @@ export function DashboardApp({
               onSetDefault={setDefaultPreset}
               onRename={renamePreset}
             />
+            <AppVersion />
           </div>
         ) : opportunitiesOpen ? (
           <OpportunitiesPanel
