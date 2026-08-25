@@ -77,11 +77,14 @@ function FitBounds({
   suppressBoundsChangeRef: { current: boolean };
 }) {
   const map = useMap();
-  const key = markers.map((m) => m.id).join(",");
   // Leaflet can't compute a sane fit against a zero-size (hidden) container, and we
-  // don't want every show/hide toggle to re-fit and discard the user's pan/zoom — so
-  // fit at most once per distinct marker set, and only once the map is actually visible.
-  const firedForKey = useRef<string | null>(null);
+  // don't want every show/hide toggle — or every ordinary pan/zoom-triggered refetch,
+  // which almost never returns the exact same set of marker ids twice — to re-fit and
+  // fight the user's own navigation. So this fallback only ever fires once per mount
+  // (giving a sensible starting viewport the first time results appear), and only
+  // once the map is actually visible; every deliberate viewport change afterwards
+  // (a preset, "back to search", finishing a draw) goes through viewCommand instead.
+  const hasAutoFitted = useRef(false);
   const lastAppliedNonce = useRef<number | null>(null);
 
   // fitBounds's own moveend/zoomend should never look like the user panned away
@@ -110,14 +113,14 @@ function FitBounds({
       return;
     }
 
-    if (markers.length === 0 || firedForKey.current === key) return;
-    firedForKey.current = key;
+    if (hasAutoFitted.current || markers.length === 0) return;
+    hasAutoFitted.current = true;
     suppressFor();
     map.invalidateSize();
     const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, visible, map, markers, viewCommand]);
+  }, [visible, map, markers, viewCommand]);
   return null;
 }
 
