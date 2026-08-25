@@ -24,7 +24,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { Logo } from "@/components/ui/logo";
 import { useLocale } from "@/lib/i18n/context";
-import type { BoundsBox, ViewCommand } from "@/components/dashboard/map-view";
+import type { BoundsBox, MapViewport, ViewCommand } from "@/components/dashboard/map-view";
 import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dashboard-cache";
 
 // Shared by the fetch effect and applyPreset so both build the exact same query
@@ -93,6 +93,7 @@ export function DashboardApp({
   initialShowAllOnMap = false,
   initialMapLocked = false,
   initialMapBounds = null,
+  initialMapViewport = null,
   initialPresets = [],
   initialLikedIds = [],
   currentUserId = "",
@@ -106,6 +107,11 @@ export function DashboardApp({
   initialShowAllOnMap?: boolean;
   initialMapLocked?: boolean;
   initialMapBounds?: BoundsBox | null;
+  /** The exact Leaflet center/zoom captured alongside initialMapBounds, when a
+   * "back to search" round trip carried one — see MapViewport's own comment.
+   * Null for anything else that only ever has a bounding box (a saved preset,
+   * a bare /dashboard visit), which fitBounds still handles fine. */
+  initialMapViewport?: MapViewport | null;
   initialPresets?: ClientMapPreset[];
   initialLikedIds?: string[];
   currentUserId?: string;
@@ -132,12 +138,26 @@ export function DashboardApp({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapVisible, setMapVisible] = useState(initialMapVisible);
   const [mapBounds, setMapBounds] = useState<BoundsBox | null>(initialMapBounds);
+  // The exact Leaflet center/zoom that produced mapBounds, when known (a real
+  // pan/zoom, or a restored "back to search" view) — null after anything that
+  // only has a bounding box (a preset, a drawn area), since those have no
+  // single "correct" center/zoom to speak of. See ViewCommand's own comment
+  // for why this — not mapBounds alone — is what makes "back to search"
+  // restore the exact same view instead of an approximate refit.
+  const [mapViewport, setMapViewport] = useState<MapViewport | null>(initialMapViewport);
   // An on-demand "pan/zoom the map to this viewport now" instruction, handed to
   // MapView so it can fit to exactly that instead of (or before) fitting to all
   // markers. Used both to restore a viewport captured on mount (e.g. via "Back to
   // search") and, later, to apply a saved preset at any time.
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(
-    initialMapBounds ? { bounds: initialMapBounds, nonce: 0 } : null
+    initialMapBounds
+      ? {
+          bounds: initialMapBounds,
+          center: initialMapViewport ? [initialMapViewport.lat, initialMapViewport.lng] : undefined,
+          zoom: initialMapViewport?.zoom,
+          nonce: 0,
+        }
+      : null
   );
   const [presets, setPresets] = useState<ClientMapPreset[]>(initialPresets);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
@@ -232,6 +252,10 @@ export function DashboardApp({
     // filter immediately, and move the map to match — but never force map view open
     // if the user is currently on the table (per the answered design question).
     setMapBounds(bounds);
+    // A preset only ever stored a bounding box, not the exact center/zoom that
+    // produced it — clear any leftover viewport from before, so the map falls
+    // back to fitBounds(bounds) here rather than reusing a now-unrelated one.
+    setMapViewport(null);
     setViewCommand({ bounds, nonce: nextNonce() });
     setActivePresetId(preset.id);
     // A polygon preset restricts results to its exact drawn area, not just its
@@ -261,6 +285,7 @@ export function DashboardApp({
   const refocusPreset = (preset: ClientMapPreset) => {
     const bounds: BoundsBox = { south: preset.south, west: preset.west, north: preset.north, east: preset.east };
     setMapBounds(bounds);
+    setMapViewport(null);
     setViewCommand({ bounds, nonce: nextNonce() });
     setActivePolygon(preset.polygon);
   };
@@ -426,8 +451,17 @@ export function DashboardApp({
       const { south, west, north, east } = mapBounds;
       params.set("bbox", [south, west, north, east].map((v) => v.toFixed(6)).join(","));
     }
+    // Carried alongside bbox so a "back to search" round trip restores the
+    // exact prior view (see MapViewport's own comment) — absent whenever the
+    // current view came from a preset/drawn area/etc. rather than a genuine
+    // pan/zoom, in which case bbox alone (via fitBounds) is the best there is.
+    if (mapViewport) {
+      params.set("lat", mapViewport.lat.toFixed(6));
+      params.set("lng", mapViewport.lng.toFixed(6));
+      params.set("zoom", String(mapViewport.zoom));
+    }
     return params.toString();
-  }, [filters, mapVisible, showAllOnMap, mapLocked, mapBounds]);
+  }, [filters, mapVisible, showAllOnMap, mapLocked, mapBounds, mapViewport]);
   const dashboardUrl = `/dashboard${viewQueryString ? `?${viewQueryString}` : ""}`;
 
   useEffect(() => {
@@ -540,6 +574,7 @@ export function DashboardApp({
     if (alreadyInView) return;
 
     const buffer = 0.01;
+    setMapViewport(null);
     setViewCommand({
       bounds: {
         south: marker.lat - buffer,
@@ -556,8 +591,9 @@ export function DashboardApp({
   // new viewport instead of continuing to exact-filter by a now-stale shape.
   // (Never fires while Map Lock is on — see the MapView prop below — so locking
   // the map also freezes the polygon filter along with everything else.)
-  const handleBoundsChange = (bounds: BoundsBox) => {
+  const handleBoundsChange = (bounds: BoundsBox, viewport: MapViewport) => {
     setMapBounds(bounds);
+    setMapViewport(viewport);
     setActivePolygon(null);
   };
 
@@ -586,6 +622,7 @@ export function DashboardApp({
 
     setActivePolygon(ring);
     setMapBounds(bounds);
+    setMapViewport(null);
     setViewCommand({ bounds, nonce: nextNonce() });
     setActivePresetId(null);
     setDrawMode(false);

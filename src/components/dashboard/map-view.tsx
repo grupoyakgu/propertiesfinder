@@ -53,9 +53,18 @@ function markerIcon(highlighted: boolean) {
 
 /** An imperative "move the map to this viewport now" instruction. `nonce` must change
  * (e.g. Date.now()) every time the command should be (re-)applied, since applying the
- * same bounds twice in a row (e.g. re-selecting the same preset) needs to still fire. */
+ * same bounds twice in a row (e.g. re-selecting the same preset) needs to still fire.
+ * `center`/`zoom` — when both are present — restore the exact prior view via
+ * `map.setView()` instead of `map.fitBounds(bounds)`. `fitBounds` only guarantees the
+ * bounds are visible, not that it reproduces any particular center/zoom that produced
+ * them (it picks whatever integer zoom best fits the box), so a "back to search" round
+ * trip using bounds alone can land the user at a visibly different zoom than they left.
+ * Presets/drawn areas/etc. only ever have a bounding box (there's no single "the" center
+ * and zoom that produced them), so they omit center/zoom and keep using fitBounds. */
 export interface ViewCommand {
   bounds: BoundsBox;
+  center?: [number, number];
+  zoom?: number;
   nonce: number;
 }
 
@@ -106,10 +115,14 @@ function FitBounds({
       lastAppliedNonce.current = viewCommand.nonce;
       suppressFor();
       map.invalidateSize();
-      map.fitBounds([
-        [viewCommand.bounds.south, viewCommand.bounds.west],
-        [viewCommand.bounds.north, viewCommand.bounds.east],
-      ]);
+      if (viewCommand.center && viewCommand.zoom != null) {
+        map.setView(viewCommand.center, viewCommand.zoom);
+      } else {
+        map.fitBounds([
+          [viewCommand.bounds.south, viewCommand.bounds.west],
+          [viewCommand.bounds.north, viewCommand.bounds.east],
+        ]);
+      }
       return;
     }
 
@@ -143,11 +156,22 @@ function toBoundsBox(bounds: L.LatLngBounds): BoundsBox {
   };
 }
 
+/** Leaflet's own native view state — as opposed to `BoundsBox`, which only
+ * describes a rectangle results are filtered/queried against. Reported
+ * alongside the bounds on every genuine pan/zoom so a "back to search" round
+ * trip can restore the exact prior view via `map.setView()` (see
+ * ViewCommand's own comment) rather than an approximate `fitBounds(bounds)`. */
+export interface MapViewport {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
 function BoundsTracker({
   onBoundsChange,
   suppressBoundsChangeRef,
 }: {
-  onBoundsChange: (bounds: BoundsBox) => void;
+  onBoundsChange: (bounds: BoundsBox, viewport: MapViewport) => void;
   /** Set by FitBounds while a programmatic fitBounds() is in flight — skip
    * reporting those moves as if the user had genuinely panned/zoomed. */
   suppressBoundsChangeRef: { current: boolean };
@@ -158,7 +182,8 @@ function BoundsTracker({
   });
   const report = () => {
     if (suppressBoundsChangeRef.current) return;
-    onBoundsChange(toBoundsBox(map.getBounds()));
+    const center = map.getCenter();
+    onBoundsChange(toBoundsBox(map.getBounds()), { lat: center.lat, lng: center.lng, zoom: map.getZoom() });
   };
   return null;
 }
@@ -220,7 +245,7 @@ export function MapView({
 }: {
   markers: MapMarker[];
   hoveredId: string | null;
-  onBoundsChange?: (bounds: BoundsBox) => void;
+  onBoundsChange?: (bounds: BoundsBox, viewport: MapViewport) => void;
   visible?: boolean;
   /** An on-demand "pan/zoom to this viewport" command — used both to restore a
    * previously-saved viewport (e.g. from the URL on mount) and to apply a saved preset

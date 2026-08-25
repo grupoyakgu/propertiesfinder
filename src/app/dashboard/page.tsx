@@ -3,6 +3,7 @@ import { filtersFromSearchParams } from "@/lib/filter-types";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toClientMapPreset } from "@/lib/types";
+import type { MapViewport } from "@/components/dashboard/map-view";
 
 export default async function DashboardPage({
   searchParams,
@@ -24,6 +25,19 @@ export default async function DashboardPage({
   let initialMapBounds =
     bboxParts?.length === 4 && bboxParts.every(Number.isFinite)
       ? { south: bboxParts[0], west: bboxParts[1], north: bboxParts[2], east: bboxParts[3] }
+      : null;
+
+  // Carried alongside bbox on a genuine "back to search" round trip so the map
+  // restores the exact prior view via setView() rather than an approximate
+  // fitBounds(bbox) — see MapViewport's own comment. Absent (and therefore
+  // null here) for anything else that only ever has a bounding box, e.g. a
+  // bookmarked/shared link or the default-preset fallback below.
+  const lat = Number(params.get("lat"));
+  const lng = Number(params.get("lng"));
+  const zoom = Number(params.get("zoom"));
+  const initialMapViewport: MapViewport | null =
+    initialMapBounds && Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(zoom)
+      ? { lat, lng, zoom }
       : null;
 
   const user = await getCurrentUser();
@@ -72,6 +86,7 @@ export default async function DashboardPage({
       initialShowAllOnMap={initialShowAllOnMap}
       initialMapLocked={initialMapLocked}
       initialMapBounds={initialMapBounds}
+      initialMapViewport={initialMapViewport}
       initialPresets={initialPresets}
       initialLikedIds={initialLikedIds}
       currentUserId={user?.id ?? ""}
