@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
+import { Check, Map as MapIcon, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -22,6 +22,7 @@ import { AdminPanel } from "@/components/dashboard/admin-panel";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { Logo } from "@/components/ui/logo";
 import { useLocale } from "@/lib/i18n/context";
 import type { BoundsBox, ViewCommand } from "@/components/dashboard/map-view";
 import { getCachedDashboardResults, setCachedDashboardResults } from "@/lib/dashboard-cache";
@@ -629,7 +630,7 @@ export function DashboardApp({
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-4 border-b border-border bg-surface px-4 py-3">
         <Link href="/" className="flex shrink-0 items-center gap-2 text-primary">
-          <MapPinned className="h-5 w-5" strokeWidth={1.75} />
+          <Logo className="h-5" />
           <span className="hidden text-sm font-semibold text-foreground sm:inline">
             {t("brand")}
           </span>

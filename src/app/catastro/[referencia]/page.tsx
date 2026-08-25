@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, Earth, MapPinned } from "lucide-react";
+import { ArrowLeft, Building2, Earth } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toClientCatastroParcel } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
@@ -19,6 +19,7 @@ import { CommentsSection } from "@/components/property/comments-section";
 import { LikeButton } from "@/components/dashboard/like-button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Logo } from "@/components/ui/logo";
 import { getCurrentUser } from "@/lib/auth";
 import { getServerTranslator } from "@/lib/i18n/server";
 
@@ -57,7 +58,7 @@ export default async function CatastroParcelPage({
           <ArrowLeft className="h-4 w-4" /> {t("backToSearch")}
         </Link>
         <Link href="/" className="flex items-center gap-2 text-primary">
-          <MapPinned className="h-5 w-5" strokeWidth={1.75} />
+          <Logo className="h-5" />
         </Link>
         <LogoutButton />
       </header>

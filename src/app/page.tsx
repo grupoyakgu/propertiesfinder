@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { LinkButton } from "@/components/ui/button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { Logo } from "@/components/ui/logo";
 import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function Home() {
@@ -21,7 +22,7 @@ export default async function Home() {
     <div className="flex flex-1 flex-col">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10">
         <div className="flex items-center gap-2 text-primary">
-          <MapPinned className="h-6 w-6" strokeWidth={1.75} />
+          <Logo className="h-6" />
           <span className="text-lg font-semibold tracking-tight text-foreground">
             {t("brand")}
           </span>
