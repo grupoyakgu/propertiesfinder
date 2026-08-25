@@ -29,6 +29,9 @@ function parcelKeyFor(parcelIds: string[]): string {
 const requestSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1),
   modes: z.array(z.enum(["knowledge", "web", "hybrid"])).min(1).max(3),
+  // Testing-only toggle — see analysis-engine.ts's loadExternalPromptBase.
+  // Defaults to true to match the panel checkbox's default.
+  useExternalPrompt: z.boolean().optional().default(true),
 });
 
 // Persists a mode's result once it finishes successfully, so it's still there next
@@ -181,12 +184,17 @@ export async function POST(request: Request) {
 
       await Promise.allSettled(
         modes.map((mode) =>
-          runAnalysisStreaming(clientParcels, mode, (event) => {
-            if (event.type === "result") {
-              persistResult(user.id, parcelIds, parcelKey, mode, event.result);
-            }
-            send(mode, event);
-          })
+          runAnalysisStreaming(
+            clientParcels,
+            mode,
+            (event) => {
+              if (event.type === "result") {
+                persistResult(user.id, parcelIds, parcelKey, mode, event.result);
+              }
+              send(mode, event);
+            },
+            parsed.data.useExternalPrompt
+          )
         )
       );
 

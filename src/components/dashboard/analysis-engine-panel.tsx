@@ -12,8 +12,8 @@ import type {
   AtVerdict,
   ConsolidationRecommendation,
   CriticalItem,
-} from "@/lib/analysis-engine";
-import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
+} from "@/lib/analysis-engine-types";
+import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine-types";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
@@ -689,6 +689,11 @@ export function AnalysisEnginePanel({
   const [loadingParcels, setLoadingParcels] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
   const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
+  // Testing-only toggle — see analysis-engine.ts's loadExternalPromptBase.
+  // Default enabled so scripts/cm4.md can be edited to iterate on the
+  // prompt without a redeploy; unchecking it falls back to the built-in
+  // SYSTEM_PROMPT_BASE exactly as before this option existed.
+  const [useExternalPrompt, setUseExternalPrompt] = useState(true);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -813,7 +818,7 @@ export function AnalysisEnginePanel({
       const res = await fetch("/api/analysis-engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelIds: selectedParcelIds, modes }),
+        body: JSON.stringify({ parcelIds: selectedParcelIds, modes, useExternalPrompt }),
       });
 
       if (!res.ok || !res.body) {
@@ -919,6 +924,22 @@ export function AnalysisEnginePanel({
                       {t(labelKey)}
                     </label>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">{t("analysis.externalPromptLabel")}</span>
+                <div className="mt-1">
+                  <label className="flex items-center gap-1.5 text-xs text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={useExternalPrompt}
+                      onChange={() => setUseExternalPrompt((v) => !v)}
+                      className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
+                    />
+                    {t("analysis.externalPromptCheckboxLabel")}
+                  </label>
+                  <p className="mt-1 max-w-xs text-[11px] text-muted-foreground">{t("analysis.externalPromptHint")}</p>
                 </div>
               </div>
 
