@@ -140,13 +140,12 @@ const MODE_LABEL_KEYS: Record<AnalysisMode, string> = {
 };
 
 // The PDF's DataTable is a plain two-column label/value layout, so a row's
-// confidence (Confirmed/Derived/Estimated/Unknown, or High/Medium/Low for a
-// zoning identification) is folded into the value string rather than adding
-// a third column.
+// status (Confirmed/Derived/Estimated/Unknown) is folded into the value
+// string rather than adding a third column.
 function developmentRightsRows(data: AnalysisEngineData): { label: string; value: string }[] {
   return (data.developmentRights ?? []).map((row) => ({
     label: row.parameter,
-    value: row.confidence ? `${row.potentialRight} (${row.confidence})` : row.potentialRight,
+    value: row.status ? `${row.potentialRight} (${row.status})` : row.potentialRight,
   }));
 }
 
@@ -180,7 +179,6 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               data.scenarioStudioCapacity ||
               data.realisticArchitecturalStudioCapacity ||
               data.maximumBeds ||
-              data.keyInvestmentLimiter ||
               data.acquisitionRisk) && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h3}>{t(locale, "analysis.investmentConclusionHeading")}</Text>
@@ -199,9 +197,6 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
                         }
                       : null,
                     data.maximumBeds ? { label: t(locale, "analysis.maximumBedsLabel"), value: data.maximumBeds } : null,
-                    data.keyInvestmentLimiter
-                      ? { label: t(locale, "analysis.keyInvestmentLimiterLabel"), value: data.keyInvestmentLimiter }
-                      : null,
                     data.acquisitionRisk
                       ? {
                           label: t(locale, "analysis.acquisitionRiskLabel"),
@@ -210,6 +205,13 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
                       : null,
                   ].filter((r): r is { label: string; value: string } => r !== null)}
                 />
+              </View>
+            )}
+
+            {data.keyInvestmentLimiters && data.keyInvestmentLimiters.length > 0 && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h3}>{t(locale, "analysis.keyInvestmentLimitersHeading")}</Text>
+                <BulletList items={data.keyInvestmentLimiters} />
               </View>
             )}
 
@@ -230,6 +232,9 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h2}>{t(locale, "analysis.developmentRightsHeading")}</Text>
                 <DataTable rows={developmentRightsRows(data)} />
+                {data.currentVerifiedRightsSummary && (
+                  <Text style={[typography.body, { marginTop: 4 }]}>{data.currentVerifiedRightsSummary}</Text>
+                )}
               </View>
             )}
 
@@ -256,14 +261,15 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h2}>{t(locale, "analysis.criticalItemsHeading")}</Text>
                 <BulletList
-                  items={data.criticalItemsToVerify.map(
-                    (c) =>
-                      `${c.item} — ${c.whyItMatters} (${t(locale, "analysis.criticalItemAcquisitionImpactLabel")}: ${t(
-                        locale,
-                        ACQUISITION_RISK_LABEL_KEYS[c.acquisitionImpact]
-                      )}; ${t(locale, "analysis.criticalItemNextVerificationLabel")}: ${c.nextVerification})`
-                  )}
+                  items={data.criticalItemsToVerify.map((c) => `${c.item} — ${c.whyItMatters} — ${c.sourceRequired}`)}
                 />
+              </View>
+            )}
+
+            {data.investmentBottomLine && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h2}>{t(locale, "analysis.investmentBottomLineHeading")}</Text>
+                <Text style={typography.body}>{data.investmentBottomLine}</Text>
               </View>
             )}
           </View>

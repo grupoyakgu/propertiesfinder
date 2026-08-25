@@ -135,8 +135,10 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     if (data.realisticArchitecturalStudioCapacity)
       lines.push(`${t("analysis.realisticArchitecturalStudioCapacityLabel")}: ${data.realisticArchitecturalStudioCapacity}`);
     if (data.maximumBeds) lines.push(`${t("analysis.maximumBedsLabel")}: ${data.maximumBeds}`);
-    if (data.keyInvestmentLimiter)
-      lines.push(`${t("analysis.keyInvestmentLimiterLabel")}: ${data.keyInvestmentLimiter}`);
+    if (data.keyInvestmentLimiters && data.keyInvestmentLimiters.length > 0) {
+      lines.push("", t("analysis.keyInvestmentLimitersHeading"));
+      for (const limiter of data.keyInvestmentLimiters) lines.push(`- ${limiter}`);
+    }
     if (data.acquisitionRisk)
       lines.push(`${t("analysis.acquisitionRiskLabel")}: ${t(ACQUISITION_RISK_LABEL_KEYS[data.acquisitionRisk])}`);
     if (data.individualVerdicts && data.individualVerdicts.length > 0) {
@@ -152,8 +154,9 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     ) {
       lines.push("", t("analysis.developmentRightsHeading"));
       for (const row of data.developmentRights) {
-        lines.push(`${row.parameter}: ${row.potentialRight}${row.confidence ? ` (${row.confidence})` : ""}`);
+        lines.push(`${row.parameter}: ${row.potentialRight}${row.status ? ` (${row.status})` : ""}`);
       }
+      if (data.currentVerifiedRightsSummary) lines.push("", data.currentVerifiedRightsSummary);
     }
     if (data.verdict === "NO") {
       lines.push("", t("analysis.developmentRightsNotApplicable"));
@@ -172,11 +175,10 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
     if (data.criticalItemsToVerify && data.criticalItemsToVerify.length > 0) {
       lines.push("", t("analysis.criticalItemsHeading"));
       for (const c of data.criticalItemsToVerify) {
-        lines.push(
-          `- ${c.item}: ${c.whyItMatters} (${t("analysis.criticalItemAcquisitionImpactLabel")}: ${t(ACQUISITION_RISK_LABEL_KEYS[c.acquisitionImpact])}; ${t("analysis.criticalItemNextVerificationLabel")}: ${c.nextVerification})`
-        );
+        lines.push(`- ${c.item} → ${c.whyItMatters} → ${c.sourceRequired}`);
       }
     }
+    if (data.investmentBottomLine) lines.push("", t("analysis.investmentBottomLineHeading"), data.investmentBottomLine);
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
   return lines.join("\n");
@@ -241,7 +243,7 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
               {t("analysis.developmentRightsPotential")}
             </th>
             <th className="px-3 py-1.5 text-left font-semibold text-muted-foreground">
-              {t("analysis.developmentRightsConfidence")}
+              {t("analysis.developmentRightsStatus")}
             </th>
           </tr>
         </thead>
@@ -250,11 +252,24 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
             <tr key={i} className="border-b border-border last:border-0">
               <td className="px-3 py-1.5 text-muted-foreground">{row.parameter}</td>
               <td className="px-3 py-1.5 font-medium text-foreground">{row.potentialRight}</td>
-              <td className="px-3 py-1.5 text-muted-foreground">{row.confidence || "—"}</td>
+              <td className="px-3 py-1.5 text-muted-foreground">{row.status || "—"}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** 1-2 plain-language sentences summarizing what's confirmed vs. outstanding
+ * in the Development Rights table above it — see SYSTEM_PROMPT_BASE's
+ * "Current Verified Development Rights". */
+function CurrentVerifiedRightsSummary({ text }: { text: string }) {
+  const { t } = useLocale();
+  return (
+    <div className="mt-2">
+      <h5 className="text-xs font-semibold text-muted-foreground">{t("analysis.currentVerifiedRightsHeading")}</h5>
+      <p className="mt-1 text-xs leading-relaxed text-foreground">{text}</p>
     </div>
   );
 }
@@ -280,7 +295,8 @@ function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
     data.maximumBeds ? { labelKey: "analysis.maximumBedsLabel", value: data.maximumBeds } : null,
   ].filter((s): s is { labelKey: string; value: string } => s !== null);
 
-  if (stats.length === 0 && !data.keyInvestmentLimiter && !data.acquisitionRisk) return null;
+  if (stats.length === 0 && (!data.keyInvestmentLimiters || data.keyInvestmentLimiters.length === 0) && !data.acquisitionRisk)
+    return null;
 
   return (
     <div>
@@ -297,21 +313,29 @@ function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
           ))}
         </div>
       )}
-      {data.keyInvestmentLimiter && (
-        <p className="mt-2 text-xs text-foreground">
-          <span className="font-medium">{t("analysis.keyInvestmentLimiterLabel")}:</span> {data.keyInvestmentLimiter}
-        </p>
-      )}
       {data.acquisitionRisk && (
         <div className="mt-2 flex items-center gap-1.5">
           <span className="text-xs font-medium text-foreground">{t("analysis.acquisitionRiskLabel")}:</span>
           <AcquisitionRiskBadge risk={data.acquisitionRisk} />
         </div>
       )}
+      {data.keyInvestmentLimiters && data.keyInvestmentLimiters.length > 0 && (
+        <div className="mt-2">
+          <h5 className="text-xs font-semibold text-muted-foreground">{t("analysis.keyInvestmentLimitersHeading")}</h5>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-foreground">
+            {data.keyInvestmentLimiters.map((limiter, i) => (
+              <li key={i}>{limiter}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
+/** At most 5 items — see SYSTEM_PROMPT_BASE's "Critical Items to Verify":
+ * deliberately terse (item → why it matters → exact source), not a full
+ * due-diligence narrative. */
 function CriticalItemsList({ items }: { items: CriticalItem[] }) {
   const { t } = useLocale();
   if (items.length === 0) return null;
@@ -325,36 +349,27 @@ function CriticalItemsList({ items }: { items: CriticalItem[] }) {
           <li key={i} className="rounded-md bg-surface-muted p-2 text-xs">
             <p className="font-medium text-foreground">{c.item}</p>
             <p className="mt-1 text-muted-foreground">{c.whyItMatters}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              {c.canChangeAtLegality && (
-                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                  {t("analysis.criticalItemCanChangeAtLegality")}
-                </span>
-              )}
-              {c.canChangeDevelopmentRights && (
-                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                  {t("analysis.criticalItemCanChangeDevelopmentRights")}
-                </span>
-              )}
-              {c.canChangeStudioCapacity && (
-                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                  {t("analysis.criticalItemCanChangeStudioCapacity")}
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  {t("analysis.criticalItemAcquisitionImpactLabel")}:
-                </span>
-                <AcquisitionRiskBadge risk={c.acquisitionImpact} />
-              </span>
-            </div>
             <p className="mt-1.5 text-muted-foreground">
-              <span className="font-medium text-foreground">{t("analysis.criticalItemNextVerificationLabel")}:</span>{" "}
-              {c.nextVerification}
+              <span className="font-medium text-foreground">{t("analysis.criticalItemSourceRequiredLabel")}:</span>{" "}
+              {c.sourceRequired}
             </p>
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Closing 2-4 sentence summary — see SYSTEM_PROMPT_BASE's "Investment Bottom
+ * Line": viability, consolidation, main unresolved issue, next verification. */
+function InvestmentBottomLine({ text }: { text: string }) {
+  const { t } = useLocale();
+  return (
+    <div>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("analysis.investmentBottomLineHeading")}
+      </h4>
+      <p className="mt-2 text-xs leading-relaxed text-foreground">{text}</p>
     </div>
   );
 }
@@ -448,6 +463,9 @@ function ResultColumn({
               {t("analysis.developmentRightsHeading")}
             </h4>
             <DevelopmentRightsTable data={data} />
+            {data.currentVerifiedRightsSummary && (
+              <CurrentVerifiedRightsSummary text={data.currentVerifiedRightsSummary} />
+            )}
           </div>
 
           {data.consolidationRecommendation && (
@@ -465,6 +483,8 @@ function ResultColumn({
           )}
 
           {data.criticalItemsToVerify && <CriticalItemsList items={data.criticalItemsToVerify} />}
+
+          {data.investmentBottomLine && <InvestmentBottomLine text={data.investmentBottomLine} />}
 
           {result?.report && (
             <div>
