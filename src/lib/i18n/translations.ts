@@ -234,6 +234,7 @@ const en = {
   },
   presets: {
     trigger: "Presets",
+    sectionTitle: "Jump to a preset",
     save: "Save current view",
     namePlaceholder: "Preset name",
     empty: "No saved presets yet. Pan/zoom the map, then save this view.",
@@ -568,6 +569,7 @@ const es: typeof en = {
   },
   presets: {
     trigger: "Ajustes guardados",
+    sectionTitle: "Ir a un ajuste guardado",
     save: "Guardar vista actual",
     namePlaceholder: "Nombre del ajuste",
     empty: "Aún no hay ajustes guardados. Desplaza o haz zoom en el mapa y guarda esta vista.",

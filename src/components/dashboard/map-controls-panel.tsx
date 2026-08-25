@@ -77,14 +77,20 @@ export function MapControlsPanel({
         </button>
       )}
 
-      <PresetQuickSwitch
-        presets={presets}
-        activePresetId={activePresetId}
-        onApply={onApplyPreset}
-        onRefocus={onRefocusPreset}
-        layout="sidebar"
-      />
       <PresetSaveControl canSave={canSavePreset} onSave={onSavePreset} layout="sidebar" />
+
+      {presets.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs text-muted-foreground">{t("presets.sectionTitle")}</p>
+          <PresetQuickSwitch
+            presets={presets}
+            activePresetId={activePresetId}
+            onApply={onApplyPreset}
+            onRefocus={onRefocusPreset}
+            layout="sidebar"
+          />
+        </div>
+      )}
     </div>
   );
 }
