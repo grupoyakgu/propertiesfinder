@@ -4,6 +4,7 @@ import { LocateFixed } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import type { ClientMapPreset } from "@/lib/types";
 import { useLocale } from "@/lib/i18n/context";
+import { cn } from "@/lib/utils";
 
 /** Fast, lightweight navigation between saved presets — a native <select> so it can
  * never be visually covered by the map (unlike a custom absolute-positioned dropdown,
@@ -14,6 +15,7 @@ export function PresetQuickSwitch({
   activePresetId,
   onApply,
   onRefocus,
+  layout = "header",
 }: {
   presets: ClientMapPreset[];
   activePresetId: string | null;
@@ -22,6 +24,10 @@ export function PresetQuickSwitch({
    * needed because panning away doesn't change the <select>'s value, so re-picking
    * the same option again wouldn't otherwise fire a change event. */
   onRefocus: (preset: ClientMapPreset) => void;
+  /** "header" (default): hidden below the `sm` breakpoint, fixed-width select,
+   * matching the header's horizontal row of pills. "sidebar": always visible,
+   * full-width select, for the vertical Map controls section instead. */
+  layout?: "header" | "sidebar";
 }) {
   const { t } = useLocale();
 
@@ -30,14 +36,14 @@ export function PresetQuickSwitch({
   const activePreset = presets.find((p) => p.id === activePresetId) ?? null;
 
   return (
-    <div className="hidden items-center gap-1 sm:flex">
+    <div className={cn("items-center gap-1", layout === "header" ? "hidden sm:flex" : "flex")}>
       <Select
         value={activePresetId ?? ""}
         onChange={(e) => {
           const preset = presets.find((p) => p.id === e.target.value);
           if (preset) onApply(preset);
         }}
-        className="w-40 shrink-0"
+        className={layout === "header" ? "w-40 shrink-0" : "w-full"}
       >
         <option value="" disabled>
           {t("presets.trigger")}

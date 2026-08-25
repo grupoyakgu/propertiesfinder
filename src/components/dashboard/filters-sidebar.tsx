@@ -4,8 +4,8 @@ import { Heart, MessageSquare, X } from "lucide-react";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { countActiveFilters, emptyFilters } from "@/lib/filter-types";
 import { FilterSection, RangeField, CheckboxGroup } from "@/components/ui/filter-controls";
-import { Input, Select } from "@/components/ui/input";
-import { spanishAutonomousCommunities, landUseLabels, cadastralClassLabels } from "@/lib/labels";
+import { Input } from "@/components/ui/input";
+import { landUseLabels, cadastralClassLabels } from "@/lib/labels";
 import { useLocale } from "@/lib/i18n/context";
 
 function toOptions(labels: Record<string, string>) {
@@ -19,6 +19,7 @@ export function FiltersSidebar({
   onFavoritesOnlyChange,
   commentsOnly,
   onCommentsOnlyChange,
+  mapControls,
 }: {
   filters: DashboardFilters;
   onChange: (filters: DashboardFilters) => void;
@@ -30,6 +31,10 @@ export function FiltersSidebar({
   /** Same idea, but for properties that have at least one comment. */
   commentsOnly: boolean;
   onCommentsOnlyChange: (value: boolean) => void;
+  /** Rendered above the "Filters" heading — see MapControlsPanel. The caller
+   * only passes this while the map is visible, which is what makes it "fold
+   * away" when the map is hidden. */
+  mapControls?: React.ReactNode;
 }) {
   const { locale, t } = useLocale();
 
@@ -44,6 +49,8 @@ export function FiltersSidebar({
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-border bg-surface">
+      {mapControls}
+
       <div className="flex items-center justify-between px-4 py-4">
         <h2 className="text-sm font-semibold text-foreground">
           {t("filters.title")} {activeCount > 0 && <span className="text-primary">({activeCount})</span>}
@@ -83,17 +90,9 @@ export function FiltersSidebar({
 
       <div className="flex-1 overflow-y-auto px-4 pb-8">
         <FilterSection title={t("filters.location")} defaultOpen>
-          <Select
-            value={filters.autonomousCommunity}
-            onChange={(e) => set("autonomousCommunity", e.target.value)}
-          >
-            <option value="">{t("filters.autonomousCommunityAny")}</option>
-            {spanishAutonomousCommunities.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
+          {/* Autonomous Community hidden for now — filters.autonomousCommunity
+              and its query-string/API handling are untouched, so this is a
+              trivial revert if it needs to come back. */}
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <Input
               placeholder={t("filters.streetName")}

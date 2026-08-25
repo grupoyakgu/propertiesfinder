@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, LassoSelect, Lock, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
+import { Check, Map as MapIcon, MapPinned, Search, SlidersHorizontal, Table2, X } from "lucide-react";
 import type { ClientCatastroParcel, ClientMapPreset } from "@/lib/types";
 import type { DashboardFilters } from "@/lib/filter-types";
 import { filtersToSearchParams } from "@/lib/filter-types";
@@ -12,11 +12,10 @@ import { catastroParcelToMarker } from "@/lib/map-marker";
 import { FiltersSidebar } from "@/components/dashboard/filters-sidebar";
 import { CatastroParcelCard } from "@/components/dashboard/catastro-parcel-card";
 import { CatastroResultsTable } from "@/components/dashboard/results-table";
-import { PresetQuickSwitch } from "@/components/dashboard/preset-quick-switch";
-import { PresetSaveControl } from "@/components/dashboard/preset-save-control";
 import { PresetSettingsPanel } from "@/components/dashboard/preset-settings-panel";
 import { MapDisplaySettings } from "@/components/dashboard/map-display-settings";
 import { AppVersion } from "@/components/dashboard/app-version";
+import { MapControlsPanel } from "@/components/dashboard/map-controls-panel";
 import { OpportunitiesPanel } from "@/components/dashboard/opportunities-panel";
 import { AnalysisEnginePanel } from "@/components/dashboard/analysis-engine-panel";
 import { AdminPanel } from "@/components/dashboard/admin-panel";
@@ -636,7 +635,7 @@ export function DashboardApp({
           </span>
         </Link>
 
-        <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-background px-3">
+        <div className="flex w-full max-w-[220px] items-center gap-2 rounded-full border border-border bg-background px-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             value={filters.q}
@@ -659,6 +658,8 @@ export function DashboardApp({
           <SlidersHorizontal className="h-3.5 w-3.5" /> {t("dashboard.filters")}
         </button>
 
+        <div className="flex-1" />
+
         <button
           type="button"
           onClick={() => setMapVisible((v) => !v)}
@@ -667,52 +668,6 @@ export function DashboardApp({
           {mapVisible ? <Table2 className="h-3.5 w-3.5" /> : <MapIcon className="h-3.5 w-3.5" />}
           {mapVisible ? t("dashboard.hideMap") : t("dashboard.showMap")}
         </button>
-
-        {mapLocked && (
-          <span title={t("dashboard.mapLockedHint")} className="hidden shrink-0 sm:block">
-            <Lock className="h-4 w-4 text-primary" />
-          </span>
-        )}
-
-        {mapVisible && (
-          <button
-            type="button"
-            onClick={() => {
-              if (drawMode) cancelDrawing();
-              else setDrawMode(true);
-            }}
-            title={t("dashboard.drawAreaHint")}
-            className={cn(
-              "hidden shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium sm:flex",
-              drawMode
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border text-foreground"
-            )}
-          >
-            <LassoSelect className="h-3.5 w-3.5" />
-            {t("dashboard.drawArea")}
-          </button>
-        )}
-
-        {activePolygon && !drawMode && (
-          <button
-            type="button"
-            onClick={clearActivePolygon}
-            title={t("dashboard.clearAreaFilter")}
-            className="hidden shrink-0 items-center gap-1.5 rounded-full border border-accent bg-accent/10 px-3 py-2 text-xs font-medium text-accent-foreground sm:flex"
-          >
-            {t("dashboard.areaFilterActive")}
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-
-        <PresetQuickSwitch
-          presets={presets}
-          activePresetId={activePresetId}
-          onApply={applyPreset}
-          onRefocus={refocusPreset}
-        />
-        <PresetSaveControl canSave={mapBounds != null} onSave={savePreset} />
 
         <LanguageToggle responsive />
 
@@ -825,6 +780,26 @@ export function DashboardApp({
               onFavoritesOnlyChange={setFavoritesOnly}
               commentsOnly={commentsOnly}
               onCommentsOnlyChange={setCommentsOnly}
+              mapControls={
+                mapVisible ? (
+                  <MapControlsPanel
+                    mapLocked={mapLocked}
+                    drawMode={drawMode}
+                    onToggleDrawMode={() => {
+                      if (drawMode) cancelDrawing();
+                      else setDrawMode(true);
+                    }}
+                    activePolygon={activePolygon}
+                    onClearActivePolygon={clearActivePolygon}
+                    presets={presets}
+                    activePresetId={activePresetId}
+                    onApplyPreset={applyPreset}
+                    onRefocusPreset={refocusPreset}
+                    canSavePreset={mapBounds != null}
+                    onSavePreset={savePreset}
+                  />
+                ) : undefined
+              }
             />
           </div>
         )}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Plus, X } from "lucide-react";
 import { useLocale } from "@/lib/i18n/context";
+import { cn } from "@/lib/utils";
 
 /** Lets the user save the current map view as a new preset right from the header,
  * while looking at the map — no need to leave for the Settings tab. Renders inline
@@ -11,9 +12,14 @@ import { useLocale } from "@/lib/i18n/context";
 export function PresetSaveControl({
   canSave,
   onSave,
+  layout = "header",
 }: {
   canSave: boolean;
   onSave: (name: string) => void | Promise<void>;
+  /** "header" (default): hidden below the `sm` breakpoint, fixed-width input,
+   * matching the header's horizontal row of pills. "sidebar": always visible,
+   * full-width, for the vertical Map controls section instead. */
+  layout?: "header" | "sidebar";
 }) {
   const { t } = useLocale();
   const [editing, setEditing] = useState(false);
@@ -38,7 +44,10 @@ export function PresetSaveControl({
         onClick={() => setEditing(true)}
         disabled={!canSave}
         title={canSave ? t("presets.save") : t("presets.needViewToSave")}
-        className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground disabled:opacity-40 sm:flex"
+        className={cn(
+          "items-center gap-1.5 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground disabled:opacity-40",
+          layout === "header" ? "hidden shrink-0 sm:flex" : "flex w-full justify-center"
+        )}
       >
         <Plus className="h-3.5 w-3.5" />
         {t("presets.save")}
@@ -47,7 +56,7 @@ export function PresetSaveControl({
   }
 
   return (
-    <div className="hidden shrink-0 items-center gap-1 sm:flex">
+    <div className={cn("items-center gap-1", layout === "header" ? "hidden shrink-0 sm:flex" : "flex w-full")}>
       <input
         autoFocus
         value={name}
@@ -57,7 +66,10 @@ export function PresetSaveControl({
           if (e.key === "Escape") cancel();
         }}
         placeholder={t("presets.namePlaceholder")}
-        className="h-9 w-36 rounded-md border border-border bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        className={cn(
+          "h-9 rounded-md border border-border bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary",
+          layout === "header" ? "w-36" : "w-full"
+        )}
       />
       <button
         type="button"
