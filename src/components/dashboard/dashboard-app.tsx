@@ -150,9 +150,9 @@ export function DashboardApp({
   // markers. Used both to restore a viewport captured on mount (e.g. via "Back to
   // search") and, later, to apply a saved preset at any time.
   const [viewCommand, setViewCommand] = useState<ViewCommand | null>(
-    initialMapBounds
+    initialMapBounds || initialMapViewport
       ? {
-          bounds: initialMapBounds,
+          bounds: initialMapBounds ?? undefined,
           center: initialMapViewport ? [initialMapViewport.lat, initialMapViewport.lng] : undefined,
           zoom: initialMapViewport?.zoom,
           nonce: 0,
@@ -592,8 +592,15 @@ export function DashboardApp({
   // (Never fires while Map Lock is on — see the MapView prop below — so locking
   // the map also freezes the polygon filter along with everything else.)
   const handleBoundsChange = (bounds: BoundsBox, viewport: MapViewport) => {
-    setMapBounds(bounds);
+    // The exact camera position is independent of Map Lock — Map Lock only
+    // means "don't re-scope the results table," not "don't remember where
+    // I'm looking." Capturing it unconditionally is what lets "back to
+    // search" restore the precise view even while locked (previously this
+    // whole handler was skipped under lock, so panning while locked wasn't
+    // tracked at all — the map fell back to fitting all markers on return).
     setMapViewport(viewport);
+    if (mapLocked) return;
+    setMapBounds(bounds);
     setActivePolygon(null);
   };
 
@@ -922,12 +929,14 @@ export function DashboardApp({
             <MapView
               markers={mapMarkers}
               hoveredId={hoveredId}
-              // Map Lock: while enabled, panning/zooming freely no longer feeds
-              // back into mapBounds — so the Official Catastro Records table (and
-              // which markers show) stays exactly as it was. Deliberate viewport
-              // changes (presets, "show on map", etc.) still go through setMapBounds
-              // directly elsewhere, bypassing this gate entirely.
-              onBoundsChange={mapLocked ? undefined : handleBoundsChange}
+              // Always listening (even under Map Lock — see handleBoundsChange's
+              // own comment for why): while Map Lock is enabled, panning/zooming
+              // freely no longer feeds into mapBounds, so the Official Catastro
+              // Records table (and which markers show) stays exactly as it was.
+              // Deliberate viewport changes (presets, "show on map", etc.) still
+              // go through setMapBounds directly elsewhere, bypassing this gate
+              // entirely.
+              onBoundsChange={handleBoundsChange}
               visible={!settingsOpen && !opportunitiesOpen && !analysisOpen && !adminOpen && mapVisible}
               viewCommand={viewCommand}
               backHref={dashboardUrl}

@@ -27,18 +27,23 @@ export default async function DashboardPage({
       ? { south: bboxParts[0], west: bboxParts[1], north: bboxParts[2], east: bboxParts[3] }
       : null;
 
-  // Carried alongside bbox on a genuine "back to search" round trip so the map
-  // restores the exact prior view via setView() rather than an approximate
-  // fitBounds(bbox) — see MapViewport's own comment. Absent (and therefore
-  // null here) for anything else that only ever has a bounding box, e.g. a
-  // bookmarked/shared link or the default-preset fallback below.
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  const zoom = Number(params.get("zoom"));
+  // Carried on a genuine "back to search" round trip so the map restores the
+  // exact prior view via setView() rather than an approximate fitBounds(bbox)
+  // — see MapViewport's own comment. Deliberately NOT gated on bbox being
+  // present too: while Map Lock is on, bbox never gets captured (panning
+  // doesn't re-scope the results table, by design) but the viewport still
+  // does, so this needs to stand on its own rather than requiring both.
+  // Number(null) is 0 (not NaN), so parsing an absent param straight through
+  // Number() would silently produce a bogus {lat:0,lng:0,zoom:0} viewport
+  // (Null Island at the minimum zoom) — hence the explicit has() checks.
+  const latParam = params.get("lat");
+  const lngParam = params.get("lng");
+  const zoomParam = params.get("zoom");
+  const lat = latParam !== null ? Number(latParam) : NaN;
+  const lng = lngParam !== null ? Number(lngParam) : NaN;
+  const zoom = zoomParam !== null ? Number(zoomParam) : NaN;
   const initialMapViewport: MapViewport | null =
-    initialMapBounds && Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(zoom)
-      ? { lat, lng, zoom }
-      : null;
+    Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(zoom) ? { lat, lng, zoom } : null;
 
   const user = await getCurrentUser();
   // A "Back to search" round-trip carries these in the URL and always wins

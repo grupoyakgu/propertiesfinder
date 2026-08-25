@@ -30,6 +30,12 @@ import { LikeButton } from "@/components/dashboard/like-button";
 // reappear automatically once the view narrows (zooming in or applying a preset).
 const MAX_POLYGON_MARKERS = 150;
 
+// The dataset is Sevilla-focused, so an otherwise-unset map (no restored
+// viewport, no markers to fit to yet) should open there instead of at some
+// generic national or world view.
+const DEFAULT_CENTER: [number, number] = [37.3891, -5.9845];
+const DEFAULT_ZOOM = 12;
+
 /** Plain (Leaflet-free) representation of a map viewport, so it can be persisted in the
  * URL and used to filter results even before/without the Leaflet map ever mounting. */
 export interface BoundsBox {
@@ -62,7 +68,11 @@ function markerIcon(highlighted: boolean) {
  * Presets/drawn areas/etc. only ever have a bounding box (there's no single "the" center
  * and zoom that produced them), so they omit center/zoom and keep using fitBounds. */
 export interface ViewCommand {
-  bounds: BoundsBox;
+  /** Optional because a viewport restored while Map Lock was on (see
+   * dashboard-app.tsx's handleBoundsChange) has a center/zoom but no
+   * bounds — Map Lock deliberately never re-captures mapBounds from
+   * panning, so there's nothing to put here in that case. */
+  bounds?: BoundsBox;
   center?: [number, number];
   zoom?: number;
   nonce: number;
@@ -117,7 +127,7 @@ function FitBounds({
       map.invalidateSize();
       if (viewCommand.center && viewCommand.zoom != null) {
         map.setView(viewCommand.center, viewCommand.zoom);
-      } else {
+      } else if (viewCommand.bounds) {
         map.fitBounds([
           [viewCommand.bounds.south, viewCommand.bounds.west],
           [viewCommand.bounds.north, viewCommand.bounds.east],
@@ -130,7 +140,15 @@ function FitBounds({
     hasAutoFitted.current = true;
     suppressFor();
     map.invalidateSize();
-    const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
+    let bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng]));
+    // A single marker (or several that all coincide) makes a zero-area
+    // bounds — Leaflet has no "tightest zoom that fits a point" and falls
+    // back to the world view instead, ignoring maxZoom. Give it a small
+    // real extent to fit around the point instead.
+    if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
+      const c = bounds.getCenter();
+      bounds = L.latLngBounds([c.lat - 0.01, c.lng - 0.01], [c.lat + 0.01, c.lng + 0.01]);
+    }
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, map, markers, viewCommand]);
@@ -294,11 +312,14 @@ export function MapView({
   }, [hoveredId]);
 
   const restoreBounds = viewCommand?.bounds;
-  const center: [number, number] = restoreBounds
-    ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
-    : markers.length > 0
-      ? [markers[0].lat, markers[0].lng]
-      : [40.4168, -3.7038];
+  const center: [number, number] = viewCommand?.center
+    ? viewCommand.center
+    : restoreBounds
+      ? [(restoreBounds.south + restoreBounds.north) / 2, (restoreBounds.west + restoreBounds.east) / 2]
+      : markers.length > 0
+        ? [markers[0].lat, markers[0].lng]
+        : DEFAULT_CENTER;
+  const initialZoom = viewCommand?.center && viewCommand.zoom != null ? viewCommand.zoom : DEFAULT_ZOOM;
 
   // Precomputed once per `markers` change (not on every render — MapView re-renders on
   // every pan/zoom because of `backHref`/hoveredId) so panning a map with hundreds of
@@ -321,7 +342,7 @@ export function MapView({
   return (
     <MapContainer
       center={center}
-      zoom={6}
+      zoom={initialZoom}
       scrollWheelZoom
       preferCanvas
       className={cn("h-full w-full", drawMode && "cursor-crosshair")}
