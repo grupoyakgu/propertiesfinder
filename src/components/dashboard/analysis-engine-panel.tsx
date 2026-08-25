@@ -10,6 +10,7 @@ import type {
   AnalysisProgressEvent,
   AtVerdict,
 } from "@/lib/analysis-engine";
+import { VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
 import { cn, formatCatastroParcelDisplayAddress } from "@/lib/utils";
 
@@ -72,16 +73,16 @@ function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModePro
 
 function verdictBadgeClass(verdict: AtVerdict): string {
   if (verdict === "YES") return "bg-success/10 text-success";
+  if (verdict === "YES_SUBJECT_TO_CONDITIONS") return "bg-sky-500/10 text-sky-600";
   if (verdict === "NO") return "bg-danger/10 text-danger";
   return "bg-amber-500/10 text-amber-600";
 }
 
 function VerdictBadge({ verdict }: { verdict: AtVerdict }) {
   const { t } = useLocale();
-  const labelKey = verdict === "YES" ? "analysis.verdictYes" : verdict === "NO" ? "analysis.verdictNo" : "analysis.verdictUncertain";
   return (
     <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", verdictBadgeClass(verdict))}>
-      {t(labelKey)}
+      {t(VERDICT_LABEL_KEYS[verdict])}
     </span>
   );
 }
@@ -92,15 +93,19 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
   const lines: string[] = [];
   const data = result.data;
   if (data) {
-    lines.push(`${t("analysis.verdictLabel")}: ${data.verdict}`);
+    lines.push(`${t("analysis.verdictLabel")}: ${t(VERDICT_LABEL_KEYS[data.verdict])}`);
     lines.push(data.explanation);
     if (data.individualVerdicts && data.individualVerdicts.length > 0) {
       lines.push("", t("analysis.individualVerdictsHeading"));
       for (const v of data.individualVerdicts) {
-        lines.push(`${v.referenciaCatastral}: ${v.verdict} — ${v.explanation}`);
+        lines.push(`${v.referenciaCatastral}: ${t(VERDICT_LABEL_KEYS[v.verdict])} — ${v.explanation}`);
       }
     }
-    if (data.verdict === "YES" && data.developmentRights && data.developmentRights.length > 0) {
+    if (
+      (data.verdict === "YES" || data.verdict === "YES_SUBJECT_TO_CONDITIONS") &&
+      data.developmentRights &&
+      data.developmentRights.length > 0
+    ) {
       lines.push("", t("analysis.developmentRightsHeading"));
       for (const row of data.developmentRights) {
         lines.push(`${row.parameter}: ${row.potentialRight}`);

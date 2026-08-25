@@ -1,6 +1,7 @@
 import { View, Text } from "@react-pdf/renderer";
 import type { ClientCatastroParcel } from "@/lib/types";
 import type { AnalysisEngineData, AnalysisEngineResult, AnalysisMode, AtVerdict } from "@/lib/analysis-engine";
+import { VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
@@ -18,11 +19,12 @@ function t(locale: Locale, key: string, vars?: Record<string, string | number>) 
 }
 
 function verdictLabel(locale: Locale, verdict: AtVerdict): string {
-  return t(locale, `analysis.verdict${verdict.charAt(0)}${verdict.slice(1).toLowerCase()}`);
+  return t(locale, VERDICT_LABEL_KEYS[verdict]);
 }
 
 function verdictTone(verdict: AtVerdict): "info" | "warning" | "danger" {
-  return verdict === "YES" ? "info" : verdict === "NO" ? "danger" : "warning";
+  if (verdict === "YES" || verdict === "YES_SUBJECT_TO_CONDITIONS") return "info";
+  return verdict === "NO" ? "danger" : "warning";
 }
 
 function DataTable({ rows }: { rows: { label: string; value: string }[] }) {
@@ -163,7 +165,9 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               </View>
             )}
 
-            {data.verdict === "YES" && data.developmentRights && data.developmentRights.length > 0 && (
+            {(data.verdict === "YES" || data.verdict === "YES_SUBJECT_TO_CONDITIONS") &&
+              data.developmentRights &&
+              data.developmentRights.length > 0 && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h2}>{t(locale, "analysis.developmentRightsHeading")}</Text>
                 <DataTable rows={developmentRightsRows(data)} />
