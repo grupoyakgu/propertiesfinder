@@ -19,14 +19,27 @@ function AppSettingsSection() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The custom prompt is edited and saved independently of maxAnalysisPlots
+  // above — its own draft/saving/saved/error state, same PATCH endpoint.
+  const [customPrompt, setCustomPrompt] = useState<string | null>(null);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptSaved, setPromptSaved] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     fetch("/api/admin/settings")
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || typeof data?.maxAnalysisPlots !== "number") return;
-        setMaxAnalysisPlots(data.maxAnalysisPlots);
-        setDraft(String(data.maxAnalysisPlots));
+        if (cancelled) return;
+        if (typeof data?.maxAnalysisPlots === "number") {
+          setMaxAnalysisPlots(data.maxAnalysisPlots);
+          setDraft(String(data.maxAnalysisPlots));
+        }
+        const savedPrompt: string | null = typeof data?.customPrompt === "string" ? data.customPrompt : null;
+        setCustomPrompt(savedPrompt);
+        setPromptDraft(savedPrompt ?? "");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -60,6 +73,32 @@ function AppSettingsSection() {
       setError(t("admin.settingSaveError"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePrompt = async (value: string | null) => {
+    setPromptSaving(true);
+    setPromptError(null);
+    setPromptSaved(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customPrompt: value }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setPromptError(json?.error ?? t("admin.settingSaveError"));
+        return;
+      }
+      setCustomPrompt(json.customPrompt);
+      setPromptDraft(json.customPrompt ?? "");
+      setPromptSaved(true);
+      setTimeout(() => setPromptSaved(false), 1500);
+    } catch {
+      setPromptError(t("admin.settingSaveError"));
+    } finally {
+      setPromptSaving(false);
     }
   };
 
@@ -99,6 +138,45 @@ function AppSettingsSection() {
             {saved ? t("admin.settingSaved") : t("admin.saveSettingAction")}
           </button>
           {error && <span className="text-xs text-danger">{error}</span>}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-4">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="custom-prompt">
+            {t("admin.customPromptLabel")}
+          </label>
+          <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">{t("admin.customPromptHint")}</p>
+          <textarea
+            id="custom-prompt"
+            rows={10}
+            value={promptDraft}
+            onChange={(e) => setPromptDraft(e.target.value)}
+            placeholder={t("admin.customPromptPlaceholder")}
+            className="mt-2 w-full rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => savePrompt(promptDraft)}
+              disabled={promptSaving || promptDraft === (customPrompt ?? "")}
+              className="rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {promptSaved ? t("admin.settingSaved") : t("admin.saveSettingAction")}
+            </button>
+            <button
+              type="button"
+              onClick={() => savePrompt(null)}
+              disabled={promptSaving || !customPrompt}
+              className="rounded-full border border-border px-4 py-2 text-xs font-medium text-foreground disabled:opacity-50"
+            >
+              {t("admin.clearCustomPromptAction")}
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {t("admin.customPromptCharCount", { n: promptDraft.length })}
+            </span>
+            {promptError && <span className="text-xs text-danger">{promptError}</span>}
+          </div>
         </div>
       )}
     </div>

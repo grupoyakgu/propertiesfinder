@@ -221,6 +221,15 @@ model AppSettings {
   // OpportunitiesPanel's selection checkboxes and AnalysisEnginePanel.
   maxAnalysisPlots Int @default(2)
 
+  // Optional full replacement for the Analysis Engine's built-in system
+  // prompt (SYSTEM_PROMPT_BASE in analysis-engine.ts), editable from the
+  // Admin tab. Unlike scripts/cm4.md (which only lets a prompt be edited
+  // without a redeploy in local dev, since a serverless deployment's
+  // filesystem is immutable), this is read from the database on every run,
+  // so it can be edited in production too. Null/empty means "use the
+  // built-in prompt" — see AnalysisEnginePanel's prompt-source selector.
+  customPrompt String? @db.Text
+
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")

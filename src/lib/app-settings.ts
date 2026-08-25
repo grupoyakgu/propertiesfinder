@@ -20,3 +20,13 @@ export async function setMaxAnalysisPlots(maxAnalysisPlots: number) {
     create: { id: SINGLETON_ID, maxAnalysisPlots },
   });
 }
+
+// `customPrompt` null clears the override (falls back to the built-in
+// prompt) — see AppSettings.customPrompt's schema comment.
+export async function setCustomPrompt(customPrompt: string | null) {
+  return prisma.appSettings.upsert({
+    where: { id: SINGLETON_ID },
+    update: { customPrompt },
+    create: { id: SINGLETON_ID, customPrompt },
+  });
+}

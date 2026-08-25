@@ -12,6 +12,7 @@ import type {
   AtVerdict,
   ConsolidationRecommendation,
   CriticalItem,
+  PromptSource,
 } from "@/lib/analysis-engine-types";
 import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine-types";
 import { useLocale } from "@/lib/i18n/context";
@@ -21,6 +22,16 @@ const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
   { mode: "knowledge", labelKey: "analysis.knowledgeModeLabel", hintKey: "analysis.knowledgeModeHint" },
   { mode: "web", labelKey: "analysis.webModeLabel", hintKey: "analysis.webModeHint" },
   { mode: "hybrid", labelKey: "analysis.hybridModeLabel", hintKey: "analysis.hybridModeHint" },
+];
+
+// Where the system prompt comes from — see analysis-engine-types.ts's
+// PromptSource. "database" is the only option that's redeploy-free in
+// production (it's a normal DB read); "file" only skips a redeploy in local
+// dev, since a serverless deployment's filesystem is immutable.
+const PROMPT_SOURCES: { source: PromptSource; labelKey: string; hintKey: string }[] = [
+  { source: "default", labelKey: "analysis.promptSourceDefaultLabel", hintKey: "analysis.promptSourceDefaultHint" },
+  { source: "file", labelKey: "analysis.promptSourceFileLabel", hintKey: "analysis.promptSourceFileHint" },
+  { source: "database", labelKey: "analysis.promptSourceDatabaseLabel", hintKey: "analysis.promptSourceDatabaseHint" },
 ];
 
 interface ModeProgress {
@@ -689,11 +700,11 @@ export function AnalysisEnginePanel({
   const [loadingParcels, setLoadingParcels] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
   const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
-  // Testing-only toggle — see analysis-engine.ts's loadExternalPromptBase.
-  // Default enabled so scripts/cm4.md can be edited to iterate on the
-  // prompt without a redeploy; unchecking it falls back to the built-in
-  // SYSTEM_PROMPT_BASE exactly as before this option existed.
-  const [useExternalPrompt, setUseExternalPrompt] = useState(true);
+  // Where the system prompt comes from — see analysis-engine-types.ts's
+  // PromptSource. Defaults to "file" (unchanged from this option's original
+  // default) rather than "database", so nothing changes for an existing
+  // scripts/cm4.md workflow unless explicitly switched over.
+  const [promptSource, setPromptSource] = useState<PromptSource>("file");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -818,7 +829,7 @@ export function AnalysisEnginePanel({
       const res = await fetch("/api/analysis-engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parcelIds: selectedParcelIds, modes, useExternalPrompt }),
+        body: JSON.stringify({ parcelIds: selectedParcelIds, modes, promptSource }),
       });
 
       if (!res.ok || !res.body) {
@@ -928,19 +939,24 @@ export function AnalysisEnginePanel({
               </div>
 
               <div>
-                <span className="text-xs font-medium text-muted-foreground">{t("analysis.externalPromptLabel")}</span>
-                <div className="mt-1">
-                  <label className="flex items-center gap-1.5 text-xs text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={useExternalPrompt}
-                      onChange={() => setUseExternalPrompt((v) => !v)}
-                      className="h-3.5 w-3.5 rounded border-border accent-[var(--primary)]"
-                    />
-                    {t("analysis.externalPromptCheckboxLabel")}
-                  </label>
-                  <p className="mt-1 max-w-xs text-[11px] text-muted-foreground">{t("analysis.externalPromptHint")}</p>
+                <span className="text-xs font-medium text-muted-foreground">{t("analysis.promptSourceLabel")}</span>
+                <div className="mt-1 flex flex-wrap gap-3">
+                  {PROMPT_SOURCES.map(({ source, labelKey }) => (
+                    <label key={source} className="flex items-center gap-1.5 text-xs text-foreground">
+                      <input
+                        type="radio"
+                        name="prompt-source"
+                        checked={promptSource === source}
+                        onChange={() => setPromptSource(source)}
+                        className="h-3.5 w-3.5 border-border accent-[var(--primary)]"
+                      />
+                      {t(labelKey)}
+                    </label>
+                  ))}
                 </div>
+                <p className="mt-1 max-w-xs text-[11px] text-muted-foreground">
+                  {t(PROMPT_SOURCES.find((p) => p.source === promptSource)!.hintKey)}
+                </p>
               </div>
 
               <button

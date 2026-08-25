@@ -10,6 +10,7 @@ import {
   type AnalysisEngineResult,
   type AnalysisMode,
   type AnalysisProgressEvent,
+  type PromptSource,
 } from "@/lib/analysis-engine";
 
 // Raise the allowed function duration on platforms that respect it (e.g. Vercel) —
@@ -29,9 +30,9 @@ function parcelKeyFor(parcelIds: string[]): string {
 const requestSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1),
   modes: z.array(z.enum(["knowledge", "web", "hybrid"])).min(1).max(3),
-  // Testing-only toggle — see analysis-engine.ts's loadExternalPromptBase.
-  // Defaults to true to match the panel checkbox's default.
-  useExternalPrompt: z.boolean().optional().default(true),
+  // See analysis-engine-types.ts's PromptSource. Defaults to "file" to match
+  // the panel's default selection.
+  promptSource: z.enum(["default", "file", "database"]).optional().default("file"),
 });
 
 // Persists a mode's result once it finishes successfully, so it's still there next
@@ -131,8 +132,9 @@ export async function POST(request: Request) {
   // Enforced server-side regardless of what the selection UI already caps —
   // an admin can lower the limit at any time (see the Admin tab), and a
   // client already holding a larger selection shouldn't be able to slip it
-  // through anyway.
-  const { maxAnalysisPlots } = await getAppSettings();
+  // through anyway. Also doubles as the source for customPrompt below when
+  // promptSource is "database" — one read serves both.
+  const { maxAnalysisPlots, customPrompt } = await getAppSettings();
   if (parcelIds.length > maxAnalysisPlots) {
     return new Response(
       JSON.stringify({ error: `You can analyze at most ${maxAnalysisPlots} plot(s) at a time` }),
@@ -170,6 +172,7 @@ export async function POST(request: Request) {
   const clientParcels = parcelIds.map((id) => toClientCatastroParcel(parcels.find((p) => p.id === id)!));
   const parcelKey = parcelKeyFor(parcelIds);
   const modes = parsed.data.modes as AnalysisMode[];
+  const promptSource: PromptSource = parsed.data.promptSource;
   const encoder = new TextEncoder();
 
   // Runs the requested mode(s) concurrently and multiplexes their progress events
@@ -193,7 +196,8 @@ export async function POST(request: Request) {
               }
               send(mode, event);
             },
-            parsed.data.useExternalPrompt
+            promptSource,
+            customPrompt
           )
         )
       );
