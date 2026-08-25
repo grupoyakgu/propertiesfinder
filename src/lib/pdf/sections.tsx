@@ -176,6 +176,26 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               {data.explanation}
             </Callout>
 
+            {(data.maxLegalStudioUnits || data.realisticStudioUnits || data.maximumBeds || data.keyInvestmentLimiter) && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h3}>{t(locale, "analysis.investmentConclusionHeading")}</Text>
+                <DataTable
+                  rows={[
+                    data.maxLegalStudioUnits
+                      ? { label: t(locale, "analysis.maxLegalStudioUnitsLabel"), value: data.maxLegalStudioUnits }
+                      : null,
+                    data.realisticStudioUnits
+                      ? { label: t(locale, "analysis.realisticStudioUnitsLabel"), value: data.realisticStudioUnits }
+                      : null,
+                    data.maximumBeds ? { label: t(locale, "analysis.maximumBedsLabel"), value: data.maximumBeds } : null,
+                    data.keyInvestmentLimiter
+                      ? { label: t(locale, "analysis.keyInvestmentLimiterLabel"), value: data.keyInvestmentLimiter }
+                      : null,
+                  ].filter((r): r is { label: string; value: string } => r !== null)}
+                />
+              </View>
+            )}
+
             {data.individualVerdicts && data.individualVerdicts.length > 0 && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h3}>{t(locale, "analysis.individualVerdictsHeading")}</Text>
@@ -212,6 +232,13 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
                 >
                   {data.consolidationExplanation ?? ""}
                 </Callout>
+              </View>
+            )}
+
+            {data.criticalItemsToVerify && data.criticalItemsToVerify.length > 0 && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={typography.h2}>{t(locale, "analysis.criticalItemsHeading")}</Text>
+                <BulletList items={data.criticalItemsToVerify.map((c) => `${c.item} — ${c.whyItMatters}`)} />
               </View>
             )}
           </View>

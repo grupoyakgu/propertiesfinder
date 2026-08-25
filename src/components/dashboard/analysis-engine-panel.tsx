@@ -10,6 +10,7 @@ import type {
   AnalysisProgressEvent,
   AtVerdict,
   ConsolidationRecommendation,
+  CriticalItem,
 } from "@/lib/analysis-engine";
 import { CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KEYS } from "@/lib/analysis-engine";
 import { useLocale } from "@/lib/i18n/context";
@@ -111,6 +112,12 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
   if (data) {
     lines.push(`${t("analysis.verdictLabel")}: ${t(VERDICT_LABEL_KEYS[data.verdict])}`);
     lines.push(data.explanation);
+    if (data.maxLegalStudioUnits) lines.push(`${t("analysis.maxLegalStudioUnitsLabel")}: ${data.maxLegalStudioUnits}`);
+    if (data.realisticStudioUnits)
+      lines.push(`${t("analysis.realisticStudioUnitsLabel")}: ${data.realisticStudioUnits}`);
+    if (data.maximumBeds) lines.push(`${t("analysis.maximumBedsLabel")}: ${data.maximumBeds}`);
+    if (data.keyInvestmentLimiter)
+      lines.push(`${t("analysis.keyInvestmentLimiterLabel")}: ${data.keyInvestmentLimiter}`);
     if (data.individualVerdicts && data.individualVerdicts.length > 0) {
       lines.push("", t("analysis.individualVerdictsHeading"));
       for (const v of data.individualVerdicts) {
@@ -140,6 +147,10 @@ function buildCopyText(result: AnalysisEngineResult, t: (key: string, vars?: Rec
         `${t("analysis.consolidationHeading")}: ${t(CONSOLIDATION_LABEL_KEYS[data.consolidationRecommendation])}`
       );
       if (data.consolidationExplanation) lines.push(data.consolidationExplanation);
+    }
+    if (data.criticalItemsToVerify && data.criticalItemsToVerify.length > 0) {
+      lines.push("", t("analysis.criticalItemsHeading"));
+      for (const c of data.criticalItemsToVerify) lines.push(`- ${c.item}: ${c.whyItMatters}`);
     }
   }
   if (result.report) lines.push("", t("analysis.fullReportHeading"), result.report);
@@ -223,6 +234,78 @@ function DevelopmentRightsTable({ data }: { data: AnalysisEngineData }) {
   );
 }
 
+/** The four "primary output" investment figures — see SYSTEM_PROMPT_BASE's
+ * "Investment Conclusion". Only rendered when at least one is present (they're
+ * all gated together server-side, but each field checked independently here
+ * to stay resilient to a partial result). */
+function InvestmentConclusionStats({ data }: { data: AnalysisEngineData }) {
+  const { t } = useLocale();
+  const stats: { labelKey: string; value: string }[] = [
+    data.maxLegalStudioUnits ? { labelKey: "analysis.maxLegalStudioUnitsLabel", value: data.maxLegalStudioUnits } : null,
+    data.realisticStudioUnits
+      ? { labelKey: "analysis.realisticStudioUnitsLabel", value: data.realisticStudioUnits }
+      : null,
+    data.maximumBeds ? { labelKey: "analysis.maximumBedsLabel", value: data.maximumBeds } : null,
+  ].filter((s): s is { labelKey: string; value: string } => s !== null);
+
+  if (stats.length === 0 && !data.keyInvestmentLimiter) return null;
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("analysis.investmentConclusionHeading")}
+      </h4>
+      {stats.length > 0 && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {stats.map(({ labelKey, value }) => (
+            <div key={labelKey} className="rounded-md bg-surface-muted p-2">
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{t(labelKey)}</dt>
+              <dd className="mt-0.5 text-sm font-semibold text-foreground">{value}</dd>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.keyInvestmentLimiter && (
+        <p className="mt-2 text-xs text-foreground">
+          <span className="font-medium">{t("analysis.keyInvestmentLimiterLabel")}:</span> {data.keyInvestmentLimiter}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CriticalItemsList({ items }: { items: CriticalItem[] }) {
+  const { t } = useLocale();
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("analysis.criticalItemsHeading")}
+      </h4>
+      <ul className="mt-2 space-y-2">
+        {items.map((c, i) => (
+          <li key={i} className="rounded-md bg-surface-muted p-2 text-xs">
+            <p className="font-medium text-foreground">{c.item}</p>
+            <p className="mt-1 text-muted-foreground">{c.whyItMatters}</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {c.couldChangeAtConclusion && (
+                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                  {t("analysis.criticalItemChangesAtConclusion")}
+                </span>
+              )}
+              {c.couldChangeStudioCount && (
+                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+                  {t("analysis.criticalItemChangesStudioCount")}
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ResultColumn({
   mode,
   modeLabelKey,
@@ -286,6 +369,8 @@ function ResultColumn({
             <p className="mt-2 text-xs leading-relaxed text-foreground">{data.explanation}</p>
           </div>
 
+          <InvestmentConclusionStats data={data} />
+
           {data.individualVerdicts && data.individualVerdicts.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -325,6 +410,8 @@ function ResultColumn({
               </div>
             </div>
           )}
+
+          {data.criticalItemsToVerify && <CriticalItemsList items={data.criticalItemsToVerify} />}
 
           {result?.report && (
             <div>
