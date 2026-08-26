@@ -14,14 +14,12 @@ export type AnalysisMode = "knowledge" | "web" | "hybrid";
 
 // Where the system prompt text comes from — see analysis-engine.ts's
 // buildSystemPrompt: "default" is the hardcoded SYSTEM_PROMPT_BASE constant
-// (requires a redeploy to change); "file" reads scripts/cm4.md fresh on
-// every run (only actually redeploy-free in local dev — a serverless
-// deployment's filesystem is immutable); "database" reads AppSettings.
-// customPrompt, editable from the Admin tab, which is redeploy-free
-// everywhere since it's a normal DB read. Any option silently falls back to
-// "default" if its source turns out to be empty/unavailable — see the
-// warning surfaced in the run's status line when that happens.
-export type PromptSource = "default" | "file" | "database";
+// (requires a redeploy to change); "database" reads AppSettings.customPrompt,
+// editable from the Admin tab, which is redeploy-free everywhere since it's a
+// normal DB read. Any option silently falls back to "default" if its source
+// turns out to be empty/unavailable — see the warning surfaced in the run's
+// status line when that happens.
+export type PromptSource = "default" | "database";
 
 // Whether the property is eligible for AT use — Establecimiento de
 // Apartamentos Turísticos, a specific Andalusian tourist-accommodation

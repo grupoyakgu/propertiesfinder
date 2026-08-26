@@ -26,12 +26,9 @@ const MODES: { mode: AnalysisMode; labelKey: string; hintKey: string }[] = [
 ];
 
 // Where the system prompt comes from — see analysis-engine-types.ts's
-// PromptSource. "database" is the only option that's redeploy-free in
-// production (it's a normal DB read); "file" only skips a redeploy in local
-// dev, since a serverless deployment's filesystem is immutable.
+// PromptSource. "database" is redeploy-free in production (it's a normal DB read).
 const PROMPT_SOURCES: { source: PromptSource; labelKey: string; hintKey: string }[] = [
   { source: "default", labelKey: "analysis.promptSourceDefaultLabel", hintKey: "analysis.promptSourceDefaultHint" },
-  { source: "file", labelKey: "analysis.promptSourceFileLabel", hintKey: "analysis.promptSourceFileHint" },
   { source: "database", labelKey: "analysis.promptSourceDatabaseLabel", hintKey: "analysis.promptSourceDatabaseHint" },
 ];
 
@@ -708,9 +705,8 @@ export function AnalysisEnginePanel({
   const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
   // Where the system prompt comes from — see analysis-engine-types.ts's
   // PromptSource. Defaults to "file" (unchanged from this option's original
-  // default) rather than "database", so nothing changes for an existing
-  // scripts/cm4.md workflow unless explicitly switched over.
-  const [promptSource, setPromptSource] = useState<PromptSource>("file");
+  // Use the database custom prompt (if set) rather than the built-in default.
+  const [promptSource, setPromptSource] = useState<PromptSource>("database");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<AnalysisMode, ModeProgress>> | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
