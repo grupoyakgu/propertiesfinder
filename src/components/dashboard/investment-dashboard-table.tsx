@@ -69,7 +69,7 @@ export function InvestmentDashboardTable({
 }) {
   const { t } = useLocale();
 
-  if (!data) return null;
+  if (!data || !parcels || parcels.length === 0) return null;
 
   // Extract development rights data
   const developmentRights = new Map<string, string>();
