@@ -19,6 +19,13 @@ function AppSettingsSection() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Web search limit — edited and saved independently
+  const [maxWebSearches, setMaxWebSearches] = useState(4);
+  const [webSearchDraft, setWebSearchDraft] = useState("4");
+  const [webSearchSaving, setWebSearchSaving] = useState(false);
+  const [webSearchSaved, setWebSearchSaved] = useState(false);
+  const [webSearchError, setWebSearchError] = useState<string | null>(null);
+
   // The custom prompt is edited and saved independently of maxAnalysisPlots
   // above — its own draft/saving/saved/error state, same PATCH endpoint.
   const [customPrompt, setCustomPrompt] = useState<string | null>(null);
@@ -36,6 +43,10 @@ function AppSettingsSection() {
         if (typeof data?.maxAnalysisPlots === "number") {
           setMaxAnalysisPlots(data.maxAnalysisPlots);
           setDraft(String(data.maxAnalysisPlots));
+        }
+        if (typeof data?.maxWebSearches === "number") {
+          setMaxWebSearches(data.maxWebSearches);
+          setWebSearchDraft(String(data.maxWebSearches));
         }
         const savedPrompt: string | null = typeof data?.customPrompt === "string" ? data.customPrompt : null;
         setCustomPrompt(savedPrompt);
@@ -73,6 +84,33 @@ function AppSettingsSection() {
       setError(t("admin.settingSaveError"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveWebSearch = async () => {
+    const value = Number(webSearchDraft);
+    if (!Number.isInteger(value) || value < 1) return;
+    setWebSearchSaving(true);
+    setWebSearchError(null);
+    setWebSearchSaved(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxWebSearches: value }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setWebSearchError(json?.error ?? t("admin.settingSaveError"));
+        return;
+      }
+      setMaxWebSearches(json.maxWebSearches);
+      setWebSearchSaved(true);
+      setTimeout(() => setWebSearchSaved(false), 1500);
+    } catch {
+      setWebSearchError(t("admin.settingSaveError"));
+    } finally {
+      setWebSearchSaving(false);
     }
   };
 
@@ -138,6 +176,35 @@ function AppSettingsSection() {
             {saved ? t("admin.settingSaved") : t("admin.saveSettingAction")}
           </button>
           {error && <span className="text-xs text-danger">{error}</span>}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="max-web-searches">
+              {t("admin.maxWebSearchesLabel")}
+            </label>
+            <p className="mt-0.5 max-w-sm text-xs text-muted-foreground">{t("admin.maxWebSearchesHint")}</p>
+            <input
+              id="max-web-searches"
+              type="number"
+              min={1}
+              max={50}
+              value={webSearchDraft}
+              onChange={(e) => setWebSearchDraft(e.target.value)}
+              className="mt-2 h-9 w-24 rounded-md border border-border bg-background px-3 text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={saveWebSearch}
+            disabled={webSearchSaving || Number(webSearchDraft) === maxWebSearches || !webSearchDraft}
+            className="rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {webSearchSaved ? t("admin.settingSaved") : t("admin.saveSettingAction")}
+          </button>
+          {webSearchError && <span className="text-xs text-danger">{webSearchError}</span>}
         </div>
       )}
 

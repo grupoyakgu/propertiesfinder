@@ -222,6 +222,9 @@ const en = {
     appSettingsDescription: "Global configuration that applies to every user.",
     maxAnalysisPlotsLabel: "Analysis Engine plot limit",
     maxAnalysisPlotsHint: "The maximum number of Opportunities a user can select at once for a single Analysis Engine run.",
+    maxWebSearchesLabel: "Maximum web searches per analysis",
+    maxWebSearchesHint:
+      "The maximum number of web searches allowed per analysis run when using web-grounded or hybrid analysis modes. Higher values allow more comprehensive research but increase API usage.",
     saveSettingAction: "Save",
     settingSaved: "Saved",
     settingSaveError: "Failed to save the setting.",
@@ -585,6 +588,9 @@ const es: typeof en = {
     appSettingsDescription: "Configuración global que aplica a todos los usuarios.",
     maxAnalysisPlotsLabel: "Límite de parcelas del Motor de Análisis",
     maxAnalysisPlotsHint: "El número máximo de Oportunidades que un usuario puede seleccionar a la vez para una ejecución del Motor de Análisis.",
+    maxWebSearchesLabel: "Máximo de búsquedas web por análisis",
+    maxWebSearchesHint:
+      "El número máximo de búsquedas web permitidas por ejecución de análisis cuando se utilizan los modos de análisis basado en web o híbrido. Valores más altos permiten investigaciones más exhaustivas pero aumentan el uso de la API.",
     saveSettingAction: "Guardar",
     settingSaved: "Guardado",
     settingSaveError: "No se pudo guardar la configuración.",

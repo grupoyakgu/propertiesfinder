@@ -372,7 +372,10 @@ export async function runAnalysisStreaming(
   // Only relevant when promptSource is "database" — the caller (the API
   // route) fetches AppSettings.customPrompt and passes it through, since
   // this module has no Prisma access of its own.
-  databasePromptText: string | null | undefined = null
+  databasePromptText: string | null | undefined = null,
+  // Maximum number of web searches allowed in "web" and "hybrid" modes.
+  // Defaults to 4. The caller should read this from AppSettings.maxWebSearches.
+  maxWebSearches: number = 4
 ): Promise<void> {
   // "web" and "hybrid" both verify against live official sources — only
   // "knowledge" reasons with no tool access at all. Each search/fetch is its
@@ -383,8 +386,8 @@ export async function runAnalysisStreaming(
     mode === "knowledge"
       ? undefined
       : [
-          { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 4 },
-          { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: 4 },
+          { type: "web_search_20260209" as const, name: "web_search" as const, max_uses: maxWebSearches },
+          { type: "web_fetch_20260209" as const, name: "web_fetch" as const, max_uses: maxWebSearches },
         ];
 
   const startedAt = Date.now();

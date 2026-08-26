@@ -21,6 +21,14 @@ export async function setMaxAnalysisPlots(maxAnalysisPlots: number) {
   });
 }
 
+export async function setMaxWebSearches(maxWebSearches: number) {
+  return prisma.appSettings.upsert({
+    where: { id: SINGLETON_ID },
+    update: { maxWebSearches },
+    create: { id: SINGLETON_ID, maxWebSearches },
+  });
+}
+
 // `customPrompt` null clears the override (falls back to the built-in
 // prompt) — see AppSettings.customPrompt's schema comment.
 export async function setCustomPrompt(customPrompt: string | null) {

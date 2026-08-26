@@ -132,9 +132,9 @@ export async function POST(request: Request) {
   // Enforced server-side regardless of what the selection UI already caps —
   // an admin can lower the limit at any time (see the Admin tab), and a
   // client already holding a larger selection shouldn't be able to slip it
-  // through anyway. Also doubles as the source for customPrompt below when
-  // promptSource is "database" — one read serves both.
-  const { maxAnalysisPlots, customPrompt } = await getAppSettings();
+  // through anyway. Also reads maxWebSearches and customPrompt when
+  // promptSource is "database" — one read serves all.
+  const { maxAnalysisPlots, maxWebSearches, customPrompt } = await getAppSettings();
   if (parcelIds.length > maxAnalysisPlots) {
     return new Response(
       JSON.stringify({ error: `You can analyze at most ${maxAnalysisPlots} plot(s) at a time` }),
@@ -197,7 +197,8 @@ export async function POST(request: Request) {
               send(mode, event);
             },
             promptSource,
-            customPrompt
+            customPrompt,
+            maxWebSearches
           )
         )
       );
