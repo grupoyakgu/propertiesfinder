@@ -435,9 +435,15 @@ function ResultColumn({
       )}
 
       {data && (
-        <div className="space-y-4 p-4">
-          {/* Investment Dashboard Table */}
-          {parcels && parcels.length > 0 && <InvestmentDashboardTable parcels={parcels} data={data} />}
+        <div className="space-y-6 p-4">
+          {/* Investment Dashboard Table - Display as the primary result */}
+          {parcels && parcels.length > 0 && (
+            <div className="-m-4 mb-4 border-b border-border">
+              <div className="p-4">
+                <InvestmentDashboardTable parcels={parcels} data={data} />
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center gap-2">
