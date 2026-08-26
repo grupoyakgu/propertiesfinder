@@ -158,3 +158,51 @@ export const toc = StyleSheet.create({
   dots: { flex: 1, borderBottomWidth: 0.75, borderBottomColor: colors.border, marginHorizontal: 6, marginBottom: 2 },
   entryPage: { fontSize: 10.5, color: colors.muted },
 });
+
+// Investment metrics table — multi-column layout for property investment data
+export const investmentTable = StyleSheet.create({
+  table: { borderWidth: 0.75, borderColor: colors.border, borderRadius: 2, marginVertical: 8 },
+  headerRow: { flexDirection: "row", backgroundColor: colors.primary },
+  headerCell: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontSize: 7.8,
+    fontFamily: "Helvetica-Bold",
+    color: "#ffffff",
+    borderRightWidth: 0.75,
+    borderRightColor: "#ffffff",
+  },
+  headerCellLast: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontSize: 7.8,
+    fontFamily: "Helvetica-Bold",
+    color: "#ffffff",
+  },
+  row: { flexDirection: "row", borderBottomWidth: 0.75, borderBottomColor: colors.border },
+  rowLast: { flexDirection: "row" },
+  labelCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    fontSize: 7.8,
+    color: colors.muted,
+    backgroundColor: colors.surface,
+    fontFamily: "Helvetica-Bold",
+    borderRightWidth: 0.75,
+    borderRightColor: colors.border,
+  },
+  valueCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    fontSize: 8.3,
+    color: colors.ink,
+    borderRightWidth: 0.75,
+    borderRightColor: colors.border,
+  },
+  valueCellLast: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    fontSize: 8.3,
+    color: colors.ink,
+  },
+});

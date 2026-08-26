@@ -11,7 +11,7 @@ import { ACQUISITION_RISK_LABEL_KEYS, CONSOLIDATION_LABEL_KEYS, VERDICT_LABEL_KE
 import { translate, type Locale } from "@/lib/i18n/translations";
 import { cadastralClassLabels, landUseLabels } from "@/lib/labels";
 import { formatCatastroParcelDisplayAddress } from "@/lib/utils";
-import { typography, layout, dataTable, compareTable, callout } from "@/lib/pdf/styles";
+import { typography, layout, dataTable, compareTable, callout, investmentTable, colors } from "@/lib/pdf/styles";
 import { MarkdownBlock } from "@/lib/pdf/markdown";
 
 export interface PdfSection {
@@ -54,6 +54,55 @@ function BulletList({ items }: { items: string[] }) {
         <View key={i} style={layout.bulletRow}>
           <Text style={layout.bulletDot}>{"•"}</Text>
           <Text style={layout.bulletText}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function InvestmentMetricsTable({ data, locale }: { data: AnalysisEngineData; locale: Locale }) {
+  const metrics = [
+    { label: t(locale, "analysis.verifiedLegalStudioCapacityLabel"), value: data.verifiedLegalStudioCapacity },
+    { label: t(locale, "analysis.realisticArchitecturalStudioCapacityLabel"), value: data.realisticArchitecturalStudioCapacity },
+    { label: t(locale, "analysis.acquisitionRiskLabel"), value: data.acquisitionRisk ? t(locale, ACQUISITION_RISK_LABEL_KEYS[data.acquisitionRisk]) : null },
+    { label: t(locale, "analysis.consolidationHeading"), value: data.consolidationRecommendation ? t(locale, CONSOLIDATION_LABEL_KEYS[data.consolidationRecommendation]) : null },
+  ].filter((m) => m.value);
+
+  if (metrics.length === 0) return null;
+
+  return (
+    <View style={investmentTable.table}>
+      <View style={investmentTable.headerRow}>
+        <Text style={[investmentTable.headerCell, { width: "50%", borderRightWidth: 0.75 }]}>{t(locale, "analysis.comparisonMetric")}</Text>
+        <Text style={[investmentTable.headerCellLast, { width: "50%" }]}>{t(locale, "table.value")}</Text>
+      </View>
+      {metrics.map((metric, i) => (
+        <View key={i} style={i === metrics.length - 1 ? investmentTable.rowLast : investmentTable.row}>
+          <Text style={[investmentTable.labelCell, { width: "50%" }]}>{metric.label}</Text>
+          <Text style={[investmentTable.valueCellLast, { width: "50%" }]}>{metric.value || "—"}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function DevelopmentRightsDetailTable({ data }: { data: AnalysisEngineData }) {
+  if (!data.developmentRights || data.developmentRights.length === 0) return null;
+
+  return (
+    <View style={investmentTable.table}>
+      <View style={investmentTable.headerRow}>
+        <Text style={[investmentTable.headerCell, { width: "40%", borderRightWidth: 0.75 }]}>Parameter</Text>
+        <Text style={[investmentTable.headerCell, { width: "40%", borderRightWidth: 0.75 }]}>Value</Text>
+        <Text style={[investmentTable.headerCellLast, { width: "20%" }]}>Status</Text>
+      </View>
+      {data.developmentRights.map((row, i) => (
+        <View key={i} style={i === data.developmentRights!.length - 1 ? investmentTable.rowLast : investmentTable.row}>
+          <Text style={[investmentTable.labelCell, { width: "40%", backgroundColor: "transparent" }]}>{row.parameter}</Text>
+          <Text style={[investmentTable.valueCell, { width: "40%" }]}>{row.potentialRight}</Text>
+          <Text style={[investmentTable.valueCellLast, { width: "20%", fontSize: 7.5, color: colors.muted }]}>
+            {row.status || "—"}
+          </Text>
         </View>
       ))}
     </View>
@@ -175,11 +224,13 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               {data.explanation}
             </Callout>
 
+            {/* Investment Metrics Table - Key investment indicators */}
+            <InvestmentMetricsTable data={data} locale={locale} />
+
             {(data.verifiedLegalStudioCapacity ||
               data.scenarioStudioCapacity ||
               data.realisticArchitecturalStudioCapacity ||
-              data.maximumBeds ||
-              data.acquisitionRisk) && (
+              data.maximumBeds) && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h3}>{t(locale, "analysis.investmentConclusionHeading")}</Text>
                 <DataTable
@@ -197,12 +248,6 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
                         }
                       : null,
                     data.maximumBeds ? { label: t(locale, "analysis.maximumBedsLabel"), value: data.maximumBeds } : null,
-                    data.acquisitionRisk
-                      ? {
-                          label: t(locale, "analysis.acquisitionRiskLabel"),
-                          value: t(locale, ACQUISITION_RISK_LABEL_KEYS[data.acquisitionRisk]),
-                        }
-                      : null,
                   ].filter((r): r is { label: string; value: string } => r !== null)}
                 />
               </View>
@@ -231,7 +276,7 @@ export function buildModeSection(mode: AnalysisMode, result: AnalysisEngineResul
               data.developmentRights.length > 0 && (
               <View style={{ marginTop: 6 }}>
                 <Text style={typography.h2}>{t(locale, "analysis.developmentRightsHeading")}</Text>
-                <DataTable rows={developmentRightsRows(data)} />
+                <DevelopmentRightsDetailTable data={data} />
                 {data.currentVerifiedRightsSummary && (
                   <Text style={[typography.body, { marginTop: 4 }]}>{data.currentVerifiedRightsSummary}</Text>
                 )}
