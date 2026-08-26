@@ -64,15 +64,29 @@ function ProgressBar({ mode, progress }: { mode: AnalysisMode; progress: ModePro
   const seconds = Math.round(progress.elapsedMs / 1000);
 
   return (
-    <div className="space-y-2 p-4">
+    <div className="space-y-3 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
+          <p className="text-sm font-medium text-foreground">{t("analysis.running")}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">{pct.toFixed(0)}%</p>
+      </div>
+
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="text-xs text-foreground">{progress.status || t("analysis.running")}</p>
-      <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+
+      {progress.status && (
+        <div className="rounded-md bg-surface-muted/50 px-3 py-2 border border-border/50">
+          <p className="text-xs text-foreground leading-relaxed">{progress.status}</p>
+        </div>
+      )}
+
+      <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>{t("analysis.elapsedSeconds", { n: seconds })}</span>
         {progress.toolCalls > 0 && (
           <span>{t("analysis.toolCallsCount", { n: progress.toolCalls, plural: progress.toolCalls === 1 ? "" : "s" })}</span>
@@ -708,7 +722,7 @@ export function AnalysisEnginePanel({
   const { t } = useLocale();
   const [loadingParcels, setLoadingParcels] = useState(true);
   const [parcels, setParcels] = useState<ClientCatastroParcel[]>([]);
-  const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["knowledge"]));
+  const [selectedModes, setSelectedModes] = useState<Set<AnalysisMode>>(new Set(["web"]));
   // Where the system prompt comes from — see analysis-engine-types.ts's
   // PromptSource. Defaults to "file" (unchanged from this option's original
   // Use the database custom prompt (if set) rather than the built-in default.
