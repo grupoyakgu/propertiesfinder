@@ -1,12 +1,10 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ClientCatastroParcel } from "@/lib/types";
 import type { AnalysisEngineData, AnalysisMode, AnalysisProgressEvent, PromptSource } from "@/lib/analysis-engine-types";
 
 // This module holds the actual analysis implementation — SYSTEM_PROMPT_BASE,
-// the Anthropic client, the scripts/cm4.md loader, and runAnalysisStreaming —
-// all server-only (uses Node's `fs`/`path`, never safe in a client bundle).
+// the Anthropic client, and runAnalysisStreaming — all server-only
+// (uses Node's node-path/modules, never safe in a client bundle).
 // The plain types and label-key maps live in analysis-engine-types.ts instead
 // and are re-exported here so existing server-side imports of this module
 // (the API route) keep working unchanged; client code (the panel, PDF
@@ -238,32 +236,6 @@ const HYBRID_MODE_ADDENDUM = `
 
 You HAVE web_search and web_fetch tools in this mode. Use your internal knowledge together with external verification: reason from what you already know of Seville's PGOU and Andalusian tourism/planning regulation, then use the web tools to verify or correct that reasoning against official sources (Ayuntamiento de Sevilla, Gerencia de Urbanismo y Medio Ambiente de Sevilla, Junta de Andalucía, BOJA, BOE, official PGOU documentation, official cadastral information). Cite the URLs you actually consulted for anything you verified externally, and note explicitly which parts of the answer rest on internal knowledge that you were not able to externally verify.`;
 
-// Testing escape hatch: with "file" selected as the prompt source, the
-// prompt body is read from this file at request time instead of the
-// SYSTEM_PROMPT_BASE constant above, so the prompt can be iterated on
-// without a redeploy. Only meaningful where this file is actually
-// writable/re-readable at runtime (e.g. local dev) — on an immutable
-// serverless deployment (Vercel) the file is whatever shipped with that
-// build, same as the hardcoded constant, so editing it still requires a new
-// deploy there. For a source that's redeploy-free everywhere, use
-// "database" instead (AppSettings.customPrompt, edited from the Admin tab).
-// See loadExternalPromptBase.
-const EXTERNAL_PROMPT_FILE_PATH = join(process.cwd(), "scripts", "cm4.md");
-
-/** Reads the external prompt file fresh on every call (no caching) so an
- * edit takes effect on the very next run. Returns null with a warning if the
- * file is missing, unreadable, or empty — callers should fall back to
- * SYSTEM_PROMPT_BASE in that case rather than fail the whole analysis. */
-function loadExternalPromptBase(): { text: string } | { warning: string } {
-  try {
-    const text = readFileSync(EXTERNAL_PROMPT_FILE_PATH, "utf-8").trim();
-    if (!text) return { warning: `${EXTERNAL_PROMPT_FILE_PATH} is empty` };
-    return { text };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { warning: `Could not read ${EXTERNAL_PROMPT_FILE_PATH}: ${message}` };
-  }
-}
 
 /** `databasePromptText` is whatever's currently saved in AppSettings.customPrompt
  * — the caller (runAnalysisStreaming, via the API route) is responsible for
@@ -275,14 +247,6 @@ function buildSystemPrompt(
   databasePromptText: string | null | undefined
 ): { prompt: string; promptSource: PromptSource; warning?: string } {
   const addendum = mode === "web" ? EXTERNAL_MODE_ADDENDUM : mode === "hybrid" ? HYBRID_MODE_ADDENDUM : INTERNAL_MODE_ADDENDUM;
-
-  if (promptSource === "file") {
-    const loaded = loadExternalPromptBase();
-    if ("text" in loaded) {
-      return { prompt: loaded.text + addendum, promptSource: "file" };
-    }
-    return { prompt: SYSTEM_PROMPT_BASE + addendum, promptSource: "default", warning: loaded.warning };
-  }
 
   if (promptSource === "database") {
     const text = databasePromptText?.trim();
@@ -366,9 +330,9 @@ export async function runAnalysisStreaming(
   parcels: ClientCatastroParcel[],
   mode: AnalysisMode,
   onEvent: (event: AnalysisProgressEvent) => void,
-  // Defaults to "file" to match the panel's default selection. See
+  // Defaults to "database" to use the custom prompt if available. See
   // buildSystemPrompt for what each source means.
-  promptSource: PromptSource = "file",
+  promptSource: PromptSource = "database",
   // Only relevant when promptSource is "database" — the caller (the API
   // route) fetches AppSettings.customPrompt and passes it through, since
   // this module has no Prisma access of its own.
@@ -431,13 +395,11 @@ export async function runAnalysisStreaming(
     onEvent({
       type: "status",
       status:
-        resolvedSource === "file"
-          ? "Starting… (using scripts/cm4.md)"
-          : resolvedSource === "database"
-            ? "Starting… (using the custom prompt from Settings)"
-            : warning
-              ? `Starting… (${warning} — using built-in prompt)`
-              : "Starting…",
+        resolvedSource === "database"
+          ? "Starting… (using the custom prompt from Settings)"
+          : warning
+            ? `Starting… (${warning} — using built-in prompt)`
+            : "Starting…",
     });
 
     stream.on("text", (_delta, snapshot) => {

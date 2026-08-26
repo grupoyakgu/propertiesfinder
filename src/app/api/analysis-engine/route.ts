@@ -30,9 +30,9 @@ function parcelKeyFor(parcelIds: string[]): string {
 const requestSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1),
   modes: z.array(z.enum(["knowledge", "web", "hybrid"])).min(1).max(3),
-  // See analysis-engine-types.ts's PromptSource. Defaults to "file" to match
-  // the panel's default selection.
-  promptSource: z.enum(["default", "file", "database"]).optional().default("file"),
+  // See analysis-engine-types.ts's PromptSource. Defaults to "database" to use
+  // the admin-configured custom prompt if available.
+  promptSource: z.enum(["default", "database"]).optional().default("database"),
 });
 
 // Persists a mode's result once it finishes successfully, so it's still there next
