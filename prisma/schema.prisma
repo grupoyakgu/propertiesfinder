@@ -70,8 +70,21 @@ model User {
   mapPresets      MapPreset[]
   comments        Comment[]
   analysisResults AnalysisResult[]
+  passwordResets  PasswordReset[]
 
   @@map("users")
+}
+
+// Password reset tokens for forgot password flow
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique // Random secure token sent to user's email
+  expiresAt DateTime // Token expires after a set period (e.g., 1 hour)
+  createdAt DateTime @default(now())
+
+  @@map("password_resets")
 }
 
 // Official cadastral parcels bulk-imported from Catastro's INSPIRE download
