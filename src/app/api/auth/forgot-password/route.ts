@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
-import { prisma } from "@/lib/prisma";
+import { randomBytes } from "crypto";
+import { supabase } from "@/lib/supabase";
 
 const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -11,9 +12,9 @@ function generateResetToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-function getResetTokenExpiry(): Date {
-  // Token expires in 1 hour
-  return new Date(Date.now() + 60 * 60 * 1000);
+function getResetTokenExpiry(): string {
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  return expiresAt.toISOString();
 }
 
 export async function POST(request: Request) {
@@ -26,30 +27,35 @@ export async function POST(request: Request) {
   const { email } = parsed.data;
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.isActive) {
-      // Return success even if user doesn't exist (security best practice)
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, is_active")
+      .eq("email", email)
+      .single();
+
+    if (!user || !user.is_active) {
       return NextResponse.json({ success: true });
     }
 
     // Delete any existing reset tokens for this user
-    await prisma.passwordReset.deleteMany({ where: { userId: user.id } });
+    await supabase
+      .from("password_resets")
+      .delete()
+      .eq("user_id", user.id);
 
     // Generate new reset token
     const token = generateResetToken();
     const expiresAt = getResetTokenExpiry();
+    const tokenId = randomBytes(12).toString("hex");
 
-    await prisma.passwordReset.create({
-      data: {
-        userId: user.id,
+    await supabase
+      .from("password_resets")
+      .insert({
+        id: tokenId,
+        user_id: user.id,
         token,
-        expiresAt,
-      },
-    });
-
-    // TODO: Send email with reset link
-    // const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
-    // await sendPasswordResetEmail(user.email, resetLink, user.name);
+        expires_at: expiresAt,
+      });
 
     console.log(`Password reset requested for ${email}. Token: ${token}`);
 

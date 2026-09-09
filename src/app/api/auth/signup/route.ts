@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { randomBytes } from "crypto";
+import { supabase } from "@/lib/supabase";
 import { hashPassword, setSessionCookie } from "@/lib/auth";
 
 const signupSchema = z.object({
@@ -9,13 +10,11 @@ const signupSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
-// The designated first admin. Normally promoted via the migration's one-time
-// data fix (see prisma/migrations/*_add_user_admin_permissions), but this
-// covers signing up fresh in an environment where that migration already ran
-// before this account existed. There is no UI to grant admin beyond this —
-// any further admins are promoted the same way the migration did, via a
-// direct database update.
 const INITIAL_ADMIN_EMAIL = "koby.ram1@gmail.com";
+
+function generateId(): string {
+  return randomBytes(12).toString("hex");
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -29,16 +28,34 @@ export async function POST(request: Request) {
 
   const { name, email, password } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("email", email)
+    .single();
+
   if (existing) {
     return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: { name, email, passwordHash, isAdmin: email === INITIAL_ADMIN_EMAIL },
-    select: { id: true, name: true, email: true },
-  });
+  const userId = generateId();
+
+  const { data: user, error } = await supabase
+    .from("users")
+    .insert({
+      id: userId,
+      name,
+      email,
+      password_hash: passwordHash,
+      is_admin: email === INITIAL_ADMIN_EMAIL,
+    })
+    .select("id, name, email")
+    .single();
+
+  if (error || !user) {
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+  }
 
   await setSessionCookie(user.id);
 

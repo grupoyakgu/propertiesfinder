@@ -1,14 +1,22 @@
-import { prisma } from "@/lib/prisma";
-import { toClientComment, type ClientComment } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { type ClientComment } from "@/lib/types";
 
-/** Fetches a property's comments — shared by the detail page and the comments
- * list API route so the include shape toClientComment expects lives in one place. */
 export async function getClientComments(propertyId: string): Promise<ClientComment[]> {
-  const comments = await prisma.comment.findMany({
-    where: { source: "catastro", propertyId },
-    include: { user: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const { data: comments, error } = await supabase
+    .from("comments")
+    .select("*, users:user_id(id, name)")
+    .eq("source", "catastro")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false });
 
-  return comments.map(toClientComment);
+  if (error || !comments) return [];
+
+  return comments.map((comment: any) => ({
+    id: comment.id,
+    body: comment.body,
+    createdAt: new Date(comment.created_at).toISOString(),
+    updatedAt: new Date(comment.updated_at).toISOString(),
+    authorId: comment.users?.id || comment.user_id,
+    authorName: comment.users?.name || "Unknown",
+  }));
 }

@@ -1,40 +1,60 @@
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 const SINGLETON_ID = "singleton";
 
-// The AppSettings row is created lazily on first read rather than via a seed
-// script, so a fresh database (or one predating this feature) still works
-// without a migration data-fix.
 export async function getAppSettings() {
-  return prisma.appSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: {},
-    create: { id: SINGLETON_ID },
-  });
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("*")
+    .eq("id", SINGLETON_ID)
+    .single();
+
+  if (!error && data) {
+    return {
+      id: data.id,
+      max_analysis_plots: data.max_analysis_plots,
+      max_web_searches: data.max_web_searches,
+      custom_prompt: data.custom_prompt,
+      updated_at: data.updated_at,
+    };
+  }
+
+  // Create if doesn't exist
+  const { data: newSettings } = await supabase
+    .from("app_settings")
+    .insert({ id: SINGLETON_ID })
+    .select("*")
+    .single();
+
+  return newSettings;
 }
 
 export async function setMaxAnalysisPlots(maxAnalysisPlots: number) {
-  return prisma.appSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: { maxAnalysisPlots },
-    create: { id: SINGLETON_ID, maxAnalysisPlots },
-  });
+  const { data } = await supabase
+    .from("app_settings")
+    .upsert({ id: SINGLETON_ID, max_analysis_plots: maxAnalysisPlots })
+    .select("*")
+    .single();
+
+  return data;
 }
 
 export async function setMaxWebSearches(maxWebSearches: number) {
-  return prisma.appSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: { maxWebSearches },
-    create: { id: SINGLETON_ID, maxWebSearches },
-  });
+  const { data } = await supabase
+    .from("app_settings")
+    .upsert({ id: SINGLETON_ID, max_web_searches: maxWebSearches })
+    .select("*")
+    .single();
+
+  return data;
 }
 
-// `customPrompt` null clears the override (falls back to the built-in
-// prompt) — see AppSettings.customPrompt's schema comment.
 export async function setCustomPrompt(customPrompt: string | null) {
-  return prisma.appSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: { customPrompt },
-    create: { id: SINGLETON_ID, customPrompt },
-  });
+  const { data } = await supabase
+    .from("app_settings")
+    .upsert({ id: SINGLETON_ID, custom_prompt: customPrompt })
+    .select("*")
+    .single();
+
+  return data;
 }

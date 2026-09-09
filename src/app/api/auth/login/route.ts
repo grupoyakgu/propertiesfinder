@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { verifyPassword, setSessionCookie } from "@/lib/auth";
 
 const loginSchema = z.object({
@@ -17,11 +17,16 @@ export async function POST(request: Request) {
 
   const { email, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (error || !user || !(await verifyPassword(password, user.password_hash))) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
-  if (!user.isActive) {
+  if (!user.is_active) {
     return NextResponse.json(
       { error: "This account has been disabled. Contact an administrator." },
       { status: 403 }

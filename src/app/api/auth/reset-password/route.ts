@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/auth";
 
 const resetPasswordSchema = z.object({
@@ -18,34 +18,48 @@ export async function POST(request: Request) {
   const { token, password } = parsed.data;
 
   try {
-    // Find the password reset token
-    const resetToken = await prisma.passwordReset.findUnique({ where: { token } });
+    const { data: resetToken } = await supabase
+      .from("password_resets")
+      .select("*")
+      .eq("token", token)
+      .single();
 
     if (!resetToken) {
       return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
     }
 
     // Check if token has expired
-    if (new Date() > resetToken.expiresAt) {
-      await prisma.passwordReset.delete({ where: { id: resetToken.id } });
+    if (new Date() > new Date(resetToken.expires_at)) {
+      await supabase
+        .from("password_resets")
+        .delete()
+        .eq("id", resetToken.id);
       return NextResponse.json({ error: "Reset link has expired" }, { status: 400 });
     }
 
     // Get the user
-    const user = await prisma.user.findUnique({ where: { id: resetToken.userId } });
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", resetToken.user_id)
+      .single();
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Update password
     const passwordHash = await hashPassword(password);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash },
-    });
+    await supabase
+      .from("users")
+      .update({ password_hash: passwordHash })
+      .eq("id", user.id);
 
     // Delete the reset token
-    await prisma.passwordReset.delete({ where: { id: resetToken.id } });
+    await supabase
+      .from("password_resets")
+      .delete()
+      .eq("id", resetToken.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
