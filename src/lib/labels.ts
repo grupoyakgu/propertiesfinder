@@ -1,5 +1,5 @@
-import type { CadastralClass, LandUse } from "@/generated/prisma/enums";
 import type { Locale } from "@/lib/i18n/translations";
+import type { LandUse, CadastralClass } from "@/lib/types";
 
 export const landUseLabels: Record<Locale, Record<LandUse, string>> = {
   en: {

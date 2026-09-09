@@ -1,5 +1,3 @@
-import type { CadastralClass, LandUse, OpportunityStatus } from "@/generated/prisma/enums";
-import type { CatastroParcel, Comment, Favorite, MapPreset } from "@/generated/prisma/client";
 import type { DashboardFilters } from "@/lib/filter-types";
 
 export interface ClientCatastroParcel {
@@ -32,11 +30,27 @@ export interface ClientCatastroParcel {
   hasComment?: boolean;
 }
 
-export function toClientCatastroParcel(parcel: CatastroParcel): ClientCatastroParcel {
+export function toClientCatastroParcel(parcel: any): ClientCatastroParcel {
   return {
-    ...parcel,
-    boundary: parcel.boundary as ClientCatastroParcel["boundary"],
-    importedAt: parcel.importedAt.toISOString(),
+    id: parcel.id,
+    referenciaCatastral: parcel.referencia_catastral || parcel.referenciaCatastral,
+    municipality: parcel.municipality,
+    province: parcel.province,
+    autonomousCommunity: parcel.autonomous_community || parcel.autonomousCommunity,
+    latitude: parcel.latitude,
+    longitude: parcel.longitude,
+    boundary: (typeof parcel.boundary === 'string' ? JSON.parse(parcel.boundary) : parcel.boundary) as ClientCatastroParcel["boundary"],
+    streetName: parcel.street_name || parcel.streetName,
+    streetNumber: parcel.street_number || parcel.streetNumber,
+    plotSize: parcel.plot_size || parcel.plotSize,
+    builtArea: parcel.built_area || parcel.builtArea,
+    constructionYear: parcel.construction_year || parcel.constructionYear,
+    numberOfFloors: parcel.number_of_floors || parcel.numberOfFloors,
+    cadastralUse: parcel.cadastral_use || parcel.cadastralUse,
+    landUse: parcel.land_use || parcel.landUse,
+    sourceDataset: parcel.source_dataset || parcel.sourceDataset,
+    importedAt: (typeof parcel.imported_at === 'string' ? parcel.imported_at : parcel.importedAt?.toISOString?.() || new Date().toISOString()),
+    hasComment: parcel.hasComment,
   };
 }
 
@@ -63,8 +77,8 @@ export interface ClientMapPreset {
   ownerName: string;
 }
 
-export function toClientMapPreset(preset: MapPreset & { user: { name: string } }): ClientMapPreset {
-  const { id, name, south, west, north, east, isDefault, filters, polygon, userId, user } = preset;
+export function toClientMapPreset(preset: any): ClientMapPreset {
+  const { id, name, south, west, north, east, is_default, filters, polygon, user_id, users, user } = preset;
   return {
     id,
     name,
@@ -72,13 +86,17 @@ export function toClientMapPreset(preset: MapPreset & { user: { name: string } }
     west,
     north,
     east,
-    isDefault,
-    filters: filters as DashboardFilters | null,
-    polygon: polygon as number[][] | null,
-    ownerId: userId,
-    ownerName: user.name,
+    isDefault: is_default || preset.isDefault,
+    filters: (typeof filters === 'string' ? JSON.parse(filters) : filters) as DashboardFilters | null,
+    polygon: (typeof polygon === 'string' ? JSON.parse(polygon) : polygon) as number[][] | null,
+    ownerId: user_id || preset.userId,
+    ownerName: users?.name || user?.name || "Unknown",
   };
 }
+
+export type OpportunityStatus = "IN_REVIEW" | "NOT_RELEVANT" | "VALIDATED";
+export type LandUse = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "AGRICULTURAL" | "TOURISM" | "MIXED" | "OTHER";
+export type CadastralClass = "URBANO" | "RUSTICO";
 
 // A shared "Opportunity" — see the Favorite model's comment in schema.prisma.
 export interface ClientOpportunity {
@@ -91,16 +109,19 @@ export interface ClientOpportunity {
 }
 
 export function toClientOpportunity(
-  favorite: Favorite & { assignedUser: { name: string } },
+  favorite: any,
   parcel: ClientCatastroParcel
 ): ClientOpportunity {
+  const assignedUserId = favorite.assigned_user_id || favorite.assignedUserId;
+  const assignedUser = favorite.users || favorite.assignedUser;
+  const createdAt = favorite.created_at || favorite.createdAt;
   return {
     id: favorite.id,
     parcel,
     status: favorite.status,
-    assignedUserId: favorite.assignedUserId,
-    assignedUserName: favorite.assignedUser.name,
-    createdAt: favorite.createdAt.toISOString(),
+    assignedUserId,
+    assignedUserName: assignedUser?.name || "Unknown",
+    createdAt: typeof createdAt === 'string' ? createdAt : createdAt?.toISOString?.() || new Date().toISOString(),
   };
 }
 
@@ -113,13 +134,14 @@ export interface ClientComment {
   authorName: string;
 }
 
-export function toClientComment(comment: Comment & { user: { id: string; name: string } }): ClientComment {
+export function toClientComment(comment: any): ClientComment {
+  const user = comment.users || comment.user;
   return {
     id: comment.id,
     body: comment.body,
-    createdAt: comment.createdAt.toISOString(),
-    updatedAt: comment.updatedAt.toISOString(),
-    authorId: comment.user.id,
-    authorName: comment.user.name,
+    createdAt: (typeof comment.created_at === 'string' ? comment.created_at : comment.createdAt?.toISOString?.()) || new Date().toISOString(),
+    updatedAt: (typeof comment.updated_at === 'string' ? comment.updated_at : comment.updatedAt?.toISOString?.()) || new Date().toISOString(),
+    authorId: user?.id || comment.user_id,
+    authorName: user?.name || "Unknown",
   };
 }

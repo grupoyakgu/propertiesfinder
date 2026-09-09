@@ -49,10 +49,10 @@ export async function GET() {
           assignedUser: { name: favorite.users?.name || "Unknown" },
           createdAt: new Date(favorite.created_at),
         },
-        parcel
+        parcel as any
       );
     })
-    .filter((o): o is ClientOpportunity => o !== null);
+    .filter((o: any): o is ClientOpportunity => o !== null);
 
   return NextResponse.json({ opportunities });
 }

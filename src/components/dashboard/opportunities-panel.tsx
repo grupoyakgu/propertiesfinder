@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Building2, Download, Earth, Search, Trash2 } from "lucide-react";
-import type { ClientOpportunity } from "@/lib/types";
-import { OpportunityStatus } from "@/generated/prisma/enums";
+import type { ClientOpportunity, OpportunityStatus } from "@/lib/types";
 import {
   cn,
   formatCatastroParcelAddress,
