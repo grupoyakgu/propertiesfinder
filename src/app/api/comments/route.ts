@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { randomBytes } from "crypto";
+import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
-import { toClientComment } from "@/lib/types";
 import { getClientComments } from "@/lib/comments";
 
 const querySchema = z.object({
@@ -51,23 +51,55 @@ export async function POST(request: Request) {
   }
   const { propertyId, body: commentBody } = parsed.data;
 
-  const [comment] = await prisma.$transaction([
-    prisma.comment.create({
-      data: { userId: user.id, source: "catastro", propertyId, body: commentBody },
-      include: { user: { select: { id: true, name: true } } },
-    }),
-    // Commenting on a property is treated as expressing interest in it — like it
-    // too, the same way the property's own Like button would, adding it to the
-    // shared Opportunities list with the commenter as owner. Upsert (rather than
-    // create) since re-commenting on one that's already an opportunity shouldn't
-    // error — and shouldn't reassign it away from whoever already owns it either
-    // (the empty `update` is deliberate).
-    prisma.favorite.upsert({
-      where: { source_propertyId: { source: "catastro", propertyId } },
-      create: { assignedUserId: user.id, source: "catastro", propertyId },
-      update: {},
-    }),
-  ]);
+  const commentId = randomBytes(12).toString("hex");
 
-  return NextResponse.json({ comment: toClientComment(comment), propertyLiked: true }, { status: 201 });
+  // Create comment
+  const { data: comment, error: commentError } = await supabase
+    .from("comments")
+    .insert({
+      id: commentId,
+      user_id: user.id,
+      source: "catastro",
+      property_id: propertyId,
+      body: commentBody,
+    })
+    .select("*, users:user_id(id, name)")
+    .single();
+
+  if (commentError || !comment) {
+    return NextResponse.json({ error: "Failed to create comment" }, { status: 500 });
+  }
+
+  // Upsert favorite (add to opportunities if not already there)
+  const { data: existing } = await supabase
+    .from("favorites")
+    .select("id")
+    .eq("source", "catastro")
+    .eq("property_id", propertyId)
+    .single();
+
+  if (!existing) {
+    const favoriteId = randomBytes(12).toString("hex");
+    await supabase.from("favorites").insert({
+      id: favoriteId,
+      assigned_user_id: user.id,
+      source: "catastro",
+      property_id: propertyId,
+    });
+  }
+
+  return NextResponse.json(
+    {
+      comment: {
+        id: comment.id,
+        body: comment.body,
+        createdAt: new Date(comment.created_at).toISOString(),
+        updatedAt: new Date(comment.updated_at).toISOString(),
+        authorId: comment.users?.id || user.id,
+        authorName: comment.users?.name || user.name,
+      },
+      propertyLiked: true,
+    },
+    { status: 201 }
+  );
 }
